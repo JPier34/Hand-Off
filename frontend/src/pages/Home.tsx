@@ -18,12 +18,14 @@ export default function Home() {
               <span className="w-2 h-2 rounded-full bg-hoff-accent animate-pulse shrink-0" />
               <span className="text-xs font-medium text-hoff-accent">Mock mode — no wallet needed</span>
             </div>
-            <button
-              onClick={() => navigate(`/pay/${MOCK_DEAL_ID}`)}
-              className="text-xs text-hoff-text-secondary hover:text-hoff-accent transition-colors font-mono shrink-0"
-            >
-              /pay/{String(MOCK_DEAL_ID)} →
-            </button>
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={() => navigate(`/view/${MOCK_DEAL_ID}`)}
+                className="text-xs text-hoff-text-secondary hover:text-hoff-accent transition-colors font-mono"
+              >
+                View Deal →
+              </button>
+            </div>
           </div>
         </div>
       )}

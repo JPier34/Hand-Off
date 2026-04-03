@@ -1,3 +1,6 @@
+#docs
+docs/
+
 # Dependencies
 node_modules/
 .pnpm-store/

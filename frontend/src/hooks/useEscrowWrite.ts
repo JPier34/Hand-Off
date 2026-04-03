@@ -120,7 +120,8 @@ function useRealClaimRefund(dealId: bigint) {
 // ─── Mock hooks ────────────────────────────────────────────────────────────────
 
 function useMockCreateDeal() {
-  const { trigger, ...state } = useMockTx(mockDeposit)
+  // Create does not change escrow state — deal stays PENDING until buyer funds
+  const { trigger, ...state } = useMockTx(() => {})
 
   function create(_amount: string, _description: string, _timeoutHours: number) {
     trigger()
