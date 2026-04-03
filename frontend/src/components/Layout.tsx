@@ -1,9 +1,11 @@
 import { useNavigate } from 'react-router-dom'
+import { useAccount } from 'wagmi'
 import { DynamicWidget } from '@dynamic-labs/sdk-react-core'
 import { WrongNetworkBanner } from './WrongNetworkBanner'
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
+  const { isConnected } = useAccount()
 
   return (
     <div className="hoff-page-bg">
@@ -19,16 +21,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/create')}
-              className="w-9 h-9 rounded-full bg-hoff-accent hover:bg-hoff-accent-hover flex items-center justify-center text-white transition-colors"
-              aria-label="Create new escrow"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-            </button>
+            {isConnected && (
+              <button
+                onClick={() => navigate('/create')}
+                className="w-9 h-9 rounded-full bg-hoff-accent hover:bg-hoff-accent-hover flex items-center justify-center text-white transition-colors"
+                aria-label="Create new escrow"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </button>
+            )}
             <DynamicWidget />
           </div>
         </div>

@@ -386,11 +386,11 @@ export default function BuyerPay() {
             {details.status === EscrowStatus.PENDING && (
               <Button
                 fullWidth
-                onClick={isConnected ? handleDeposit : undefined}
+                onClick={isConnected || MOCK_MODE ? handleDeposit : undefined}
                 loading={isPending || isConfirming}
                 disabled={isPending || isConfirming}
               >
-                {isConnected ? 'Fund Escrow' : 'Connect Wallet To Continue'}
+                {isConnected || MOCK_MODE ? 'Fund Escrow' : 'Connect Wallet To Continue'}
               </Button>
             )}
 
