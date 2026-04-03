@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #0D1818;
+    color: #FFFFFF;
+  }
+}
+
+@layer components {
+  .hoff-page-bg {
+    background:
+      radial-gradient(ellipse 55% 45% at 10% 80%, rgba(21, 40, 40, 0.8) 0%, transparent 65%),
+      radial-gradient(ellipse 40% 35% at 85% 90%, rgba(30, 53, 53, 0.5) 0%, transparent 65%),
+      #0D1818;
+    min-height: 100vh;
+  }
+}
