@@ -8,11 +8,11 @@ import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { CountdownTimer } from '@/components/escrow/CountdownTimer'
 import { useDealDetails } from '@/hooks/useEscrow'
-import { useDepositFunds } from '@/hooks/useEscrowWrite'
+import { useDepositFunds, useClaimRefund } from '@/hooks/useEscrowWrite'
 import { useQuote, useSwapAndDeposit } from '@/hooks/useTokenSwap'
 import { generateUnlockCode, hashUnlockCode } from '@/lib/code-gen'
 import { EscrowStatus } from '@/lib/types'
-import { MOCK_MODE } from '@/lib/mock'
+import { MOCK_MODE, mockExpire } from '@/lib/mock'
 import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 
 const PROTOCOL_FEE_BPS = 10n   // 0.1%
@@ -297,6 +297,7 @@ export default function BuyerPay() {
   // ─── Hooks (always called, rules of hooks) ─────────────────────────────────
   const { details, isLoading, isError }                                   = useDealDetails(dealId)
   const { deposit, isPending, isConfirming, isSuccess, isError: txError } = useDepositFunds(dealId)
+  const refund = useClaimRefund(dealId)
 
   const amountWei = details?.amount ?? 0n
   const { quotedIn, isLoading: quoteLoading, error: quoteError }         = useQuote(selectedToken, amountWei)
@@ -306,6 +307,10 @@ export default function BuyerPay() {
 
   // Determine overall success from either direct deposit or swap path
   const fundingSuccess = isSwapPath ? swap.isSuccess : isSuccess
+
+  // Expired detection (UC-9 / UC-17)
+  const isExpired = !!(details && details.status === EscrowStatus.FUNDED &&
+    Date.now() > Number(details.expiresAt) * 1000)
 
   // ─── Actions ────────────────────────────────────────────────────────────────
   function handleDeposit() {
@@ -482,15 +487,26 @@ export default function BuyerPay() {
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
                 <span className="text-xs text-hoff-text-tertiary">Reputation</span>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <svg key={i} width="12" height="12" viewBox="0 0 24 24"
-                      fill={i <= 4 ? '#2EBF7A' : 'none'}
-                      stroke="#2EBF7A" strokeWidth="2">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                <div className="flex items-center gap-3">
+                  {/* Positive */}
+                  <div className="flex items-center gap-1">
+                    <svg width="10" height="10" viewBox="0 0 24 24">
+                      <path d="M12 5L20 19H4L12 5Z" fill="#2EBF7A" stroke="#2EBF7A" strokeWidth="2" strokeLinejoin="round"/>
                     </svg>
-                  ))}
-                  <span className="text-xs text-hoff-text-tertiary ml-1.5">4.0</span>
+                    <span className="text-xs text-hoff-text-secondary">12</span>
+                  </div>
+                  {/* Neutral */}
+                  <div className="flex items-center gap-1">
+                    <span className="w-2.5 h-0.5 rounded-full bg-hoff-text-tertiary inline-block" />
+                    <span className="text-xs text-hoff-text-secondary">3</span>
+                  </div>
+                  {/* Negative */}
+                  <div className="flex items-center gap-1">
+                    <svg width="10" height="10" viewBox="0 0 24 24">
+                      <path d="M12 19L4 5H20L12 19Z" fill="#f87171" stroke="#f87171" strokeWidth="2" strokeLinejoin="round"/>
+                    </svg>
+                    <span className="text-xs text-hoff-text-secondary">1</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -524,10 +540,85 @@ export default function BuyerPay() {
               </Button>
             )}
 
-            {details.status === EscrowStatus.FUNDED && (
+            {/* FUNDED — not expired */}
+            {details.status === EscrowStatus.FUNDED && !isExpired && (
               <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3">
                 <p className="text-sm text-amber-400 text-center">This escrow has already been funded.</p>
               </div>
+            )}
+
+            {/* FUNDED + expired — UC-9: Claim Refund */}
+            {isExpired && (
+              <div className="space-y-3">
+                <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3 space-y-1">
+                  <p className="text-sm text-red-400 font-medium text-center">This HandOff has expired</p>
+                  <p className="text-xs text-red-400/70 text-center">
+                    The seller did not enter the code in time. You can reclaim your funds.
+                  </p>
+                </div>
+
+                {refund.isPending && (
+                  <div className="flex items-center gap-2 text-amber-400 bg-amber-900/20 px-4 py-3 rounded-xl border border-amber-800/30">
+                    <Spinner size="sm" />
+                    <span className="text-sm">Confirm refund in your wallet…</span>
+                  </div>
+                )}
+                {refund.isConfirming && (
+                  <div className="flex items-center gap-2 text-hoff-accent bg-hoff-accent-muted px-4 py-3 rounded-xl">
+                    <Spinner size="sm" />
+                    <span className="text-sm">Refund processing on-chain…</span>
+                  </div>
+                )}
+                {refund.isError && (
+                  <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
+                    Refund failed. Try again.
+                  </div>
+                )}
+
+                {!refund.isSuccess && (
+                  <Button
+                    fullWidth
+                    variant="danger"
+                    onClick={() => refund.claimRefund()}
+                    loading={refund.isPending || refund.isConfirming}
+                  >
+                    Claim Refund — {formatEther(details.amount)} ETH
+                  </Button>
+                )}
+
+                {refund.isSuccess && (
+                  <div className="bg-hoff-accent/10 border border-hoff-accent/30 rounded-xl px-4 py-3 text-center space-y-1">
+                    <p className="text-sm text-hoff-accent font-medium">Refund successful</p>
+                    <p className="text-xs text-hoff-text-tertiary">{formatEther(details.amount)} ETH returned to your wallet</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* REFUNDED (already claimed, e.g. revisiting the page) */}
+            {details.status === EscrowStatus.REFUNDED && (
+              <div className="space-y-4">
+                <div className="flex flex-col items-center gap-3 pt-2">
+                  <div className="w-14 h-14 rounded-full bg-hoff-elevated border-2 border-hoff-text-tertiary/40 flex items-center justify-center">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6B7B7B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
+                    </svg>
+                  </div>
+                  <p className="text-sm text-hoff-text-tertiary text-center">
+                    This HandOff was refunded. Funds have been returned to the buyer.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Mock debug: simulate expiry — poll picks up the change within 500ms */}
+            {MOCK_MODE && details.status === EscrowStatus.FUNDED && !isExpired && (
+              <button
+                onClick={() => mockExpire()}
+                className="w-full text-xs text-hoff-text-tertiary hover:text-amber-400 transition-colors py-1 text-center"
+              >
+                [Mock] Simulate expiry
+              </button>
             )}
 
             <p className="text-xs text-hoff-text-tertiary text-center pb-4">

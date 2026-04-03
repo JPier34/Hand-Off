@@ -11,8 +11,9 @@ const MOCK_BUYER  = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as Address
 const ZERO        = '0x0000000000000000000000000000000000000000' as Address
 
 // Module-level state — simulates on-chain escrow across components
-let _status: EscrowStatus = EscrowStatus.PENDING
-let _buyer:  Address      = ZERO
+let _status:    EscrowStatus = EscrowStatus.PENDING
+let _buyer:     Address      = ZERO
+let _expiresAt: bigint       = BigInt(Math.floor(Date.now() / 1000) + 86400 * 7)
 
 export function getMockDeal(): DealDetails {
   return {
@@ -20,7 +21,7 @@ export function getMockDeal(): DealDetails {
     buyer:       _buyer,
     amount:      parseEther('0.05'),
     status:      _status,
-    expiresAt:   BigInt(Math.floor(Date.now() / 1000) + 86400 * 7),
+    expiresAt:   _expiresAt,
     description: 'iPhone 14 Pro – Facebook Marketplace',
   }
 }
@@ -28,4 +29,5 @@ export function getMockDeal(): DealDetails {
 export function mockDeposit() { _status = EscrowStatus.FUNDED;   _buyer = MOCK_BUYER }
 export function mockRelease() { _status = EscrowStatus.COMPLETE }
 export function mockRefund()  { _status = EscrowStatus.REFUNDED }
-export function resetMock()   { _status = EscrowStatus.PENDING;  _buyer = ZERO }
+export function mockExpire()  { _expiresAt = BigInt(Math.floor(Date.now() / 1000) - 60) } // expired 1 min ago
+export function resetMock()   { _status = EscrowStatus.PENDING; _buyer = ZERO; _expiresAt = BigInt(Math.floor(Date.now() / 1000) + 86400 * 7) }
