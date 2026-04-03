@@ -3,6 +3,13 @@ node_modules/
 .pnpm-store/
 
 # Environment files
+# Build output
+dist/
+dist-ssr/
+frontend/dist/
+frontend/.vite/
+
+# Environment variables
 .env
 .env.local
 .env.*.local
@@ -36,8 +43,8 @@ frontend/.vite/
 /.claude
 skills-lock.json
 .postcss-cache/
+# TypeScript build info
 *.tsbuildinfo
-tsconfig.tsbuildinfo
 
 # Logs
 *.log
@@ -47,9 +54,23 @@ yarn-error.log*
 pnpm-debug.log*
 
 # OS / editor
+# Lock files
+package-lock.json
+
+# Editor / OS
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
 *.swp
 *.swo
+*.suo
+
+# Test coverage
+coverage/
+contracts/coverage/
+
+# AI files
+CLAUDE.md
+.claude/
+Screenshots/
