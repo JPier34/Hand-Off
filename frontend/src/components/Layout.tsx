@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import { DynamicWidget } from '@dynamic-labs/sdk-react-core'
 import { WrongNetworkBanner } from './WrongNetworkBanner'
+import { MOCK_MODE } from '@/lib/mock'
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
@@ -21,7 +22,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="flex items-center gap-3">
-            {isConnected && (
+            {(isConnected || MOCK_MODE) && (
               <button
                 onClick={() => navigate('/create')}
                 className="w-9 h-9 rounded-full bg-hoff-accent hover:bg-hoff-accent-hover flex items-center justify-center text-white transition-colors"
