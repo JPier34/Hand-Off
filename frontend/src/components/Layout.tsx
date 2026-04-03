@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-// TODO: replace with Dynamic connect button once @dynamic-labs-sdk is wired up
+import { DynamicWidget } from '@dynamic-labs/sdk-react-core'
 import { WrongNetworkBanner } from './WrongNetworkBanner'
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -29,10 +29,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
             </button>
-            {/* TODO: <DynamicWidget /> or equivalent once Dynamic is installed */}
-            <button className="h-9 px-4 rounded-full bg-hoff-accent hover:bg-hoff-accent-hover text-white text-sm font-medium transition-colors">
-              Connect
-            </button>
+            <DynamicWidget />
           </div>
         </div>
       </header>
