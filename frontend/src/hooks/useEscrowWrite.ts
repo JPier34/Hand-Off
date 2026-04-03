@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { parseEther, decodeEventLog } from 'viem'
 import { MANAGER_ABI, ESCROW_MANAGER_ADDRESS } from '@/lib/constants'
-import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund } from '@/lib/mock'
+import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
 
 // ─── Mock TX state helpers ─────────────────────────────────────────────────────
 // Simulates: idle → isPending (1s) → isConfirming (1.5s) → isSuccess
@@ -154,6 +154,57 @@ function useMockClaimRefund(_dealId: bigint) {
   return { claimRefund, ...state }
 }
 
+function useMockCancelDeal(_dealId: bigint) {
+  const { trigger, ...state } = useMockTx(mockCancel)
+
+  function cancel() { trigger() }
+
+  return { cancel, ...state }
+}
+
+function useMockEditDeal(_dealId: bigint) {
+  const { trigger, ...state } = useMockTx(() => {})
+  const [editAmount, setEditAmount] = useState<bigint | null>(null)
+  const [editDesc, setEditDesc] = useState<string | null>(null)
+
+  function edit(amount: bigint, description: string) {
+    setEditAmount(amount)
+    setEditDesc(description)
+    trigger()
+  }
+
+  // Apply the edit after mock TX succeeds
+  if (state.isSuccess && editAmount !== null && editDesc !== null) {
+    mockEditDeal(editAmount, editDesc)
+  }
+
+  return { edit, ...state }
+}
+
+// ─── Real stubs (cancel / edit — needs contract) ──────────────────────────────
+
+function useRealCancelDeal(_dealId: bigint) {
+  const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+
+  function cancel() {
+    writeContract({
+      address: ESCROW_MANAGER_ADDRESS,
+      abi: MANAGER_ABI,
+      functionName: 'cancelDeal',
+      args: [_dealId],
+    })
+  }
+
+  return { cancel, isPending, isConfirming, isSuccess, isError, error }
+}
+
+function useRealEditDeal(_dealId: bigint) {
+  const [state] = useState({ isPending: false, isConfirming: false, isSuccess: false, isError: false, error: null as Error | null })
+  function edit(_amount: bigint, _description: string) { /* needs contract */ }
+  return { edit, ...state }
+}
+
 // ─── Public exports ─────────────────────────────────────────────────────────────
 // Both real and mock hooks are always called; we pick the right result.
 
@@ -178,5 +229,17 @@ export function useReleaseEscrow(dealId: bigint) {
 export function useClaimRefund(dealId: bigint) {
   const real = useRealClaimRefund(dealId)
   const mock = useMockClaimRefund(dealId)
+  return MOCK_MODE ? mock : real
+}
+
+export function useCancelDeal(dealId: bigint) {
+  const real = useRealCancelDeal(dealId)
+  const mock = useMockCancelDeal(dealId)
+  return MOCK_MODE ? mock : real
+}
+
+export function useEditDeal(dealId: bigint) {
+  const real = useRealEditDeal(dealId)
+  const mock = useMockEditDeal(dealId)
   return MOCK_MODE ? mock : real
 }

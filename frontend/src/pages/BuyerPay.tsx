@@ -13,11 +13,12 @@ import { useQuote, useSwapAndDeposit } from '@/hooks/useTokenSwap'
 import { generateUnlockCode, hashUnlockCode } from '@/lib/code-gen'
 import { EscrowStatus } from '@/lib/types'
 import { MOCK_MODE, mockExpire } from '@/lib/mock'
-import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
+import { IntroScreen } from '@/components/escrow/IntroScreen'
+import { TOKENS, TOKEN_KEYS, type TokenKey, payoutSymbol, payoutDecimals } from '@/lib/tokens'
+import { useUsdValue } from '@/hooks/useTokenPrice'
 
 const PROTOCOL_FEE_BPS  = 10n   // 0.1%
 const EST_GAS           = 800_000_000_000_000n // ~0.0008 ETH placeholder
-const ETH_USD_MOCK      = 1850 // placeholder — wire to Uniswap or oracle later
 const DEFAULT_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 function isValidDealId(param: string | undefined): param is string {
@@ -296,6 +297,7 @@ export default function BuyerPay() {
   const { isConnected } = useAccount()
   const [unlockCode, setUnlockCode] = useState<string | null>(null)
   const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
+  const [showIntro, setShowIntro] = useState(true)
 
   // ─── Guard ──────────────────────────────────────────────────────────────────
   if (!isValidDealId(dealIdParam)) {
@@ -319,6 +321,7 @@ export default function BuyerPay() {
   const refund = useClaimRefund(dealId)
 
   const amountWei = details?.amount ?? 0n
+  const usdValue  = useUsdValue(amountWei, details?.payoutToken ?? null)
   const { quotedIn, isLoading: quoteLoading, error: quoteError }         = useQuote(selectedToken, amountWei)
   const swap                                                              = useSwapAndDeposit(dealId, selectedToken)
 
@@ -360,6 +363,15 @@ export default function BuyerPay() {
     )
   }
 
+  // ─── Intro screen ──────────────────────────────────────────────────────────
+  if (showIntro) {
+    return (
+      <Layout>
+        <IntroScreen onContinue={() => setShowIntro(false)} />
+      </Layout>
+    )
+  }
+
   // ─── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
@@ -368,6 +380,11 @@ export default function BuyerPay() {
       </Layout>
     )
   }
+
+  // ─── Token display helpers ───────────────────────────────────────────────────
+  const sym  = details ? payoutSymbol(details.payoutToken) : 'ETH'
+  const dec  = details ? payoutDecimals(details.payoutToken) : 18
+  const fmt  = (v: bigint) => formatUnits(v, dec)
 
   // ─── Fee calc ───────────────────────────────────────────────────────────────
   const protocolFee = details ? (details.amount * PROTOCOL_FEE_BPS) / 10_000n : 0n
@@ -456,28 +473,28 @@ export default function BuyerPay() {
                   <TokenSelector selected={selectedToken} onChange={setSelectedToken} />
                 ) : (
                   <span className="text-xs font-medium text-hoff-text-secondary border border-hoff-text-tertiary/30 px-2.5 py-1 rounded-lg">
-                    ETH
+                    {sym}
                   </span>
                 )}
               </div>
 
               <div>
                 <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
-                  {formatEther(details.amount)}
+                  {fmt(details.amount)}
                 </span>
                 <p className="text-xs text-hoff-text-tertiary mt-1">
-                  ≈ ${(parseFloat(formatEther(details.amount)) * ETH_USD_MOCK).toFixed(2)} USD
+                  {usdValue ? `≈ $${usdValue} USD` : 'Fetching price...'}
                 </p>
               </div>
             </div>
 
             {/* Fee breakdown card */}
             <div className="bg-hoff-surface rounded-2xl p-5 space-y-1">
-              <FeeRow label="Escrow Amount" value={`${formatEther(details.amount)} ETH`} />
-              <FeeRow label="Protocol Fee (0.1%)" value={`${formatEther(protocolFee)} ETH`} />
+              <FeeRow label="Escrow Amount" value={`${fmt(details.amount)} ${sym}`} />
+              <FeeRow label="Protocol Fee (0.1%)" value={`${fmt(protocolFee)} ${sym}`} />
               <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
               <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
-                <FeeRow label="Total" value={`${formatEther(total)} ETH`} highlight />
+                <FeeRow label="Total" value={`${fmt(total)} ${sym}`} highlight />
               </div>
             </div>
 
@@ -615,14 +632,14 @@ export default function BuyerPay() {
                     onClick={() => refund.claimRefund()}
                     loading={refund.isPending || refund.isConfirming}
                   >
-                    Claim Refund — {formatEther(details.amount)} ETH
+                    Claim Refund — {fmt(details.amount)} {sym}
                   </Button>
                 )}
 
                 {refund.isSuccess && (
                   <div className="bg-hoff-accent/10 border border-hoff-accent/30 rounded-xl px-4 py-3 text-center space-y-1">
                     <p className="text-sm text-hoff-accent font-medium">Refund successful</p>
-                    <p className="text-xs text-hoff-text-tertiary">{formatEther(details.amount)} ETH returned to your wallet</p>
+                    <p className="text-xs text-hoff-text-tertiary">{fmt(details.amount)} {sym} returned to your wallet</p>
                   </div>
                 )}
               </div>
@@ -639,6 +656,22 @@ export default function BuyerPay() {
                   </div>
                   <p className="text-sm text-hoff-text-tertiary text-center">
                     This HandOff was refunded. Funds have been returned to the buyer.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* CANCELED — UC-3: payment link inactive */}
+            {details.status === EscrowStatus.CANCELED && (
+              <div className="space-y-4">
+                <div className="flex flex-col items-center gap-3 pt-2">
+                  <div className="w-14 h-14 rounded-full bg-red-900/30 border-2 border-red-500/40 flex items-center justify-center">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </div>
+                  <p className="text-sm text-hoff-text-tertiary text-center">
+                    This HandOff has been canceled by the seller.
                   </p>
                 </div>
               </div>

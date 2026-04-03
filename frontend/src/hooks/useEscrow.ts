@@ -28,6 +28,7 @@ function useRealDealDetails(dealId: bigint) {
         status:      raw[3] as EscrowStatus,
         expiresAt:   raw[4],
         description: raw[5],
+        payoutToken: null, // TODO: read from contract when ABI includes payoutToken
       }
     : undefined
 

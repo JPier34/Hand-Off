@@ -54,4 +54,11 @@ export const MANAGER_ABI = [
     inputs: [{ name: 'dealId', type: 'uint256' }],
     outputs: [],
   },
+  {
+    name: 'cancelDeal',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'dealId', type: 'uint256' }],
+    outputs: [],
+  },
 ] as const

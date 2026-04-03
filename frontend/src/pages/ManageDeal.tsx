@@ -1,18 +1,19 @@
 import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
-import { formatEther } from 'viem'
+import { formatEther, formatUnits, parseEther } from 'viem'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { CountdownTimer } from '@/components/escrow/CountdownTimer'
 import { useDealDetails } from '@/hooks/useEscrow'
-import { useReleaseEscrow } from '@/hooks/useEscrowWrite'
+import { useReleaseEscrow, useCancelDeal, useEditDeal } from '@/hooks/useEscrowWrite'
 import { EscrowStatus } from '@/lib/types'
 import { MOCK_MODE } from '@/lib/mock'
-
-const ETH_USD = 2000   // rough estimate for display only
+import { IntroScreen } from '@/components/escrow/IntroScreen'
+import { payoutSymbol, payoutDecimals } from '@/lib/tokens'
+import { useUsdValue } from '@/hooks/useTokenPrice'
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 function isValidDealId(param: string | undefined): param is string {
@@ -21,10 +22,6 @@ function isValidDealId(param: string | undefined): param is string {
   return Number.isInteger(n) && n > 0
 }
 
-function usdEstimate(ethAmount: bigint): string {
-  const usd = parseFloat(formatEther(ethAmount)) * ETH_USD
-  return usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
 
 function expiryProgress(expiresAtSec: bigint): number {
   const remainingMs = Number(expiresAtSec) * 1000 - Date.now()
@@ -111,10 +108,13 @@ interface ViewEscrowProps {
   seller: string
   status: EscrowStatus
   description: string
+  sym: string
+  fmt: (v: bigint) => string
+  usdLabel: string
   onUnlock: () => void
 }
 
-function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, description, onUnlock }: ViewEscrowProps) {
+function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, description, sym, fmt, usdLabel, onUnlock }: ViewEscrowProps) {
   const navigate = useNavigate()
   const payLink = `${window.location.origin}/pay/${dealIdParam}`
   const progress = expiryProgress(expiresAt)
@@ -158,15 +158,15 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, descri
             Amount Due
           </p>
           <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            ETH
+            {sym}
           </span>
         </div>
 
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
-            {formatEther(amount)}
+            {fmt(amount)}
           </span>
-          <p className="text-xs text-hoff-text-tertiary mt-1">≈ ${usdEstimate(amount)}</p>
+          <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
 
         {/* Progress bar */}
@@ -280,6 +280,9 @@ interface ClaimFundsProps {
   amount: bigint
   expiresAt: bigint
   description: string
+  sym: string
+  fmt: (v: bigint) => string
+  usdLabel: string
   onBack: () => void
   onRelease: (code: string) => void
   isPending: boolean
@@ -288,7 +291,7 @@ interface ClaimFundsProps {
 }
 
 function ClaimFundsView({
-  dealIdParam, amount, expiresAt, description,
+  dealIdParam, amount, expiresAt, description, sym, fmt, usdLabel,
   onBack, onRelease, isPending, isConfirming, isError,
 }: ClaimFundsProps) {
   const [chars, setChars] = useState(['', '', '', ''])
@@ -332,14 +335,14 @@ function ClaimFundsView({
             You Will Receive
           </p>
           <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            ETH
+            {sym}
           </span>
         </div>
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
-            {formatEther(amount)}
+            {fmt(amount)}
           </span>
-          <p className="text-xs text-hoff-text-tertiary mt-1">≈ ${usdEstimate(amount)}</p>
+          <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
       </div>
 
@@ -411,9 +414,12 @@ interface CompletedProps {
   dealIdParam: string
   amount: bigint
   description: string
+  sym: string
+  fmt: (v: bigint) => string
+  usdLabel: string
 }
 
-function CompletedView({ dealIdParam, amount, description }: CompletedProps) {
+function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel }: CompletedProps) {
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
   const etherscanBase = 'https://sepolia.basescan.org/tx/'
@@ -450,14 +456,14 @@ function CompletedView({ dealIdParam, amount, description }: CompletedProps) {
             You Will Receive
           </p>
           <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            ETH
+            {sym}
           </span>
         </div>
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
-            {formatEther(amount)}
+            {fmt(amount)}
           </span>
-          <p className="text-xs text-hoff-text-tertiary mt-1">≈ ${usdEstimate(amount)}</p>
+          <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
       </div>
 
@@ -530,8 +536,14 @@ function CompletedView({ dealIdParam, amount, description }: CompletedProps) {
 
 export default function ManageDeal() {
   const { dealId: dealIdParam } = useParams<{ dealId: string }>()
+  const navigate = useNavigate()
   const { address } = useAccount()
   const [showCodeEntry, setShowCodeEntry] = useState(false)
+  const [showIntro, setShowIntro] = useState(true)
+  const [showEdit, setShowEdit] = useState(false)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [editAmount, setEditAmount] = useState('')
+  const [editDescription, setEditDescription] = useState('')
 
   if (!isValidDealId(dealIdParam)) {
     return (
@@ -549,6 +561,15 @@ export default function ManageDeal() {
 
   const { details, isLoading, isError }                                            = useDealDetails(dealId)
   const { release, isPending, isConfirming, isSuccess, isError: releaseError }     = useReleaseEscrow(dealId)
+  const cancelDeal = useCancelDeal(dealId)
+  const editDeal   = useEditDeal(dealId)
+
+  // Token display helpers
+  const sym = details ? payoutSymbol(details.payoutToken) : 'ETH'
+  const dec = details ? payoutDecimals(details.payoutToken) : 18
+  const fmt = (v: bigint) => formatUnits(v, dec)
+  const usdRaw = useUsdValue(details?.amount ?? 0n, details?.payoutToken ?? null)
+  const usdLabel = usdRaw ? `≈ $${usdRaw} USD` : ''
 
   // In mock mode there's no connected wallet — treat the user as the seller
   const isSeller = MOCK_MODE || !!(address && details && address.toLowerCase() === details.seller.toLowerCase())
@@ -575,6 +596,15 @@ export default function ManageDeal() {
     )
   }
 
+  // ─── Intro screen ──────────────────────────────────────────────────────────
+  if (showIntro) {
+    return (
+      <Layout>
+        <IntroScreen onContinue={() => setShowIntro(false)} />
+      </Layout>
+    )
+  }
+
   // ─── Completed (after successful release OR on-chain COMPLETE) ──────────────
   if (isSuccess || details.status === EscrowStatus.COMPLETE) {
     return (
@@ -583,6 +613,9 @@ export default function ManageDeal() {
           dealIdParam={dealIdParam}
           amount={details.amount}
           description={details.description}
+          sym={sym}
+          fmt={fmt}
+          usdLabel={usdLabel}
         />
       </Layout>
     )
@@ -609,9 +642,178 @@ export default function ManageDeal() {
     )
   }
 
-  // ─── PENDING — waiting for buyer ────────────────────────────────────────────
+  // ─── CANCELED ───────────────────────────────────────────────────────────────
+  if (details.status === EscrowStatus.CANCELED) {
+    return (
+      <Layout>
+        <main className="max-w-sm mx-auto px-4 py-6 space-y-5">
+          <div className="flex flex-col items-center gap-3 pt-2">
+            <div className="w-16 h-16 rounded-full bg-red-900/30 border-2 border-red-500/40 flex items-center justify-center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-hoff-text-primary text-center">HandOff Canceled</h1>
+            <p className="text-sm text-hoff-text-tertiary text-center">
+              This deal was canceled before the buyer funded it. No funds were moved.
+            </p>
+          </div>
+          <Button fullWidth variant="ghost" onClick={() => navigate('/')}>
+            Back to Home
+          </Button>
+        </main>
+      </Layout>
+    )
+  }
+
+  // ─── PENDING — waiting for buyer + edit/cancel ──────────────────────────────
   if (details.status === EscrowStatus.PENDING) {
     const payLink = `${window.location.origin}/pay/${dealIdParam}`
+
+    // ── Cancel confirmation ───────────────────────────────────────────────────
+    if (showCancelConfirm) {
+      return (
+        <Layout>
+          <main className="max-w-sm mx-auto px-4 py-6 space-y-4">
+            <h1 className="text-2xl font-bold text-hoff-text-primary">Cancel HandOff?</h1>
+            <p className="text-sm text-hoff-text-tertiary">
+              This will permanently cancel the deal. The payment link will stop working.
+              No funds have been deposited, so nothing needs to be refunded.
+            </p>
+
+            {cancelDeal.isPending && (
+              <div className="flex items-center gap-2 text-amber-400 bg-amber-900/20 px-4 py-3 rounded-xl border border-amber-800/30">
+                <Spinner size="sm" /><span className="text-sm">Confirm in your wallet…</span>
+              </div>
+            )}
+            {cancelDeal.isConfirming && (
+              <div className="flex items-center gap-2 text-hoff-accent bg-hoff-accent-muted px-4 py-3 rounded-xl">
+                <Spinner size="sm" /><span className="text-sm">Canceling on-chain…</span>
+              </div>
+            )}
+            {cancelDeal.isError && (
+              <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
+                Cancel failed. Try again.
+              </div>
+            )}
+
+            <Button
+              fullWidth
+              variant="danger"
+              onClick={() => cancelDeal.cancel()}
+              loading={cancelDeal.isPending || cancelDeal.isConfirming}
+            >
+              Yes, Cancel This HandOff
+            </Button>
+            <Button
+              fullWidth
+              variant="ghost"
+              onClick={() => setShowCancelConfirm(false)}
+            >
+              Go Back
+            </Button>
+          </main>
+        </Layout>
+      )
+    }
+
+    // ── Edit form ─────────────────────────────────────────────────────────────
+    if (showEdit) {
+      const amountValid = (() => {
+        if (!editAmount) return false
+        try { return parseEther(editAmount as `${number}`) > 0n } catch { return false }
+      })()
+
+      return (
+        <Layout>
+          <main className="max-w-sm mx-auto px-4 py-6 space-y-3">
+            <button
+              onClick={() => setShowEdit(false)}
+              className="flex items-center gap-1.5 text-xs text-hoff-text-tertiary hover:text-hoff-text-secondary transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+              Back
+            </button>
+
+            <h1 className="text-2xl font-bold text-hoff-text-primary">Edit HandOff</h1>
+
+            {/* Amount */}
+            <div className="bg-hoff-surface rounded-2xl p-5">
+              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-2">Amount</p>
+              <div className="flex items-start justify-between gap-3">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={editAmount}
+                  onChange={e => setEditAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full text-4xl font-semibold bg-transparent text-hoff-text-primary placeholder:text-hoff-text-tertiary/40 focus:outline-none"
+                />
+                <span className="text-hoff-text-secondary font-medium text-sm shrink-0 mt-3">{sym}</span>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="bg-hoff-surface rounded-2xl p-5">
+              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-3">
+                Description <span className="normal-case font-normal">(Optional)</span>
+              </p>
+              <input
+                type="text"
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                placeholder="E.g. iPhone 14 Pro"
+                className="w-full bg-transparent text-hoff-text-primary text-sm placeholder:text-hoff-text-tertiary focus:outline-none"
+              />
+            </div>
+
+            {/* TX states */}
+            {editDeal.isPending && (
+              <div className="flex items-center gap-2 text-amber-400 bg-amber-900/20 px-4 py-3 rounded-xl border border-amber-800/30">
+                <Spinner size="sm" /><span className="text-sm">Confirm in your wallet…</span>
+              </div>
+            )}
+            {editDeal.isConfirming && (
+              <div className="flex items-center gap-2 text-hoff-accent bg-hoff-accent-muted px-4 py-3 rounded-xl">
+                <Spinner size="sm" /><span className="text-sm">Updating on-chain…</span>
+              </div>
+            )}
+            {editDeal.isSuccess && (
+              <div className="bg-hoff-accent/10 border border-hoff-accent/30 rounded-xl px-4 py-3 text-center">
+                <p className="text-sm text-hoff-accent font-medium">Deal updated!</p>
+              </div>
+            )}
+            {editDeal.isError && (
+              <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
+                Update failed. Try again.
+              </div>
+            )}
+
+            <Button
+              fullWidth
+              onClick={() => {
+                if (!amountValid) return
+                editDeal.edit(parseEther(editAmount as `${number}`), editDescription)
+              }}
+              disabled={!amountValid || editDeal.isPending || editDeal.isConfirming}
+              loading={editDeal.isPending || editDeal.isConfirming}
+            >
+              Save Changes
+            </Button>
+
+            {editDeal.isSuccess && (
+              <Button fullWidth variant="ghost" onClick={() => setShowEdit(false)}>
+                Done
+              </Button>
+            )}
+          </main>
+        </Layout>
+      )
+    }
+
+    // ── Default PENDING view ──────────────────────────────────────────────────
     return (
       <Layout>
         <main className="max-w-sm mx-auto px-4 py-4 space-y-3">
@@ -633,10 +835,10 @@ export default function ManageDeal() {
           <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">Amount</p>
-              <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">ETH</span>
+              <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">{sym}</span>
             </div>
             <span className="text-5xl font-bold text-hoff-text-primary tabular-nums block">
-              {formatEther(details.amount)}
+              {fmt(details.amount)}
             </span>
             <div className="space-y-1.5 pt-1 border-t border-hoff-brand">
               <div className="flex items-center justify-between">
@@ -681,6 +883,30 @@ export default function ManageDeal() {
           >
             Copy payment link
           </button>
+
+          {/* Edit + Cancel (UC-2 / UC-3 — only for seller, only PENDING) */}
+          {isSeller && (
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="ghost"
+                fullWidth
+                onClick={() => {
+                  setEditAmount(formatEther(details.amount))
+                  setEditDescription(details.description)
+                  setShowEdit(true)
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="danger"
+                fullWidth
+                onClick={() => setShowCancelConfirm(true)}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
         </main>
       </Layout>
     )
@@ -695,6 +921,9 @@ export default function ManageDeal() {
           amount={details.amount}
           expiresAt={details.expiresAt}
           description={details.description}
+          sym={sym}
+          fmt={fmt}
+          usdLabel={usdLabel}
           onBack={() => setShowCodeEntry(false)}
           onRelease={(code) => release(code)}
           isPending={isPending}
@@ -714,6 +943,9 @@ export default function ManageDeal() {
         seller={details.seller}
         status={details.status}
         description={details.description}
+        sym={sym}
+        fmt={fmt}
+        usdLabel={usdLabel}
         onUnlock={() => isSeller ? setShowCodeEntry(true) : undefined}
       />
     </Layout>

@@ -21,6 +21,11 @@ const config: Record<EscrowStatus, { label: string; dot: string; pill: string }>
     dot:  'bg-hoff-text-tertiary',
     pill: 'bg-hoff-elevated text-hoff-text-tertiary',
   },
+  [EscrowStatus.CANCELED]: {
+    label: 'Canceled',
+    dot:  'bg-red-400',
+    pill: 'bg-red-900/30 text-red-400',
+  },
 }
 
 export function StatusBadge({ status }: { status: EscrowStatus }) {

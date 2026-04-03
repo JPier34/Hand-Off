@@ -50,3 +50,24 @@ export const ETH_ADDRESS = '0x0000000000000000000000000000000000000000' as Addre
 
 // WETH on Base Sepolia
 export const WETH_ADDRESS = '0x4200000000000000000000000000000000000006' as Address
+
+// Look up token info by on-chain address (null = native ETH)
+export function getTokenByAddress(addr: Address | null): Token {
+  if (!addr) return TOKENS.ETH
+  const lower = addr.toLowerCase()
+  for (const key of TOKEN_KEYS) {
+    const t = TOKENS[key]
+    if (t.address && t.address.toLowerCase() === lower) return t
+  }
+  return { symbol: addr.slice(0, 6), name: 'Unknown', decimals: 18, address: addr, mockRate: 1n }
+}
+
+// Get display symbol for a deal's payoutToken
+export function payoutSymbol(payoutToken: Address | null): string {
+  return getTokenByAddress(payoutToken).symbol
+}
+
+// Get decimals for a deal's payoutToken
+export function payoutDecimals(payoutToken: Address | null): number {
+  return getTokenByAddress(payoutToken).decimals
+}
