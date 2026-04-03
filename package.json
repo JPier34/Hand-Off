@@ -1,0 +1,21 @@
+{
+  "name": "handoff-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HandOff — Trustless escrow for in-person C2C transactions (ETHGlobal Cannes 2026)",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "install:all": "pnpm install",
+    "compile": "pnpm --filter contracts compile",
+    "test:contracts": "pnpm --filter contracts test",
+    "dev": "pnpm --filter frontend dev",
+    "build": "pnpm --filter frontend build",
+    "typecheck": "pnpm --filter frontend typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
