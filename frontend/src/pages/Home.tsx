@@ -20,16 +20,10 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <button
-                onClick={() => navigate(`/pay/${MOCK_DEAL_ID}`)}
+                onClick={() => navigate(`/view/${MOCK_DEAL_ID}`)}
                 className="text-xs text-hoff-text-secondary hover:text-hoff-accent transition-colors font-mono"
               >
-                Buyer →
-              </button>
-              <button
-                onClick={() => navigate(`/deal/${MOCK_DEAL_ID}`)}
-                className="text-xs text-hoff-text-secondary hover:text-hoff-accent transition-colors font-mono"
-              >
-                Seller →
+                View Deal →
               </button>
             </div>
           </div>

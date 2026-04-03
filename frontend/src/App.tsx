@@ -4,6 +4,7 @@ import Landing from '@/pages/Landing'
 import CreateDeal from '@/pages/CreateDeal'
 import BuyerPay from '@/pages/BuyerPay'
 import ManageDeal from '@/pages/ManageDeal'
+import ViewExisting from '@/pages/ViewExisting'
 import { Layout } from '@/components/Layout'
 import { Card } from '@/components/ui/Card'
 
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/landing" element={<Landing />} />
         <Route path="/create" element={<CreateDeal />} />
+        <Route path="/view/:dealId" element={<ViewExisting />} />
         <Route path="/pay/:dealId" element={<BuyerPay />} />
         <Route path="/deal/:dealId" element={<ManageDeal />} />
         <Route path="/escrows" element={<StubPage title="Your Escrows" />} />
