@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+frontend/handoff/node_modules/
+
+# Build output
+dist/
+dist-ssr/
+frontend/handoff/dist/
+
+# Environment variables
+.env
+.env.local
+frontend/handoff/.env
+frontend/handoff/.env.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.sw?
+
+# AI pair-programming files
+CLAUDE.md
+.claude/
