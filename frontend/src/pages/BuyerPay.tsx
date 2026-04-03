@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
-import { formatEther } from 'viem'
+import { formatEther, formatUnits } from 'viem'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
@@ -9,9 +9,11 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { CountdownTimer } from '@/components/escrow/CountdownTimer'
 import { useDealDetails } from '@/hooks/useEscrow'
 import { useDepositFunds } from '@/hooks/useEscrowWrite'
+import { useQuote, useSwapAndDeposit } from '@/hooks/useTokenSwap'
 import { generateUnlockCode, hashUnlockCode } from '@/lib/code-gen'
 import { EscrowStatus } from '@/lib/types'
 import { MOCK_MODE } from '@/lib/mock'
+import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 
 const PROTOCOL_FEE_BPS = 10n   // 0.1%
 const EST_GAS           = 800_000_000_000_000n // ~0.0008 ETH placeholder
@@ -31,6 +33,109 @@ function FeeRow({ label, value, highlight = false }: { label: string; value: str
       <span className={`text-xs font-mono ${highlight ? 'text-hoff-text-primary font-semibold' : 'text-hoff-text-secondary'}`}>
         {value}
       </span>
+    </div>
+  )
+}
+
+// ─── Token selector ───────────────────────────────────────────────────────────
+
+interface TokenSelectorProps {
+  selected: TokenKey
+  onChange: (key: TokenKey) => void
+}
+
+function TokenSelector({ selected, onChange }: TokenSelectorProps) {
+  return (
+    <div className="relative shrink-0">
+      <select
+        value={selected}
+        onChange={e => onChange(e.target.value)}
+        className="h-10 pl-3 pr-8 rounded-xl bg-hoff-elevated border border-hoff-brand text-hoff-text-primary text-lg font-medium appearance-none cursor-pointer focus:outline-none focus:border-hoff-accent/60 transition-colors"
+      >
+        {TOKEN_KEYS.map(key => (
+          <option key={key} value={key} className="bg-hoff-elevated">
+            {TOKENS[key].symbol}
+          </option>
+        ))}
+      </select>
+      <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7B7B" strokeWidth="2.5" strokeLinecap="round">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+  )
+}
+
+// ─── Swap preview card ────────────────────────────────────────────────────────
+
+interface SwapPreviewProps {
+  tokenKey: TokenKey
+  quotedIn: bigint | undefined
+  amountOutWei: bigint
+  isLoading: boolean
+  error: string | null
+}
+
+function SwapPreview({ tokenKey, quotedIn, amountOutWei, isLoading, error }: SwapPreviewProps) {
+  if (tokenKey === 'ETH') return null
+
+  const token = TOKENS[tokenKey]
+
+  return (
+    <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
+      <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+        Swap Preview
+      </p>
+
+      {isLoading && (
+        <div className="flex items-center gap-2 py-2">
+          <Spinner size="sm" />
+          <span className="text-sm text-hoff-text-tertiary">Getting quote...</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
+          {error}
+        </div>
+      )}
+
+      {!isLoading && !error && quotedIn !== undefined && (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-xs text-hoff-text-tertiary mb-0.5">You pay</p>
+              <p className="text-lg font-bold text-hoff-text-primary">
+                {formatUnits(quotedIn, token.decimals)} {token.symbol}
+              </p>
+            </div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7B7B" strokeWidth="2" strokeLinecap="round">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+            <div className="text-right">
+              <p className="text-xs text-hoff-text-tertiary mb-0.5">Seller receives</p>
+              <p className="text-lg font-bold text-hoff-text-primary">
+                {formatEther(amountOutWei)} ETH
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
+            <span className="text-xs text-hoff-text-tertiary">Slippage tolerance</span>
+            <span className="text-xs text-hoff-text-secondary">0.5%</span>
+          </div>
+
+          <p className="text-xs text-hoff-text-tertiary">
+            Powered by Uniswap. Your {token.symbol} will be swapped to ETH and deposited into the escrow.
+          </p>
+        </>
+      )}
+
+      {!isLoading && !error && quotedIn === undefined && (
+        <p className="text-sm text-hoff-text-tertiary py-2">
+          No swap route available — try a different token or fund directly with ETH.
+        </p>
+      )}
     </div>
   )
 }
@@ -61,8 +166,6 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
 
   return (
     <main className="max-w-sm mx-auto px-4 py-6 space-y-5">
-
-      {/* Checkmark */}
       <div className="flex flex-col items-center gap-3 pt-2">
         <div className="w-16 h-16 rounded-full bg-hoff-accent/20 border-2 border-hoff-accent flex items-center justify-center">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2EBF7A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -72,7 +175,6 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
         <h1 className="text-2xl font-bold text-hoff-text-primary text-center">HandOff Funded</h1>
       </div>
 
-      {/* Description + date row */}
       <div className="flex items-center justify-between">
         <span className="text-xs text-hoff-text-tertiary truncate">
           {description || `Unlabelled #${dealIdParam}`}
@@ -82,7 +184,6 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
         </span>
       </div>
 
-      {/* Code card */}
       <div className="bg-hoff-surface rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-hoff-text-secondary">4-Digit Unlock Code</span>
@@ -94,25 +195,18 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
             <span className="text-xs font-semibold">?</span>
           </button>
         </div>
-
-        {/* Code tiles */}
         <div className="flex justify-center gap-3">
           {code.split('').map((char, i) => (
-            <div
-              key={i}
-              className="w-14 h-16 bg-hoff-elevated rounded-xl flex items-center justify-center text-3xl font-mono font-bold text-hoff-text-primary"
-            >
+            <div key={i} className="w-14 h-16 bg-hoff-elevated rounded-xl flex items-center justify-center text-3xl font-mono font-bold text-hoff-text-primary">
               {char}
             </div>
           ))}
         </div>
-
         <p className="text-xs text-hoff-text-tertiary text-center">
           Only share this in person at the handoff
         </p>
       </div>
 
-      {/* Etherscan link */}
       <a
         href={etherscanHref}
         target="_blank"
@@ -127,11 +221,9 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
         View on Etherscan
       </a>
 
-      {/* Review section */}
       {!submitted ? (
         <div className="space-y-3">
           <p className="text-sm text-hoff-text-tertiary text-center">Leave a Review – How did it go?</p>
-
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setReview('positive')}
@@ -146,7 +238,6 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
               </svg>
               <span className="text-xs font-medium">Positive</span>
             </button>
-
             <button
               onClick={() => setReview('negative')}
               className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${
@@ -155,14 +246,12 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
                   : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-red-500/40'
               }`}
             >
-              {/* Triangle down */}
               <svg width="20" height="20" viewBox="0 0 24 24">
                 <path d="M12 19L4 5H20L12 19Z" fill={review === 'negative' ? '#f87171' : 'none'} stroke={review === 'negative' ? '#f87171' : '#6B7B7B'} strokeWidth="2" strokeLinejoin="round"/>
               </svg>
               <span className="text-xs font-medium">Negative</span>
             </button>
           </div>
-
           <button
             onClick={handleSubmit}
             disabled={!review}
@@ -176,7 +265,6 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
           <p className="text-sm text-hoff-accent font-medium">Thanks for your review!</p>
         </div>
       )}
-
     </main>
   )
 }
@@ -188,8 +276,9 @@ export default function BuyerPay() {
   const navigate = useNavigate()
   const { isConnected } = useAccount()
   const [unlockCode, setUnlockCode] = useState<string | null>(null)
+  const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
 
-  // ─── Guard (before any hooks) ───────────────────────────────────────────────
+  // ─── Guard ──────────────────────────────────────────────────────────────────
   if (!isValidDealId(dealIdParam)) {
     return (
       <Layout>
@@ -203,21 +292,36 @@ export default function BuyerPay() {
   }
 
   const dealId = BigInt(dealIdParam)
+  const canAct = isConnected || MOCK_MODE
 
-  // ─── Hooks ──────────────────────────────────────────────────────────────────
+  // ─── Hooks (always called, rules of hooks) ─────────────────────────────────
   const { details, isLoading, isError }                                   = useDealDetails(dealId)
   const { deposit, isPending, isConfirming, isSuccess, isError: txError } = useDepositFunds(dealId)
 
-  // ─── Action ─────────────────────────────────────────────────────────────────
+  const amountWei = details?.amount ?? 0n
+  const { quotedIn, isLoading: quoteLoading, error: quoteError }         = useQuote(selectedToken, amountWei)
+  const swap                                                              = useSwapAndDeposit(dealId, selectedToken)
+
+  const isSwapPath = selectedToken !== 'ETH'
+
+  // Determine overall success from either direct deposit or swap path
+  const fundingSuccess = isSwapPath ? swap.isSuccess : isSuccess
+
+  // ─── Actions ────────────────────────────────────────────────────────────────
   function handleDeposit() {
     if (!details) return
     const code = generateUnlockCode()
     setUnlockCode(code)
-    deposit(formatEther(details.amount), hashUnlockCode(code))
+
+    if (isSwapPath) {
+      swap.swapAndDeposit(hashUnlockCode(code))
+    } else {
+      deposit(formatEther(details.amount), hashUnlockCode(code))
+    }
   }
 
-  // ─── Completed screen ────────────────────────────────────────────────────────
-  if (isSuccess && unlockCode) {
+  // ─── Completed screen ──────────────────────────────────────────────────────
+  if (fundingSuccess && unlockCode) {
     return (
       <Layout>
         <CompletedView
@@ -225,7 +329,6 @@ export default function BuyerPay() {
           description={details?.description ?? ''}
           dealIdParam={dealIdParam}
           onSubmitReview={() => {
-            // In mock mode reset state and navigate home after a short delay
             if (MOCK_MODE) setTimeout(() => navigate('/'), 800)
           }}
         />
@@ -233,20 +336,48 @@ export default function BuyerPay() {
     )
   }
 
-  // ─── Loading ─────────────────────────────────────────────────────────────────
+  // ─── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center py-24">
-          <Spinner />
-        </div>
+        <div className="flex items-center justify-center py-24"><Spinner /></div>
       </Layout>
     )
   }
 
-  // ─── Fee calc (only when details available) ──────────────────────────────────
+  // ─── Fee calc ───────────────────────────────────────────────────────────────
   const protocolFee = details ? (details.amount * PROTOCOL_FEE_BPS) / 10_000n : 0n
   const total       = details ? details.amount + protocolFee + EST_GAS : 0n
+
+  // ─── TX state helpers ───────────────────────────────────────────────────────
+  const anyPending    = isSwapPath ? (swap.isApprovePending || swap.isSwapPending) : isPending
+  const anyConfirming = isSwapPath ? (swap.isApproveConfirming || swap.isSwapConfirming) : isConfirming
+  const anyError      = isSwapPath ? swap.isError : txError
+  const anyBusy       = anyPending || anyConfirming
+
+  // CTA label
+  function ctaLabel(): string {
+    if (!canAct) return 'Connect Wallet To Continue'
+    if (isSwapPath && quotedIn !== undefined) {
+      const token = TOKENS[selectedToken]
+      return `Pay ${formatUnits(quotedIn, token.decimals)} ${token.symbol}`
+    }
+    return 'Fund Escrow'
+  }
+
+  // TX phase message
+  function txMessage(): string | null {
+    if (isSwapPath) {
+      if (swap.isApprovePending) return 'Approve token in your wallet…'
+      if (swap.isApproveConfirming) return 'Waiting for approval confirmation…'
+      if (swap.isSwapPending) return 'Confirm swap + deposit in your wallet…'
+      if (swap.isSwapConfirming) return 'Swapping and depositing on-chain…'
+    } else {
+      if (isPending) return 'Confirm in your wallet app'
+      if (isConfirming) return 'Processing on-chain…'
+    }
+    return null
+  }
 
   return (
     <Layout>
@@ -297,43 +428,44 @@ export default function BuyerPay() {
                 Amount
               </p>
 
-              {/* Big amount */}
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
                   {formatEther(details.amount)}
                 </span>
-                <span className="text-xl font-medium text-hoff-text-secondary shrink-0">ETH</span>
+                {details.status === EscrowStatus.PENDING ? (
+                  <TokenSelector selected={selectedToken} onChange={setSelectedToken} />
+                ) : (
+                  <span className="text-xl font-medium text-hoff-text-secondary shrink-0">ETH</span>
+                )}
               </div>
 
-              {/* Fee breakdown */}
-              <div className="space-y-0.5 pt-1 border-t border-hoff-brand">
-                <FeeRow
-                  label="Escrow Amount"
-                  value={`${formatEther(details.amount)} ETH`}
-                />
-                <FeeRow
-                  label="Protocol Fee (0.1%)"
-                  value={`${formatEther(protocolFee)} ETH`}
-                />
-                <FeeRow
-                  label="Est. Gas"
-                  value={`~${formatEther(EST_GAS)} ETH`}
-                />
-                <div className="border-t border-hoff-brand pt-1 mt-1">
-                  <FeeRow
-                    label="Total"
-                    value={`${formatEther(total)} ETH`}
-                    highlight
-                  />
+              {!isSwapPath && (
+                <div className="space-y-0.5 pt-1 border-t border-hoff-brand">
+                  <FeeRow label="Escrow Amount" value={`${formatEther(details.amount)} ETH`} />
+                  <FeeRow label="Protocol Fee (0.1%)" value={`${formatEther(protocolFee)} ETH`} />
+                  <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
+                  <div className="border-t border-hoff-brand pt-1 mt-1">
+                    <FeeRow label="Total" value={`${formatEther(total)} ETH`} highlight />
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Expires row */}
               <div className="flex items-center justify-between pt-1 border-t border-hoff-brand">
                 <span className="text-xs text-hoff-text-tertiary">Expires in</span>
                 <CountdownTimer expiresAt={Number(details.expiresAt) * 1000} />
               </div>
             </div>
+
+            {/* Swap preview (only when non-ETH token selected) */}
+            {details.status === EscrowStatus.PENDING && (
+              <SwapPreview
+                tokenKey={selectedToken}
+                quotedIn={quotedIn}
+                amountOutWei={amountWei}
+                isLoading={quoteLoading}
+                error={quoteError}
+              />
+            )}
 
             {/* Creator + reputation card */}
             <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
@@ -364,19 +496,17 @@ export default function BuyerPay() {
             </div>
 
             {/* TX state feedback */}
-            {isPending && (
-              <div className="flex items-center gap-2 text-amber-400 bg-amber-900/20 px-4 py-3 rounded-xl border border-amber-800/30">
+            {txMessage() && (
+              <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
+                anyPending
+                  ? 'text-amber-400 bg-amber-900/20 border border-amber-800/30'
+                  : 'text-hoff-accent bg-hoff-accent-muted'
+              }`}>
                 <Spinner size="sm" />
-                <span className="text-sm">Confirm in your wallet app</span>
+                <span className="text-sm">{txMessage()}</span>
               </div>
             )}
-            {isConfirming && (
-              <div className="flex items-center gap-2 text-hoff-accent bg-hoff-accent-muted px-4 py-3 rounded-xl">
-                <Spinner size="sm" />
-                <span className="text-sm">Processing on-chain...</span>
-              </div>
-            )}
-            {txError && (
+            {anyError && (
               <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
                 Payment failed. Try again.
               </div>
@@ -386,11 +516,11 @@ export default function BuyerPay() {
             {details.status === EscrowStatus.PENDING && (
               <Button
                 fullWidth
-                onClick={isConnected || MOCK_MODE ? handleDeposit : undefined}
-                loading={isPending || isConfirming}
-                disabled={isPending || isConfirming}
+                onClick={canAct ? handleDeposit : undefined}
+                loading={anyBusy}
+                disabled={anyBusy || (isSwapPath && quotedIn === undefined && !quoteLoading)}
               >
-                {isConnected || MOCK_MODE ? 'Fund Escrow' : 'Connect Wallet To Continue'}
+                {ctaLabel()}
               </Button>
             )}
 
@@ -400,13 +530,11 @@ export default function BuyerPay() {
               </div>
             )}
 
-            {/* Footer */}
             <p className="text-xs text-hoff-text-tertiary text-center pb-4">
               Funds will be held in escrow until both parties confirm
             </p>
           </>
         )}
-
       </main>
     </Layout>
   )

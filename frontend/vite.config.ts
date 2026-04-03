@@ -9,4 +9,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    proxy: {
+      '/api/uniswap': {
+        target: 'https://trade-api.gateway.uniswap.org/v1',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/uniswap/, ''),
+      },
+    },
+  },
 })
