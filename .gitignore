@@ -1,37 +1,51 @@
 # Dependencies
 node_modules/
-frontend/node_modules/
-frontend/handoff/node_modules/
-Screenshots/
+.pnpm-store/
 
 # Build output
 dist/
 dist-ssr/
-frontend/handoff/dist/
-
-#lock
-package-lock.json
+frontend/dist/
+frontend/.vite/
 
 # Environment variables
 .env
 .env.local
-frontend/handoff/.env
-frontend/handoff/.env.local
+.env.*.local
+
+# Hardhat artifacts & cache
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+contracts/ignition/deployments/
+
+# TypeScript build info
+*.tsbuildinfo
 
 # Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
+yarn-error.log*
 pnpm-debug.log*
+
+# Lock files
+package-lock.json
 
 # Editor / OS
 .DS_Store
-.vscode/*
-!.vscode/extensions.json
-.idea
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
 *.suo
-*.sw?
 
-# AI pair-programming files
+# Test coverage
+coverage/
+contracts/coverage/
+
+# AI files
 CLAUDE.md
 .claude/
+Screenshots/
