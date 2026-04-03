@@ -1,0 +1,22 @@
+[
+  { "type": "constructor", "inputs": [{ "name": "_seller", "type": "address" }, { "name": "_reputationContract", "type": "address" }, { "name": "_subnameRegistrar", "type": "address" }, { "name": "_expiresAt", "type": "uint256" }, { "name": "_codeHash", "type": "bytes32" }, { "name": "_sellerEns", "type": "string" }], "stateMutability": "nonpayable" },
+  { "type": "function", "name": "fund", "inputs": [{ "name": "_buyerEns", "type": "string" }], "outputs": [], "stateMutability": "payable" },
+  { "type": "function", "name": "fundWithSwap", "inputs": [{ "name": "_buyerEns", "type": "string" }], "outputs": [], "stateMutability": "nonpayable" },
+  { "type": "function", "name": "unlock", "inputs": [{ "name": "_codeHash", "type": "bytes32" }], "outputs": [], "stateMutability": "nonpayable" },
+  { "type": "function", "name": "refund", "inputs": [], "outputs": [], "stateMutability": "nonpayable" },
+  { "type": "function", "name": "cancel", "inputs": [], "outputs": [], "stateMutability": "nonpayable" },
+  { "type": "function", "name": "dealInfo", "inputs": [], "outputs": [{ "name": "_seller", "type": "address" }, { "name": "_buyer", "type": "address" }, { "name": "_expiresAt", "type": "uint256" }, { "name": "_balance", "type": "uint256" }, { "name": "_state", "type": "uint8" }, { "name": "_sellerEns", "type": "string" }, { "name": "_buyerEns", "type": "string" }], "stateMutability": "view" },
+  { "type": "function", "name": "escrowBalance", "inputs": [], "outputs": [{ "name": "", "type": "uint256" }], "stateMutability": "view" },
+  { "type": "function", "name": "seller", "inputs": [], "outputs": [{ "name": "", "type": "address" }], "stateMutability": "view" },
+  { "type": "function", "name": "buyer", "inputs": [], "outputs": [{ "name": "", "type": "address" }], "stateMutability": "view" },
+  { "type": "function", "name": "state", "inputs": [], "outputs": [{ "name": "", "type": "uint8" }], "stateMutability": "view" },
+  { "type": "function", "name": "codeHash", "inputs": [], "outputs": [{ "name": "", "type": "bytes32" }], "stateMutability": "view" },
+  { "type": "function", "name": "expiresAt", "inputs": [], "outputs": [{ "name": "", "type": "uint256" }], "stateMutability": "view" },
+  { "type": "function", "name": "reputationContract", "inputs": [], "outputs": [{ "name": "", "type": "address" }], "stateMutability": "view" },
+  { "type": "function", "name": "subnameRegistrar", "inputs": [], "outputs": [{ "name": "", "type": "address" }], "stateMutability": "view" },
+  { "type": "function", "name": "DEAL_ID", "inputs": [], "outputs": [{ "name": "", "type": "uint256" }], "stateMutability": "view" },
+  { "type": "event", "name": "Funded", "inputs": [{ "name": "buyer", "type": "address", "indexed": true }, { "name": "amount", "type": "uint256", "indexed": false }], "anonymous": false },
+  { "type": "event", "name": "Unlocked", "inputs": [{ "name": "seller", "type": "address", "indexed": true }, { "name": "amount", "type": "uint256", "indexed": false }], "anonymous": false },
+  { "type": "event", "name": "Refunded", "inputs": [{ "name": "buyer", "type": "address", "indexed": true }, { "name": "amount", "type": "uint256", "indexed": false }], "anonymous": false },
+  { "type": "event", "name": "Canceled", "inputs": [{ "name": "seller", "type": "address", "indexed": true }], "anonymous": false }
+]
