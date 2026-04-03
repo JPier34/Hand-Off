@@ -15,8 +15,10 @@ import { EscrowStatus } from '@/lib/types'
 import { MOCK_MODE, mockExpire } from '@/lib/mock'
 import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 
-const PROTOCOL_FEE_BPS = 10n   // 0.1%
+const PROTOCOL_FEE_BPS  = 10n   // 0.1%
 const EST_GAS           = 800_000_000_000_000n // ~0.0008 ETH placeholder
+const ETH_USD_MOCK      = 1850 // placeholder — wire to Uniswap or oracle later
+const DEFAULT_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 function isValidDealId(param: string | undefined): param is string {
   if (!param) return false
@@ -33,6 +35,23 @@ function FeeRow({ label, value, highlight = false }: { label: string; value: str
       <span className={`text-xs font-mono ${highlight ? 'text-hoff-text-primary font-semibold' : 'text-hoff-text-secondary'}`}>
         {value}
       </span>
+    </div>
+  )
+}
+
+// ─── Expiry progress bar ──────────────────────────────────────────────────────
+
+function ExpiryBar({ expiresAt, totalMs }: { expiresAt: number; totalMs: number }) {
+  const remaining = Math.max(0, expiresAt - Date.now())
+  const fraction = Math.min(1, remaining / totalMs)
+  const color = fraction > 0.25 ? 'bg-hoff-accent' : fraction > 0 ? 'bg-amber-500' : 'bg-red-500'
+
+  return (
+    <div className="h-1.5 w-full rounded-full bg-hoff-elevated overflow-hidden">
+      <div
+        className={`h-full rounded-full ${color} transition-all`}
+        style={{ width: `${fraction * 100}%` }}
+      />
     </div>
   )
 }
@@ -427,38 +446,48 @@ export default function BuyerPay() {
               </div>
             </div>
 
-            {/* Amount + fee breakdown card */}
+            {/* Amount card */}
             <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-                Amount
-              </p>
-
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
-                  {formatEther(details.amount)}
-                </span>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+                  Amount Due
+                </p>
                 {details.status === EscrowStatus.PENDING ? (
                   <TokenSelector selected={selectedToken} onChange={setSelectedToken} />
                 ) : (
-                  <span className="text-xl font-medium text-hoff-text-secondary shrink-0">ETH</span>
+                  <span className="text-xs font-medium text-hoff-text-secondary border border-hoff-text-tertiary/30 px-2.5 py-1 rounded-lg">
+                    ETH
+                  </span>
                 )}
               </div>
 
-              {!isSwapPath && (
-                <div className="space-y-0.5 pt-1 border-t border-hoff-brand">
-                  <FeeRow label="Escrow Amount" value={`${formatEther(details.amount)} ETH`} />
-                  <FeeRow label="Protocol Fee (0.1%)" value={`${formatEther(protocolFee)} ETH`} />
-                  <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
-                  <div className="border-t border-hoff-brand pt-1 mt-1">
-                    <FeeRow label="Total" value={`${formatEther(total)} ETH`} highlight />
-                  </div>
-                </div>
-              )}
+              <div>
+                <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
+                  {formatEther(details.amount)}
+                </span>
+                <p className="text-xs text-hoff-text-tertiary mt-1">
+                  ≈ ${(parseFloat(formatEther(details.amount)) * ETH_USD_MOCK).toFixed(2)} USD
+                </p>
+              </div>
+            </div>
 
-              <div className="flex items-center justify-between pt-1 border-t border-hoff-brand">
+            {/* Fee breakdown card */}
+            <div className="bg-hoff-surface rounded-2xl p-5 space-y-1">
+              <FeeRow label="Escrow Amount" value={`${formatEther(details.amount)} ETH`} />
+              <FeeRow label="Protocol Fee (0.1%)" value={`${formatEther(protocolFee)} ETH`} />
+              <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
+              <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
+                <FeeRow label="Total" value={`${formatEther(total)} ETH`} highlight />
+              </div>
+            </div>
+
+            {/* Expires row with progress bar */}
+            <div className="bg-hoff-surface rounded-2xl px-5 py-3 space-y-2">
+              <div className="flex items-center justify-between">
                 <span className="text-xs text-hoff-text-tertiary">Expires in</span>
                 <CountdownTimer expiresAt={Number(details.expiresAt) * 1000} />
               </div>
+              <ExpiryBar expiresAt={Number(details.expiresAt) * 1000} totalMs={DEFAULT_TIMEOUT_MS} />
             </div>
 
             {/* Swap preview (only when non-ETH token selected) */}
@@ -484,6 +513,10 @@ export default function BuyerPay() {
                     {details.seller.slice(0, 6)}...{details.seller.slice(-4)}
                   </p>
                 </div>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
+                <span className="text-xs text-hoff-text-tertiary">Completed HandOffs</span>
+                <span className="text-xs text-hoff-text-secondary font-medium">16</span>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
                 <span className="text-xs text-hoff-text-tertiary">Reputation</span>

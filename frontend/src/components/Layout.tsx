@@ -17,8 +17,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             onClick={() => navigate('/')}
             className="flex items-center gap-2 text-hoff-text-primary font-bold text-lg tracking-tight"
           >
-            <span className="text-hoff-text-primary">Hand</span>
-            <span className="text-hoff-accent">Off</span>
+            <img src="/logo-icon.png" alt="" className="h-7 w-7" />
+            <span>
+              <span className="text-hoff-text-primary">Hand</span>
+              <span className="text-hoff-accent">Off</span>
+            </span>
           </button>
 
           <div className="flex items-center gap-3">
