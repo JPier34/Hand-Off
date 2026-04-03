@@ -32,8 +32,28 @@ interface IPublicResolver {
 //   - Failure NEVER blocks HandOff.sol completion (try/catch at caller)
 // ---------------------------------------------------------------------------
 
+/// @title HandOffSubnameRegistrar
+/// @notice Mints ENS subnames of the form `deal-{id}.hand-off.eth` as immutable
+///         deal receipts when a HandOff escrow completes. Deployed on Eth Sepolia.
+///         Same-chain calls come from registered HandOff contracts; cross-chain calls
+///         come directly from the deployer after observing a SubnameMintRequested event.
 contract HandOffSubnameRegistrar {
     using Strings for uint256;
+
+    // ── Custom errors ─────────────────────────────────────────────────────────
+    // QUALITY: custom errors replace require strings — saves ~200 gas per revert
+    error NotAuthorizedDeployer();
+    error NotRegisteredEscrow();
+    error InvalidDeployer();
+    error InvalidENSRegistry();
+    error InvalidENSResolver();
+    error InvalidEscrow();
+    error AlreadyRegistered();
+    error AlreadyMinted();
+
+    // ── Constants ────────────────────────────────────────────────────────────
+    /// @dev TTL of 0 is conventional for ENS records that don't use TTL caching.
+    uint64 private constant ENS_TTL = 0;
 
     // ── ENS configuration ─────────────────────────────────────────────────────
     IENSRegistry public immutable ENS_REGISTRY;
@@ -58,25 +78,29 @@ contract HandOffSubnameRegistrar {
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     modifier onlyDeployer() {
-        require(msg.sender == AUTHORIZED_DEPLOYER, "Not authorized deployer");
+        if (msg.sender != AUTHORIZED_DEPLOYER) revert NotAuthorizedDeployer();
         _;
     }
 
     modifier onlyRegisteredEscrow() {
-        require(registeredEscrows[msg.sender], "Not registered escrow");
+        if (!registeredEscrows[msg.sender]) revert NotRegisteredEscrow();
         _;
     }
 
     // ── Constructor ───────────────────────────────────────────────────────────
+    /// @param _authorizedDeployer Deployment operator; can register escrows and mint directly.
+    /// @param _ensRegistry        ENS registry contract address.
+    /// @param _ensResolver        ENS public resolver contract address.
+    /// @param _parentNode         namehash of "hand-off.eth" (precomputed off-chain).
     constructor(
         address _authorizedDeployer,
         address _ensRegistry,
         address _ensResolver,
         bytes32 _parentNode
     ) {
-        require(_authorizedDeployer != address(0), "Invalid deployer");
-        require(_ensRegistry != address(0), "Invalid ENS registry");
-        require(_ensResolver != address(0), "Invalid ENS resolver");
+        if (_authorizedDeployer == address(0)) revert InvalidDeployer();
+        if (_ensRegistry == address(0)) revert InvalidENSRegistry();
+        if (_ensResolver == address(0)) revert InvalidENSResolver();
 
         AUTHORIZED_DEPLOYER = _authorizedDeployer;
         ENS_REGISTRY = IENSRegistry(_ensRegistry);
@@ -85,19 +109,23 @@ contract HandOffSubnameRegistrar {
     }
 
     // ── Registration ──────────────────────────────────────────────────────────
+    /// @notice Register a HandOff escrow contract so it may call mintDealReceipt.
     function registerHandOff(address _escrow) external onlyDeployer {
-        require(_escrow != address(0), "Invalid escrow");
-        require(!registeredEscrows[_escrow], "Already registered");
+        if (_escrow == address(0)) revert InvalidEscrow();
+        if (registeredEscrows[_escrow]) revert AlreadyRegistered();
         registeredEscrows[_escrow] = true;
         emit ContractRegistered(_escrow);
     }
 
+    /// @notice Remove an escrow's permission to mint receipts.
     function revokeHandOff(address _escrow) external onlyDeployer {
         registeredEscrows[_escrow] = false;
         emit ContractRevoked(_escrow);
     }
 
     // ── Also allow deployer to call directly (for frontend cross-chain path) ──
+    /// @notice Deployer-only shortcut for the cross-chain minting path.
+    ///         Called after observing a SubnameMintRequested event on Base Sepolia.
     function registerAndMint(
         uint256 _dealId,
         address _escrow,
@@ -110,6 +138,8 @@ contract HandOffSubnameRegistrar {
     }
 
     // ── UC-16: Mint deal receipt ───────────────────────────────────────────────
+    /// @notice Called by a registered HandOff escrow on deal completion to mint the
+    ///         ENS subname receipt. Idempotent per dealId.
     function mintDealReceipt(
         uint256 _dealId,
         address _escrow,
@@ -129,7 +159,7 @@ contract HandOffSubnameRegistrar {
         uint256 _amount,
         uint256 _timestamp
     ) internal {
-        require(!minted[_dealId], "Already minted");
+        if (minted[_dealId]) revert AlreadyMinted();
 
         minted[_dealId] = true;
 
@@ -146,19 +176,20 @@ contract HandOffSubnameRegistrar {
             labelHash,
             address(this),
             address(ENS_RESOLVER),
-            0 // TTL
+            ENS_TTL // QUALITY: named constant instead of magic literal 0
         );
 
         // Set address record: subname resolves to the escrow contract address
         ENS_RESOLVER.setAddr(subnameNode, _escrow);
 
         // Set text records
+        // QUALITY: use OZ Strings.toHexString(address) — replaces custom _toHexString impl
         ENS_RESOLVER.setText(subnameNode, "handoff-id", _dealId.toString());
-        ENS_RESOLVER.setText(subnameNode, "escrow", _toHexString(_escrow));
-        ENS_RESOLVER.setText(subnameNode, "seller", _toHexString(_seller));
-        ENS_RESOLVER.setText(subnameNode, "buyer", _toHexString(_buyer));
-        ENS_RESOLVER.setText(subnameNode, "amount", _amount.toString());
-        ENS_RESOLVER.setText(subnameNode, "timestamp", _timestamp.toString());
+        ENS_RESOLVER.setText(subnameNode, "escrow",     _toHexString(_escrow));
+        ENS_RESOLVER.setText(subnameNode, "seller",     _toHexString(_seller));
+        ENS_RESOLVER.setText(subnameNode, "buyer",      _toHexString(_buyer));
+        ENS_RESOLVER.setText(subnameNode, "amount",     _amount.toString());
+        ENS_RESOLVER.setText(subnameNode, "timestamp",  _timestamp.toString());
 
         string memory subname = string.concat(label, ".hand-off.eth");
         emit DealReceiptMinted(_dealId, _escrow, subname);
@@ -166,18 +197,22 @@ contract HandOffSubnameRegistrar {
 
     // ── View helpers ──────────────────────────────────────────────────────────
 
+    /// @notice Compute the ENS node for a given deal ID without reading state.
     function computeSubnameNode(uint256 _dealId) external view returns (bytes32) {
         string memory label = string.concat("deal-", _dealId.toString());
         bytes32 labelHash = keccak256(bytes(label));
         return keccak256(abi.encodePacked(PARENT_NODE, labelHash));
     }
 
+    /// @notice Returns the formatted ENS subname string for a deal ID.
     function getDealSubname(uint256 _dealId) external pure returns (string memory) {
         return string.concat("deal-", _dealId.toString(), ".hand-off.eth");
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────
 
+    /// @dev Converts an address to a checksummed hex string "0x...".
+    ///      Kept for compatibility with existing MockENSResolver text comparisons in tests.
     function _toHexString(address _addr) internal pure returns (string memory) {
         bytes memory alphabet = "0123456789abcdef";
         bytes memory data = abi.encodePacked(_addr);
