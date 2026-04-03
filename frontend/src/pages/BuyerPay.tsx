@@ -65,23 +65,23 @@ interface TokenSelectorProps {
 }
 
 function TokenSelector({ selected, onChange }: TokenSelectorProps) {
+  // Measure width dynamically based on selected symbol length
+  const charWidth = TOKENS[selected]?.symbol.length ?? 3
+  const width = `${charWidth * 0.7 + 1.2}em`
+
   return (
-    <div className="relative shrink-0">
-      <select
-        value={selected}
-        onChange={e => onChange(e.target.value)}
-        className="h-10 pl-3 pr-8 rounded-xl bg-hoff-elevated border border-hoff-brand text-hoff-text-primary text-lg font-medium appearance-none cursor-pointer focus:outline-none focus:border-hoff-accent/60 transition-colors"
-      >
-        {TOKEN_KEYS.map(key => (
-          <option key={key} value={key} className="bg-hoff-elevated">
-            {TOKENS[key].symbol}
-          </option>
-        ))}
-      </select>
-      <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7B7B" strokeWidth="2.5" strokeLinecap="round">
-        <polyline points="6 9 12 15 18 9"/>
-      </svg>
-    </div>
+    <select
+      value={selected}
+      onChange={e => onChange(e.target.value)}
+      style={{ width }}
+      className="shrink-0 h-8 px-2 rounded-lg bg-hoff-accent-muted text-hoff-accent text-xl font-medium appearance-none cursor-pointer focus:outline-none transition-colors text-center"
+    >
+      {TOKEN_KEYS.map(key => (
+        <option key={key} value={key} className="bg-hoff-elevated text-hoff-text-primary">
+          {TOKENS[key].symbol}
+        </option>
+      ))}
+    </select>
   )
 }
 
@@ -465,27 +465,26 @@ export default function BuyerPay() {
 
             {/* Amount card */}
             <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-                  Amount Due
-                </p>
+              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+                Amount Due
+              </p>
+
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
+                  {fmt(details.amount)}
+                </span>
                 {details.status === EscrowStatus.PENDING ? (
                   <TokenSelector selected={selectedToken} onChange={setSelectedToken} />
                 ) : (
-                  <span className="text-xs font-medium text-hoff-text-secondary border border-hoff-text-tertiary/30 px-2.5 py-1 rounded-lg">
+                  <span className="text-xl font-medium text-hoff-text-secondary shrink-0">
                     {sym}
                   </span>
                 )}
               </div>
 
-              <div>
-                <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
-                  {fmt(details.amount)}
-                </span>
-                <p className="text-xs text-hoff-text-tertiary mt-1">
-                  {usdValue ? `≈ $${usdValue} USD` : 'Fetching price...'}
-                </p>
-              </div>
+              <p className="text-xs text-hoff-text-tertiary">
+                {usdValue ? `≈ $${usdValue} USD` : 'Fetching price...'}
+              </p>
             </div>
 
             {/* Fee breakdown card */}
