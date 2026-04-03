@@ -1,0 +1,26 @@
+{
+  "name": "contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HandOff smart contracts — Hardhat + Solidity + TypeChain",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "typechain": "hardhat typechain",
+    "deploy:reputation:base": "hardhat ignition deploy ignition/modules/HandOffReputation.ts --network baseSepolia",
+    "deploy:registrar:eth": "hardhat ignition deploy ignition/modules/HandOffSubnameRegistrar.ts --network ethSepolia",
+    "clean": "hardhat clean"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-ignition": "^0.15.0",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.22.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}

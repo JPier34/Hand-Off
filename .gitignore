@@ -1,30 +1,55 @@
 # Dependencies
-/node_modules
+node_modules/
+.pnpm-store/
 
 # Environment files
 .env
-.env.*
+.env.local
+.env.*.local
 !.env.example
 
-# Build output
+# Root build output
 /dist
 /bundle
 
-# Hardhat artifacts and caches
+# Contracts workspace artifacts
+contracts/artifacts/
+contracts/cache/
+contracts/coverage/
+contracts/typechain-types/
+contracts/ignition/deployments/
+
+# Legacy single-package Hardhat artifacts
 /artifacts
 /cache
 /coverage
 /typechain-types
 /types
-
-# Hardhat Ignition
 /ignition/deployments
 
-# Local tool state
+# Frontend build output
+frontend/dist/
+frontend/.vite/
+
+# Tooling / local state
 /.agents
 /.claude
 skills-lock.json
+.postcss-cache/
+*.tsbuildinfo
+tsconfig.tsbuildinfo
 
-# OS / editor noise
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / editor
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
