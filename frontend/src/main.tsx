@@ -1,34 +1,37 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
-import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
-import { DynamicWagmiConnector } from "@dynamic-labs/wagmi-connector";
-import { WagmiProvider } from "wagmi";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import App from "./App";
-import { wagmiConfig } from "./wagmi.config";
-import "./styles/index.css";
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { DynamicContextProvider } from '@dynamic-labs/sdk-react-core'
+import { EthereumWalletConnectors } from '@dynamic-labs/ethereum'
+import { DynamicWagmiConnector } from '@dynamic-labs/wagmi-connector'
+import { WagmiProvider, createConfig, http } from 'wagmi'
+import { baseSepolia } from 'wagmi/chains'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import './index.css'
+import App from './App.tsx'
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, retry: 2 } },
-});
+// Wagmi config — chains only, Dynamic injects the connector at runtime
+const wagmiConfig = createConfig({
+  chains: [baseSepolia],
+  transports: { [baseSepolia.id]: http() },
+})
 
-const DYNAMIC_ENV_ID = import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? "";
+const queryClient = new QueryClient()
 
-// Provider hierarchy (ORDER REQUIRED by Dynamic SDK):
-// DynamicContextProvider → WagmiProvider → QueryClientProvider → DynamicWagmiConnector
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
     <DynamicContextProvider
-      settings={{ environmentId: DYNAMIC_ENV_ID, walletConnectors: [EthereumWalletConnectors] }}
+      settings={{
+        environmentId: import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID,
+        walletConnectors: [EthereumWalletConnectors],
+      }}
     >
-      <WagmiProvider config={wagmiConfig}>
-        <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <WagmiProvider config={wagmiConfig}>
           <DynamicWagmiConnector>
             <App />
           </DynamicWagmiConnector>
-        </QueryClientProvider>
-      </WagmiProvider>
+        </WagmiProvider>
+      </QueryClientProvider>
     </DynamicContextProvider>
-  </React.StrictMode>
-);
+  </StrictMode>,
+)

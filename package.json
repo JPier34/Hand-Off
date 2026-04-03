@@ -2,20 +2,39 @@
   "name": "handoff-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "HandOff — Trustless escrow for in-person C2C transactions (ETHGlobal Cannes 2026)",
+  "type": "module",
+  "description": "HandOff trustless escrow monorepo",
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
   },
   "scripts": {
     "install:all": "pnpm install",
-    "compile": "pnpm --filter contracts compile",
+    "compile": "hardhat compile",
+    "test": "hardhat test",
     "test:contracts": "pnpm --filter contracts test",
     "dev": "pnpm --filter frontend dev",
     "build": "pnpm --filter frontend build",
     "typecheck": "pnpm --filter frontend typecheck"
   },
   "devDependencies": {
-    "typescript": "^5.4.5"
+    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.3",
+    "@types/chai-as-promised": "^8.0.2",
+    "@types/node": "^22.19.17",
+    "chai": "^6.2.2",
+    "chai-as-promised": "^8.0.2",
+    "dotenv": "^17.4.0",
+    "hardhat": "^3.3.0",
+    "typescript": "~5.8.0",
+    "viem": "^2.47.6"
+  },
+  "dependencies": {
+    "@ensdomains/ensjs": "^4.2.2",
+    "@openzeppelin/contracts": "^5.6.1",
+    "@safe-global/api-kit": "^4.1.0",
+    "@safe-global/protocol-kit": "^7.0.0",
+    "@safe-global/types-kit": "^3.1.0",
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-periphery": "^1.4.4"
   }
 }

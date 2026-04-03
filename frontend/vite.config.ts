@@ -1,29 +1,21 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "tailwindcss";
-import autoprefixer from "autoprefixer";
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
-  base: "/",
-  envPrefix: "VITE_",
-  css: {
-    postcss: {
-      plugins: [tailwindcss, autoprefixer],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
     },
   },
-  resolve: { alias: { "@": "/src" } },
-  build: {
-    outDir: "dist",
-    sourcemap: true,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ["react", "react-dom", "react-router-dom"],
-          web3: ["wagmi", "viem", "@tanstack/react-query"],
-        },
+  server: {
+    proxy: {
+      '/api/uniswap': {
+        target: 'https://trade-api.gateway.uniswap.org/v1',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/uniswap/, ''),
       },
     },
   },
-  server: { port: 5173 },
-});
+})

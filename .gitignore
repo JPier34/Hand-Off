@@ -1,48 +1,79 @@
+#docs
+docs/
+
 # Dependencies
 node_modules/
 .pnpm-store/
 
-# Environment variables (NEVER commit real secrets)
+# Environment files
+# Build output
+dist/
+dist-ssr/
+frontend/dist/
+frontend/.vite/
+
+# Environment variables
 .env
 .env.local
 .env.*.local
+!.env.example
 
-# Hardhat artifacts & cache
+# Root build output
+/dist
+/bundle
+
+# Contracts workspace artifacts
 contracts/artifacts/
 contracts/cache/
+contracts/coverage/
 contracts/typechain-types/
-
-# Hardhat Ignition deployment state (keep chain-specific deployments in git if desired)
 contracts/ignition/deployments/
+
+# Legacy single-package Hardhat artifacts
+/artifacts
+/cache
+/coverage
+/typechain-types
+/types
+/ignition/deployments
 
 # Frontend build output
 frontend/dist/
 frontend/.vite/
 
-# Tailwind / PostCSS cache
+# Tooling / local state
+/.agents
+/.claude
+skills-lock.json
 .postcss-cache/
-
 # TypeScript build info
 *.tsbuildinfo
-tsconfig.tsbuildinfo
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Test coverage
-coverage/
-contracts/coverage/
-
-# Misc
+# Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# OS / editor
+# Lock files
+package-lock.json
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*.suo
+
+# Test coverage
+coverage/
+contracts/coverage/
+
+# AI files
+CLAUDE.md
+.claude/
+Screenshots/

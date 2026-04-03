@@ -1,0 +1,7 @@
+# Exclude frontend team's Hardhat v2 workspace (contracts/contracts/)
+# Those files are managed by their own hardhat config at contracts/hardhat.config.ts
+contracts/contracts/
+contracts/ignition/
+contracts/node_modules/
+contracts/artifacts/
+contracts/cache/
