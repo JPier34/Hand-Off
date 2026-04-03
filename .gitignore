@@ -1,21 +1,30 @@
-# Node modules
+# Dependencies
 /node_modules
 
-# Compilation output
-/dist
+# Environment files
+.env
+.env.*
+!.env.example
 
-# pnpm deploy output
+# Build output
+/dist
 /bundle
 
-# Hardhat Build Artifacts
+# Hardhat artifacts and caches
 /artifacts
-
-# Hardhat compilation (v2) support directory
 /cache
-
-# Typechain output
+/coverage
+/typechain-types
 /types
 
-# Hardhat coverage reports
-/coverage
-.env
+# Hardhat Ignition
+/ignition/deployments
+
+# Local tool state
+/.agents
+/.claude
+skills-lock.json
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
