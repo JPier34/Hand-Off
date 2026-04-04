@@ -561,10 +561,10 @@ export default function ManageDeal() {
 
   const dealId = BigInt(dealIdParam)
 
-  const { details, isLoading, isError }                                            = useDealDetails(dealId)
-  const { release, isPending, isConfirming, isSuccess, isError: releaseError }     = useReleaseEscrow(dealId)
-  const cancelDeal = useCancelDeal(dealId)
-  const editDeal   = useEditDeal(dealId)
+  const { details, isLoading, isError, escrowAddress }                              = useDealDetails(dealId)
+  const { release, isPending, isConfirming, isSuccess, isError: releaseError }     = useReleaseEscrow(dealId, escrowAddress)
+  const cancelDeal = useCancelDeal(dealId, escrowAddress)
+  const editDeal   = useEditDeal(dealId, escrowAddress)
 
   // Token display helpers
   const sym = details ? payoutSymbol(details.payoutToken) : 'ETH'

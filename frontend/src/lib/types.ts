@@ -1,11 +1,16 @@
 export type Address = `0x${string}`
 
+// Matches HandOff.sol enum State { Created, Funded, Completed, Expired, Canceled }
 export const EscrowStatus = {
-  PENDING: 0,
-  FUNDED: 1,
+  CREATED:  0,
+  FUNDED:   1,
+  COMPLETED: 2,
+  EXPIRED:  3,
+  CANCELED: 4,
+  // Legacy aliases — kept so existing code doesn't break during migration
+  PENDING:  0,
   COMPLETE: 2,
   REFUNDED: 3,
-  CANCELED: 4,
 } as const
 export type EscrowStatus = (typeof EscrowStatus)[keyof typeof EscrowStatus]
 

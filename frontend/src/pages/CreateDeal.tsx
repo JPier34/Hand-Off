@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { parseEther, isAddress } from 'viem'
-import { useAccount, useEnsAddress } from 'wagmi'
-import { mainnet } from 'wagmi/chains'
+import { useState, useEffect } from 'react'
+import { parseEther, isAddress, createPublicClient, http } from 'viem'
+import { useAccount } from 'wagmi'
+import { mainnet } from 'viem/chains'
 import { useNavigate } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
@@ -9,6 +9,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { useCreateDeal } from '@/hooks/useEscrowWrite'
 import { MOCK_MODE } from '@/lib/mock'
 import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
+import { useUsdValue } from '@/hooks/useTokenPrice'
 
 function validate(amount: string) {
   const errors: { amount?: string } = {}
@@ -41,11 +42,24 @@ export default function CreateDeal() {
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
   const isEnsInput = recipient.endsWith('.eth')
-  const { data: resolvedAddress, isLoading: ensLoading } = useEnsAddress({
-    name: recipient,
-    chainId: mainnet.id,
-    query: { enabled: isEnsInput },
-  })
+  const [resolvedAddress, setResolvedAddress] = useState<string | null>(null)
+  const [ensLoading, setEnsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!isEnsInput || recipient.length <= 4) {
+      setResolvedAddress(null)
+      return
+    }
+    let cancelled = false
+    setEnsLoading(true)
+    const client = createPublicClient({ chain: mainnet, transport: http('https://ethereum-rpc.publicnode.com') })
+    client.getEnsAddress({ name: recipient }).then((addr) => {
+      if (!cancelled) { setResolvedAddress(addr); setEnsLoading(false) }
+    }).catch(() => {
+      if (!cancelled) { setResolvedAddress(null); setEnsLoading(false) }
+    })
+    return () => { cancelled = true }
+  }, [recipient, isEnsInput])
   const [description, setDescription] = useState('')
   const [payoutToken, setPayoutToken] = useState<TokenKey>('ETH')
   const [timeoutHours, setTimeoutHours] = useState(168)
@@ -57,6 +71,11 @@ export default function CreateDeal() {
 
   const errors = validate(amount)
   const hasErrors = Object.keys(errors).length > 0
+
+  // USD estimate for the entered amount
+  const parsedAmount = (() => { try { return amount ? parseEther(amount as `${number}`) : 0n } catch { return 0n } })()
+  const tokenAddr = TOKENS[payoutToken]?.address ?? null
+  const usdValue = useUsdValue(parsedAmount, tokenAddr)
 
   const shareableLink =
     newDealId !== undefined ? `${window.location.origin}/pay/${newDealId}` : null
@@ -188,8 +207,11 @@ export default function CreateDeal() {
                     placeholder="0.00"
                     className="w-full text-4xl font-semibold bg-transparent text-hoff-text-primary placeholder:text-hoff-text-tertiary/40 focus:outline-none"
                   />
+                  {usdValue && parsedAmount > 0n && (
+                    <p className="text-xs text-hoff-text-tertiary mt-1">≈ ${usdValue} USD</p>
+                  )}
                   {touched && errors.amount && (
-                    <p className="text-xs text-red-400 mt-2">{errors.amount}</p>
+                    <p className="text-xs text-red-400 mt-1">{errors.amount}</p>
                   )}
                 </div>
                 <select

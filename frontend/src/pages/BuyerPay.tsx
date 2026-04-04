@@ -317,9 +317,9 @@ export default function BuyerPay() {
   const canAct = isConnected || MOCK_MODE
 
   // ─── Hooks (always called, rules of hooks) ─────────────────────────────────
-  const { details, isLoading, isError }                                   = useDealDetails(dealId)
-  const { deposit, isPending, isConfirming, isSuccess, isError: txError } = useDepositFunds(dealId)
-  const refund = useClaimRefund(dealId)
+  const { details, isLoading, isError, escrowAddress }                     = useDealDetails(dealId)
+  const { deposit, isPending, isConfirming, isSuccess, isError: txError } = useDepositFunds(dealId, escrowAddress)
+  const refund = useClaimRefund(dealId, escrowAddress)
 
   const amountWei = details?.amount ?? 0n
   const usdValue  = useUsdValue(amountWei, details?.payoutToken ?? null)

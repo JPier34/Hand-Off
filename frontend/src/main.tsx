@@ -4,18 +4,15 @@ import { DynamicContextProvider } from '@dynamic-labs/sdk-react-core'
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum'
 import { DynamicWagmiConnector } from '@dynamic-labs/wagmi-connector'
 import { WagmiProvider, createConfig, http } from 'wagmi'
-import { baseSepolia, mainnet } from 'wagmi/chains'
+import { baseSepolia } from 'wagmi/chains'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App.tsx'
 
 // Wagmi config — chains only, Dynamic injects the connector at runtime
 const wagmiConfig = createConfig({
-  chains: [baseSepolia, mainnet],
-  transports: {
-    [baseSepolia.id]: http(),
-    [mainnet.id]: http(),
-  },
+  chains: [baseSepolia],
+  transports: { [baseSepolia.id]: http() },
 })
 
 const queryClient = new QueryClient()

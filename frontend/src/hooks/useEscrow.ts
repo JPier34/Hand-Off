@@ -1,43 +1,71 @@
 import { useState, useEffect } from 'react'
 import { useReadContract } from 'wagmi'
-import { MANAGER_ABI, ESCROW_MANAGER_ADDRESS } from '@/lib/constants'
+import { REPUTATION_ABI, REPUTATION_ADDRESS, HANDOFF_ABI } from '@/lib/constants'
 import type { Address, DealDetails } from '@/lib/types'
 import { EscrowStatus } from '@/lib/types'
 import { MOCK_MODE, getMockDeal } from '@/lib/mock'
 
-// ─── Real hook ────────────────────────────────────────────────────────────────
+// ─── Real hook (two-step: dealId → escrow address → dealInfo) ────────────────
 
 function useRealDealDetails(dealId: bigint) {
-  const result = useReadContract({
-    address: ESCROW_MANAGER_ADDRESS,
-    abi: MANAGER_ABI,
-    functionName: 'getDeal',
+  // Step 1: Resolve dealId → escrow address via Reputation registry
+  const addressResult = useReadContract({
+    address: REPUTATION_ADDRESS,
+    abi: REPUTATION_ABI,
+    functionName: 'getEscrowFromDealId',
     args: [dealId],
-    query: { refetchInterval: 5_000 },
+    query: { enabled: !MOCK_MODE },
   })
 
-  const raw = result.data as
-    | [Address, Address, bigint, number, bigint, string]
+  const escrowAddress = addressResult.data as Address | undefined
+
+  // Step 2: Read dealInfo() from the per-deal escrow contract
+  const infoResult = useReadContract({
+    address: escrowAddress,
+    abi: HANDOFF_ABI,
+    functionName: 'dealInfo',
+    query: {
+      enabled: !MOCK_MODE && !!escrowAddress,
+      refetchInterval: 5_000,
+    },
+  })
+
+  // Step 3: Read payoutToken() separately (not included in dealInfo)
+  const tokenResult = useReadContract({
+    address: escrowAddress,
+    abi: HANDOFF_ABI,
+    functionName: 'payoutToken',
+    query: { enabled: !MOCK_MODE && !!escrowAddress },
+  })
+
+  // dealInfo returns: (seller, buyer, expiresAt, balance, state, sellerEns, buyerEns)
+  const raw = infoResult.data as
+    | [Address, Address, bigint, bigint, number, string, string]
     | undefined
+
+  const payoutTokenAddr = tokenResult.data as Address | undefined
 
   const details: DealDetails | undefined = raw
     ? {
         seller:      raw[0],
         buyer:       raw[1],
-        amount:      raw[2],
-        status:      raw[3] as EscrowStatus,
-        expiresAt:   raw[4],
-        description: raw[5],
-        payoutToken: null, // TODO: read from contract when ABI includes payoutToken
+        amount:      raw[3], // balance
+        status:      raw[4] as EscrowStatus,
+        expiresAt:   raw[2],
+        description: raw[5] || raw[6] || '', // sellerEns as description fallback
+        payoutToken: payoutTokenAddr === '0x0000000000000000000000000000000000000000'
+          ? null
+          : (payoutTokenAddr ?? null),
       }
     : undefined
 
-  return { ...result, details }
+  const isLoading = addressResult.isLoading || infoResult.isLoading || tokenResult.isLoading
+  const isError = addressResult.isError || infoResult.isError
+
+  return { details, isLoading, isError, escrowAddress }
 }
 
 // ─── Mock hook ─────────────────────────────────────────────────────────────────
-// Polls the module-level mock state every 500ms so components re-render after
-// mockDeposit / mockRelease / mockRefund calls.
 
 function useMockDealDetails(dealId: bigint) {
   const [, tick] = useState(0)
@@ -48,15 +76,15 @@ function useMockDealDetails(dealId: bigint) {
   }, [])
 
   return {
-    details:   getMockDeal(dealId),
-    isLoading: false,
-    isError:   false,
-    error:     null,
+    details:       getMockDeal(dealId),
+    isLoading:     false,
+    isError:       false,
+    error:         null,
+    escrowAddress: undefined as Address | undefined,
   }
 }
 
 // ─── Public export ─────────────────────────────────────────────────────────────
-// Both hooks are always called (rules of hooks); we just pick the result.
 
 export function useDealDetails(dealId: bigint) {
   const real = useRealDealDetails(dealId)

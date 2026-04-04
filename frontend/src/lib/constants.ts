@@ -1,64 +1,24 @@
-// TODO at hackathon: replace with deployed manager address from your smart contract teammate
-export const ESCROW_MANAGER_ADDRESS = (
-  import.meta.env.VITE_MANAGER_ADDRESS ?? '0x0000000000000000000000000000000000000000'
+import type { Abi } from 'viem'
+import HandOffAbi from '@/contracts/HandOff.abi.json'
+import HandOffReputationAbi from '@/contracts/HandOffReputation.abi.json'
+import HandOffSubnameAbi from '@/contracts/HandOffSubnameRegistrar.abi.json'
+
+// ─── ABIs ─────────────────────────────────────────────────────────────────────
+export const HANDOFF_ABI = HandOffAbi as unknown as Abi
+export const REPUTATION_ABI = HandOffReputationAbi as unknown as Abi
+export const SUBNAME_ABI = HandOffSubnameAbi as unknown as Abi
+
+// ─── Contract addresses (from .env) ──────────────────────────────────────────
+// Reputation registry on Base Sepolia — maps dealId → escrow address
+export const REPUTATION_ADDRESS = (
+  import.meta.env.VITE_REPUTATION_ADDRESS ?? '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
-// TODO at hackathon: replace with ABI export from Hardhat artifacts
-export const MANAGER_ABI = [
-  {
-    name: 'createDeal',
-    type: 'function',
-    stateMutability: 'payable',
-    inputs: [{ name: 'timeoutSeconds', type: 'uint256' }],
-    outputs: [],
-    // emits: DealCreated(uint256 dealId)
-  },
-  {
-    name: 'getDeal',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'dealId', type: 'uint256' }],
-    outputs: [
-      { name: 'seller',      type: 'address' },
-      { name: 'buyer',       type: 'address' },
-      { name: 'amount',      type: 'uint256' },
-      { name: 'status',      type: 'uint8'   },
-      { name: 'expiresAt',   type: 'uint256' },
-      { name: 'description', type: 'string'  },
-    ],
-  },
-  {
-    name: 'depositFunds',
-    type: 'function',
-    stateMutability: 'payable',
-    inputs: [
-      { name: 'dealId',   type: 'uint256' },
-      { name: 'codeHash', type: 'bytes32' },
-    ],
-    outputs: [],
-  },
-  {
-    name: 'releaseToSeller',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'dealId', type: 'uint256' },
-      { name: 'code',   type: 'string'  },
-    ],
-    outputs: [],
-  },
-  {
-    name: 'claimRefund',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [{ name: 'dealId', type: 'uint256' }],
-    outputs: [],
-  },
-  {
-    name: 'cancelDeal',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [{ name: 'dealId', type: 'uint256' }],
-    outputs: [],
-  },
-] as const
+// ENS subname registrar on Ethereum Sepolia
+export const SUBNAME_ADDRESS = (
+  import.meta.env.VITE_SUBNAME_ADDRESS ?? '0x0000000000000000000000000000000000000000'
+) as `0x${string}`
+
+// Legacy alias — keep for backward compat during migration
+export const ESCROW_MANAGER_ADDRESS = REPUTATION_ADDRESS
+export const MANAGER_ABI = REPUTATION_ABI
