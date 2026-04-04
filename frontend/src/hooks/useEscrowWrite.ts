@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { parseEther, decodeEventLog } from 'viem'
 import { MANAGER_ABI, ESCROW_MANAGER_ADDRESS } from '@/lib/constants'
-import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund } from '@/lib/mock'
+import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
 
 // ─── Mock TX state helpers ─────────────────────────────────────────────────────
 // Simulates: idle → isPending (1s) → isConfirming (1.5s) → isSuccess
@@ -130,28 +130,79 @@ function useMockCreateDeal() {
   return { create, ...state, newDealId: state.isSuccess ? MOCK_DEAL_ID : undefined }
 }
 
-function useMockDepositFunds(_dealId: bigint) {
-  const { trigger, ...state } = useMockTx(mockDeposit)
+function useMockDepositFunds(dealId: bigint) {
+  const { trigger, ...state } = useMockTx(() => mockDeposit(dealId))
 
   function deposit(_amount: string, _codeHash: `0x${string}`) { trigger() }
 
   return { deposit, ...state }
 }
 
-function useMockReleaseEscrow(_dealId: bigint) {
-  const { trigger, ...state } = useMockTx(mockRelease)
+function useMockReleaseEscrow(dealId: bigint) {
+  const { trigger, ...state } = useMockTx(() => mockRelease(dealId))
 
   function release(_code: string) { trigger() }
 
   return { release, ...state }
 }
 
-function useMockClaimRefund(_dealId: bigint) {
-  const { trigger, ...state } = useMockTx(mockRefund)
+function useMockClaimRefund(dealId: bigint) {
+  const { trigger, ...state } = useMockTx(() => mockRefund(dealId))
 
   function claimRefund() { trigger() }
 
   return { claimRefund, ...state }
+}
+
+function useMockCancelDeal(dealId: bigint) {
+  const { trigger, ...state } = useMockTx(() => mockCancel(dealId))
+
+  function cancel() { trigger() }
+
+  return { cancel, ...state }
+}
+
+function useMockEditDeal(dealId: bigint) {
+  const { trigger, ...state } = useMockTx(() => {})
+  const [editAmount, setEditAmount] = useState<bigint | null>(null)
+  const [editDesc, setEditDesc] = useState<string | null>(null)
+
+  function edit(amount: bigint, description: string) {
+    setEditAmount(amount)
+    setEditDesc(description)
+    trigger()
+  }
+
+  // Apply the edit after mock TX succeeds
+  if (state.isSuccess && editAmount !== null && editDesc !== null) {
+    mockEditDeal(dealId, editAmount, editDesc)
+  }
+
+  return { edit, ...state }
+}
+
+// ─── Real stubs (cancel / edit — needs contract) ──────────────────────────────
+
+function useRealCancelDeal(_dealId: bigint) {
+  const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+
+  function cancel() {
+    writeContract({
+      address: ESCROW_MANAGER_ADDRESS,
+      abi: MANAGER_ABI,
+      functionName: 'cancelDeal',
+      args: [_dealId],
+    })
+  }
+
+  return { cancel, isPending, isConfirming, isSuccess, isError, error }
+}
+
+function useRealEditDeal(_dealId: bigint) {
+  const [state] = useState({ isPending: false, isConfirming: false, isSuccess: false, isError: false, error: null as Error | null })
+  function edit(_amount: bigint, _description: string) { /* needs contract */ }
+  return { edit, ...state }
 }
 
 // ─── Public exports ─────────────────────────────────────────────────────────────
@@ -178,5 +229,17 @@ export function useReleaseEscrow(dealId: bigint) {
 export function useClaimRefund(dealId: bigint) {
   const real = useRealClaimRefund(dealId)
   const mock = useMockClaimRefund(dealId)
+  return MOCK_MODE ? mock : real
+}
+
+export function useCancelDeal(dealId: bigint) {
+  const real = useRealCancelDeal(dealId)
+  const mock = useMockCancelDeal(dealId)
+  return MOCK_MODE ? mock : real
+}
+
+export function useEditDeal(dealId: bigint) {
+  const real = useRealEditDeal(dealId)
+  const mock = useMockEditDeal(dealId)
   return MOCK_MODE ? mock : real
 }

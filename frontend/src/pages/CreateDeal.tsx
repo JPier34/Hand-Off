@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { parseEther } from 'viem'
-import { useAccount } from 'wagmi'
+import { parseEther, isAddress } from 'viem'
+import { useAccount, useEnsAddress } from 'wagmi'
+import { mainnet } from 'wagmi/chains'
 import { useNavigate } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { useCreateDeal } from '@/hooks/useEscrowWrite'
 import { MOCK_MODE } from '@/lib/mock'
+import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 
 function validate(amount: string) {
   const errors: { amount?: string } = {}
@@ -38,7 +40,14 @@ export default function CreateDeal() {
 
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
+  const isEnsInput = recipient.endsWith('.eth')
+  const { data: resolvedAddress, isLoading: ensLoading } = useEnsAddress({
+    name: recipient,
+    chainId: mainnet.id,
+    query: { enabled: isEnsInput },
+  })
   const [description, setDescription] = useState('')
+  const [payoutToken, setPayoutToken] = useState<TokenKey>('ETH')
   const [timeoutHours, setTimeoutHours] = useState(168)
   const [touched, setTouched] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -96,24 +105,35 @@ export default function CreateDeal() {
             <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
               Payment Link
             </p>
-            <div className="bg-hoff-elevated rounded-xl px-3 py-2.5 text-xs font-mono break-all text-hoff-text-tertiary border border-hoff-brand">
-              {shareableLink}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
+            <div className="flex items-center gap-2 bg-hoff-elevated rounded-xl px-3 py-2.5 border border-hoff-brand">
+              <span className="flex-1 min-w-0 text-xs font-mono break-all text-hoff-text-tertiary">
+                {shareableLink}
+              </span>
+              <button
+                type="button"
                 onClick={() => {
                   navigator.clipboard.writeText(shareableLink)
                   setCopied(true)
                   setTimeout(() => setCopied(false), 2000)
                 }}
+                className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg hover:bg-hoff-surface transition-colors"
+                aria-label="Copy link"
               >
-                {copied ? 'Copied!' : 'Copy link'}
-              </Button>
-              <Button variant="ghost" onClick={handleShare}>
-                Share
-              </Button>
+                {copied ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2EBF7A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-hoff-text-tertiary">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                )}
+              </button>
             </div>
+            <Button fullWidth variant="ghost" onClick={handleShare}>
+              Share
+            </Button>
           </div>
 
           {/* Go to deal */}
@@ -161,7 +181,7 @@ export default function CreateDeal() {
                     Amount
                   </p>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
@@ -172,9 +192,18 @@ export default function CreateDeal() {
                     <p className="text-xs text-red-400 mt-2">{errors.amount}</p>
                   )}
                 </div>
-                <span className="flex items-center gap-1.5 bg-hoff-elevated border border-hoff-brand px-3 py-1.5 rounded-xl text-hoff-text-secondary font-medium text-sm shrink-0 mt-6">
-                  ETH
-                </span>
+                <select
+                  value={payoutToken}
+                  onChange={e => setPayoutToken(e.target.value)}
+                  className="shrink-0 mt-6 h-9 px-3 rounded-xl bg-hoff-elevated border border-hoff-brand text-hoff-text-secondary font-medium text-sm appearance-none cursor-pointer focus:outline-none focus:border-hoff-accent/60 transition-colors text-center"
+                  style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
+                >
+                  {TOKEN_KEYS.map(key => (
+                    <option key={key} value={key} className="bg-hoff-elevated">
+                      {TOKENS[key].symbol}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -207,6 +236,18 @@ export default function CreateDeal() {
                   </svg>
                 </button>
               </div>
+              {isEnsInput && ensLoading && (
+                <p className="text-xs text-hoff-text-tertiary mt-2">Resolving…</p>
+              )}
+              {isEnsInput && !ensLoading && resolvedAddress && (
+                <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  {resolvedAddress.slice(0, 6)}...{resolvedAddress.slice(-4)}
+                </p>
+              )}
+              {isEnsInput && !ensLoading && !resolvedAddress && recipient.length > 4 && (
+                <p className="text-xs text-red-400 mt-2">Could not resolve ENS name</p>
+              )}
             </div>
 
             {/* Description */}

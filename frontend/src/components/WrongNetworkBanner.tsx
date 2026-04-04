@@ -1,10 +1,10 @@
-import { useAccount, useChainId, useSwitchChain } from 'wagmi'
+import { useAccount } from 'wagmi'
 import { baseSepolia } from 'wagmi/chains'
+import { useDynamicContext } from '@dynamic-labs/sdk-react-core'
 
 export function WrongNetworkBanner() {
-  const { isConnected } = useAccount()
-  const chainId = useChainId()
-  const { switchChain, isPending } = useSwitchChain()
+  const { isConnected, chainId } = useAccount()
+  const { setShowDynamicUserProfile } = useDynamicContext()
 
   if (!isConnected || chainId === baseSepolia.id) return null
 
@@ -17,13 +17,12 @@ export function WrongNetworkBanner() {
         </p>
       </div>
       <button
-        onClick={() => switchChain({ chainId: baseSepolia.id })}
-        disabled={isPending}
+        onClick={() => setShowDynamicUserProfile(true)}
         className="shrink-0 text-xs font-medium text-red-300 hover:text-white
           border border-red-800 hover:border-red-500 px-3 py-1 rounded-lg
-          transition-colors disabled:opacity-50"
+          transition-colors"
       >
-        {isPending ? 'Switching…' : 'Switch'}
+        Switch
       </button>
     </div>
   )

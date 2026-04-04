@@ -5,6 +5,7 @@ export const EscrowStatus = {
   FUNDED: 1,
   COMPLETE: 2,
   REFUNDED: 3,
+  CANCELED: 4,
 } as const
 export type EscrowStatus = (typeof EscrowStatus)[keyof typeof EscrowStatus]
 
@@ -15,6 +16,7 @@ export interface DealDetails {
   status: EscrowStatus
   expiresAt: bigint
   description: string
+  payoutToken: Address | null // null = native ETH
 }
 
 export interface CreateDealForm {

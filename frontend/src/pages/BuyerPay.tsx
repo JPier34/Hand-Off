@@ -13,10 +13,14 @@ import { useQuote, useSwapAndDeposit } from '@/hooks/useTokenSwap'
 import { generateUnlockCode, hashUnlockCode } from '@/lib/code-gen'
 import { EscrowStatus } from '@/lib/types'
 import { MOCK_MODE, mockExpire } from '@/lib/mock'
-import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
+import { IntroScreen } from '@/components/escrow/IntroScreen'
+import { TOKENS, TOKEN_KEYS, type TokenKey, payoutSymbol, payoutDecimals } from '@/lib/tokens'
+import { useUsdValue } from '@/hooks/useTokenPrice'
+import { EnsName } from '@/components/EnsName'
 
-const PROTOCOL_FEE_BPS = 10n   // 0.1%
+const PROTOCOL_FEE_BPS  = 10n   // 0.1%
 const EST_GAS           = 800_000_000_000_000n // ~0.0008 ETH placeholder
+const DEFAULT_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 function isValidDealId(param: string | undefined): param is string {
   if (!param) return false
@@ -37,6 +41,23 @@ function FeeRow({ label, value, highlight = false }: { label: string; value: str
   )
 }
 
+// ─── Expiry progress bar ──────────────────────────────────────────────────────
+
+function ExpiryBar({ expiresAt, totalMs }: { expiresAt: number; totalMs: number }) {
+  const remaining = Math.max(0, expiresAt - Date.now())
+  const fraction = Math.min(1, remaining / totalMs)
+  const color = fraction > 0.25 ? 'bg-hoff-accent' : fraction > 0 ? 'bg-amber-500' : 'bg-red-500'
+
+  return (
+    <div className="h-1.5 w-full rounded-full bg-hoff-elevated overflow-hidden">
+      <div
+        className={`h-full rounded-full ${color} transition-all`}
+        style={{ width: `${fraction * 100}%` }}
+      />
+    </div>
+  )
+}
+
 // ─── Token selector ───────────────────────────────────────────────────────────
 
 interface TokenSelectorProps {
@@ -45,23 +66,23 @@ interface TokenSelectorProps {
 }
 
 function TokenSelector({ selected, onChange }: TokenSelectorProps) {
+  // Measure width dynamically based on selected symbol length
+  const charWidth = TOKENS[selected]?.symbol.length ?? 3
+  const width = `${charWidth * 0.7 + 1.2}em`
+
   return (
-    <div className="relative shrink-0">
-      <select
-        value={selected}
-        onChange={e => onChange(e.target.value)}
-        className="h-10 pl-3 pr-8 rounded-xl bg-hoff-elevated border border-hoff-brand text-hoff-text-primary text-lg font-medium appearance-none cursor-pointer focus:outline-none focus:border-hoff-accent/60 transition-colors"
-      >
-        {TOKEN_KEYS.map(key => (
-          <option key={key} value={key} className="bg-hoff-elevated">
-            {TOKENS[key].symbol}
-          </option>
-        ))}
-      </select>
-      <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7B7B" strokeWidth="2.5" strokeLinecap="round">
-        <polyline points="6 9 12 15 18 9"/>
-      </svg>
-    </div>
+    <select
+      value={selected}
+      onChange={e => onChange(e.target.value)}
+      className="shrink-0 h-8 px-2 rounded-lg bg-hoff-accent-muted text-hoff-accent text-xl font-medium appearance-none [&::-ms-expand]:hidden cursor-pointer focus:outline-none transition-colors text-center"
+      style={{ width, WebkitAppearance: 'none', MozAppearance: 'none' }}
+    >
+      {TOKEN_KEYS.map(key => (
+        <option key={key} value={key} className="bg-hoff-elevated text-hoff-text-primary">
+          {TOKENS[key].symbol}
+        </option>
+      ))}
+    </select>
   )
 }
 
@@ -277,6 +298,7 @@ export default function BuyerPay() {
   const { isConnected } = useAccount()
   const [unlockCode, setUnlockCode] = useState<string | null>(null)
   const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
+  const [showIntro, setShowIntro] = useState(true)
 
   // ─── Guard ──────────────────────────────────────────────────────────────────
   if (!isValidDealId(dealIdParam)) {
@@ -300,6 +322,7 @@ export default function BuyerPay() {
   const refund = useClaimRefund(dealId)
 
   const amountWei = details?.amount ?? 0n
+  const usdValue  = useUsdValue(amountWei, details?.payoutToken ?? null)
   const { quotedIn, isLoading: quoteLoading, error: quoteError }         = useQuote(selectedToken, amountWei)
   const swap                                                              = useSwapAndDeposit(dealId, selectedToken)
 
@@ -341,6 +364,15 @@ export default function BuyerPay() {
     )
   }
 
+  // ─── Intro screen ──────────────────────────────────────────────────────────
+  if (showIntro) {
+    return (
+      <Layout>
+        <IntroScreen onContinue={() => setShowIntro(false)} />
+      </Layout>
+    )
+  }
+
   // ─── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
@@ -349,6 +381,11 @@ export default function BuyerPay() {
       </Layout>
     )
   }
+
+  // ─── Token display helpers ───────────────────────────────────────────────────
+  const sym  = details ? payoutSymbol(details.payoutToken) : 'ETH'
+  const dec  = details ? payoutDecimals(details.payoutToken) : 18
+  const fmt  = (v: bigint) => formatUnits(v, dec)
 
   // ─── Fee calc ───────────────────────────────────────────────────────────────
   const protocolFee = details ? (details.amount * PROTOCOL_FEE_BPS) / 10_000n : 0n
@@ -388,23 +425,6 @@ export default function BuyerPay() {
     <Layout>
       <main className="max-w-sm mx-auto px-4 py-4 space-y-3">
 
-        {/* Breadcrumb */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => navigate(`/deal/${dealIdParam}`)}
-            className="flex items-center gap-1.5 text-xs text-hoff-text-tertiary hover:text-hoff-text-secondary transition-colors"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-            View Existing · Buyer
-          </button>
-          <span className="flex items-center gap-1.5 text-xs font-medium text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            <span className="w-1.5 h-1.5 rounded-full bg-hoff-accent shrink-0" />
-            #{dealIdParam} deals
-          </span>
-        </div>
-
         {isError || !details ? (
           <div className="bg-hoff-surface rounded-2xl p-5">
             <p className="text-sm text-red-400">Could not load deal. Check the link and try again.</p>
@@ -413,7 +433,7 @@ export default function BuyerPay() {
           <>
             {/* Title + status */}
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold text-hoff-text-primary">Pay Escrow</h1>
                 <StatusBadge status={details.status} />
               </div>
@@ -427,38 +447,47 @@ export default function BuyerPay() {
               </div>
             </div>
 
-            {/* Amount + fee breakdown card */}
+            {/* Amount card */}
             <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
               <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-                Amount
+                Amount Due
               </p>
 
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
-                  {formatEther(details.amount)}
+                  {fmt(details.amount)}
                 </span>
                 {details.status === EscrowStatus.PENDING ? (
                   <TokenSelector selected={selectedToken} onChange={setSelectedToken} />
                 ) : (
-                  <span className="text-xl font-medium text-hoff-text-secondary shrink-0">ETH</span>
+                  <span className="text-xl font-medium text-hoff-text-secondary shrink-0">
+                    {sym}
+                  </span>
                 )}
               </div>
 
-              {!isSwapPath && (
-                <div className="space-y-0.5 pt-1 border-t border-hoff-brand">
-                  <FeeRow label="Escrow Amount" value={`${formatEther(details.amount)} ETH`} />
-                  <FeeRow label="Protocol Fee (0.1%)" value={`${formatEther(protocolFee)} ETH`} />
-                  <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
-                  <div className="border-t border-hoff-brand pt-1 mt-1">
-                    <FeeRow label="Total" value={`${formatEther(total)} ETH`} highlight />
-                  </div>
-                </div>
-              )}
+              <p className="text-xs text-hoff-text-tertiary">
+                {usdValue ? `≈ $${usdValue} USD` : 'Fetching price...'}
+              </p>
+            </div>
 
-              <div className="flex items-center justify-between pt-1 border-t border-hoff-brand">
+            {/* Fee breakdown card */}
+            <div className="bg-hoff-surface rounded-2xl p-5 space-y-1">
+              <FeeRow label="Escrow Amount" value={`${fmt(details.amount)} ${sym}`} />
+              <FeeRow label="Protocol Fee (0.1%)" value={`${fmt(protocolFee)} ${sym}`} />
+              <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
+              <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
+                <FeeRow label="Total" value={`${fmt(total)} ${sym}`} highlight />
+              </div>
+            </div>
+
+            {/* Expires row with progress bar */}
+            <div className="bg-hoff-surface rounded-2xl px-5 py-3 space-y-2">
+              <div className="flex items-center justify-between">
                 <span className="text-xs text-hoff-text-tertiary">Expires in</span>
                 <CountdownTimer expiresAt={Number(details.expiresAt) * 1000} />
               </div>
+              <ExpiryBar expiresAt={Number(details.expiresAt) * 1000} totalMs={DEFAULT_TIMEOUT_MS} />
             </div>
 
             {/* Swap preview (only when non-ETH token selected) */}
@@ -480,10 +509,15 @@ export default function BuyerPay() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs text-hoff-text-tertiary mb-0.5">Creator</p>
-                  <p className="text-sm text-hoff-text-primary font-mono truncate">
-                    {details.seller.slice(0, 6)}...{details.seller.slice(-4)}
-                  </p>
+                  <EnsName
+                    address={details.seller as `0x${string}`}
+                    className="text-sm text-hoff-text-primary font-mono truncate block"
+                  />
                 </div>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
+                <span className="text-xs text-hoff-text-tertiary">Completed HandOffs</span>
+                <span className="text-xs text-hoff-text-secondary font-medium">16</span>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
                 <span className="text-xs text-hoff-text-tertiary">Reputation</span>
@@ -582,14 +616,14 @@ export default function BuyerPay() {
                     onClick={() => refund.claimRefund()}
                     loading={refund.isPending || refund.isConfirming}
                   >
-                    Claim Refund — {formatEther(details.amount)} ETH
+                    Claim Refund — {fmt(details.amount)} {sym}
                   </Button>
                 )}
 
                 {refund.isSuccess && (
                   <div className="bg-hoff-accent/10 border border-hoff-accent/30 rounded-xl px-4 py-3 text-center space-y-1">
                     <p className="text-sm text-hoff-accent font-medium">Refund successful</p>
-                    <p className="text-xs text-hoff-text-tertiary">{formatEther(details.amount)} ETH returned to your wallet</p>
+                    <p className="text-xs text-hoff-text-tertiary">{fmt(details.amount)} {sym} returned to your wallet</p>
                   </div>
                 )}
               </div>
@@ -611,10 +645,26 @@ export default function BuyerPay() {
               </div>
             )}
 
+            {/* CANCELED — UC-3: payment link inactive */}
+            {details.status === EscrowStatus.CANCELED && (
+              <div className="space-y-4">
+                <div className="flex flex-col items-center gap-3 pt-2">
+                  <div className="w-14 h-14 rounded-full bg-red-900/30 border-2 border-red-500/40 flex items-center justify-center">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </div>
+                  <p className="text-sm text-hoff-text-tertiary text-center">
+                    This HandOff has been canceled by the seller.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Mock debug: simulate expiry — poll picks up the change within 500ms */}
             {MOCK_MODE && details.status === EscrowStatus.FUNDED && !isExpired && (
               <button
-                onClick={() => mockExpire()}
+                onClick={() => mockExpire(dealId)}
                 className="w-full text-xs text-hoff-text-tertiary hover:text-amber-400 transition-colors py-1 text-center"
               >
                 [Mock] Simulate expiry
