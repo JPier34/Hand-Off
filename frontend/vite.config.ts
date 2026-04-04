@@ -10,7 +10,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   plugins: [react()],
   base: "/",
-  envPrefix: "VITE_",
+  // Expose these env var prefixes to client via import.meta.env
+  // NOTE: UNISWAP_API_KEY is NOT here — it stays server-side (Netlify Function)
+  envPrefix: ["VITE_", "DYNAMIC_", "CHAIN_", "MOCK", "REPUTATION_", "FACTORY_", "SUBNAME_", "UNIVERSAL_"],
   css: {
     postcss: {
       plugins: [tailwindcss, autoprefixer],
@@ -30,5 +32,21 @@ export default defineConfig({
       },
     },
   },
-  server: { port: 5173 },
+  server: {
+    port: 5173,
+    proxy: {
+      '/api/uniswap': {
+        target: 'https://trade-api.gateway.uniswap.org/v1',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/uniswap/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            const key = process.env.UNISWAP_API_KEY ?? ''
+            if (key) proxyReq.setHeader('x-api-key', key)
+            proxyReq.setHeader('x-universal-router-version', '2.0')
+          })
+        },
+      },
+    },
+  },
 });

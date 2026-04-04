@@ -20,22 +20,22 @@ const ethAddrs = CONTRACT_ADDRESSES[CHAIN_IDS.ETH_SEPOLIA]
 
 // Reputation registry on Eth Sepolia
 export const REPUTATION_ADDRESS = (
-  import.meta.env.VITE_REPUTATION_ADDRESS || ethAddrs?.reputationRegistry || '0x0000000000000000000000000000000000000000'
+  import.meta.env.REPUTATION_ADDRESS || ethAddrs?.reputationRegistry || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
 // Factory contract on Eth Sepolia — canonical entry point for deal creation (UC-1)
 export const FACTORY_ADDRESS = (
-  import.meta.env.VITE_FACTORY_ADDRESS || ethAddrs?.factory || '0x0000000000000000000000000000000000000000'
+  import.meta.env.FACTORY_ADDRESS || ethAddrs?.factory || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
 // ENS subname registrar on Ethereum Sepolia
 export const SUBNAME_ADDRESS = (
-  import.meta.env.VITE_SUBNAME_ADDRESS || ethAddrs?.subnameRegistrar || '0x0000000000000000000000000000000000000000'
+  import.meta.env.SUBNAME_ADDRESS || ethAddrs?.subnameRegistrar || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
 // Uniswap Universal Router 2.0 on Eth Sepolia (for fundWithSwap)
 export const UNIVERSAL_ROUTER_ADDRESS = (
-  import.meta.env.VITE_UNIVERSAL_ROUTER_ADDRESS ?? '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD'
+  import.meta.env.UNIVERSAL_ROUTER_ADDRESS ?? '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD'
 ) as `0x${string}`
 
 // Legacy alias — keep for backward compat during migration
