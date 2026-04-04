@@ -545,33 +545,19 @@ export default function BuyerPay() {
               </div>
             </div>
 
-            {/* TX state feedback */}
-            {txMessage() && (
-              <div className={`flex items-center gap-2 px-4 py-3 rounded-xl ${
-                anyPending
-                  ? 'text-amber-400 bg-amber-900/20 border border-amber-800/30'
-                  : 'text-hoff-accent bg-hoff-accent-muted'
-              }`}>
-                <Spinner size="sm" />
-                <span className="text-sm">{txMessage()}</span>
-              </div>
-            )}
-            {anyError && (
-              <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
-                Payment failed. Try again.
-              </div>
-            )}
-
             {/* CTA */}
             {details.status === EscrowStatus.PENDING && (
-              <Button
-                fullWidth
-                onClick={canAct ? handleDeposit : undefined}
-                loading={anyBusy}
-                disabled={anyBusy || (isSwapPath && quotedIn === undefined && !quoteLoading)}
-              >
-                {ctaLabel()}
-              </Button>
+              <>
+                {anyError && <p className="text-xs text-red-400 text-center">Payment failed. Try again.</p>}
+                <Button
+                  fullWidth
+                  onClick={canAct ? handleDeposit : undefined}
+                  loading={anyBusy}
+                  disabled={anyBusy || (isSwapPath && quotedIn === undefined && !quoteLoading)}
+                >
+                  {txMessage() ?? ctaLabel()}
+                </Button>
+              </>
             )}
 
             {/* FUNDED — not expired */}
@@ -591,40 +577,19 @@ export default function BuyerPay() {
                   </p>
                 </div>
 
-                {refund.isPending && (
-                  <div className="flex items-center gap-2 text-amber-400 bg-amber-900/20 px-4 py-3 rounded-xl border border-amber-800/30">
-                    <Spinner size="sm" />
-                    <span className="text-sm">Confirm refund in your wallet…</span>
-                  </div>
-                )}
-                {refund.isConfirming && (
-                  <div className="flex items-center gap-2 text-hoff-accent bg-hoff-accent-muted px-4 py-3 rounded-xl">
-                    <Spinner size="sm" />
-                    <span className="text-sm">Refund processing on-chain…</span>
-                  </div>
-                )}
-                {refund.isError && (
-                  <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
-                    Refund failed. Try again.
-                  </div>
-                )}
+                {refund.isError && <p className="text-xs text-red-400 text-center">Refund failed. Try again.</p>}
 
-                {!refund.isSuccess && (
+                {!refund.isSuccess ? (
                   <Button
                     fullWidth
                     variant="danger"
                     onClick={() => refund.claimRefund()}
                     loading={refund.isPending || refund.isConfirming}
                   >
-                    Claim Refund — {fmt(details.amount)} {sym}
+                    {refund.isPending ? 'Confirm in wallet…' : refund.isConfirming ? 'Processing refund…' : `Claim Refund — ${fmt(details.amount)} ${sym}`}
                   </Button>
-                )}
-
-                {refund.isSuccess && (
-                  <div className="bg-hoff-accent/10 border border-hoff-accent/30 rounded-xl px-4 py-3 text-center space-y-1">
-                    <p className="text-sm text-hoff-accent font-medium">Refund successful</p>
-                    <p className="text-xs text-hoff-text-tertiary">{fmt(details.amount)} {sym} returned to your wallet</p>
-                  </div>
+                ) : (
+                  <p className="text-xs text-hoff-accent text-center py-1">{fmt(details.amount)} {sym} returned to your wallet</p>
                 )}
               </div>
             )}

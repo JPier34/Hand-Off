@@ -378,24 +378,7 @@ function ClaimFundsView({
         </div>
       </div>
 
-      {/* TX feedback */}
-      {isPending && (
-        <div className="flex items-center gap-2 text-amber-400 bg-amber-900/20 px-4 py-3 rounded-xl border border-amber-800/30">
-          <Spinner size="sm" />
-          <span className="text-sm">Confirm in your wallet app</span>
-        </div>
-      )}
-      {isConfirming && (
-        <div className="flex items-center gap-2 text-hoff-accent bg-hoff-accent-muted px-4 py-3 rounded-xl">
-          <Spinner size="sm" />
-          <span className="text-sm">Releasing funds on-chain...</span>
-        </div>
-      )}
-      {isError && (
-        <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
-          Wrong code or transaction failed. Try again.
-        </div>
-      )}
+      {isError && <p className="text-xs text-red-400 text-center">Wrong code or transaction failed. Try again.</p>}
 
       <Button
         fullWidth
@@ -403,7 +386,7 @@ function ClaimFundsView({
         disabled={!isComplete || isPending || isConfirming}
         loading={isPending || isConfirming}
       >
-        Claim Funds
+        {isPending ? 'Confirm in wallet…' : isConfirming ? 'Releasing funds…' : 'Claim Funds'}
       </Button>
 
     </main>
@@ -683,21 +666,7 @@ export default function ManageDeal() {
               No funds have been deposited, so nothing needs to be refunded.
             </p>
 
-            {cancelDeal.isPending && (
-              <div className="flex items-center gap-2 text-amber-400 bg-amber-900/20 px-4 py-3 rounded-xl border border-amber-800/30">
-                <Spinner size="sm" /><span className="text-sm">Confirm in your wallet…</span>
-              </div>
-            )}
-            {cancelDeal.isConfirming && (
-              <div className="flex items-center gap-2 text-hoff-accent bg-hoff-accent-muted px-4 py-3 rounded-xl">
-                <Spinner size="sm" /><span className="text-sm">Canceling on-chain…</span>
-              </div>
-            )}
-            {cancelDeal.isError && (
-              <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
-                Cancel failed. Try again.
-              </div>
-            )}
+            {cancelDeal.isError && <p className="text-xs text-red-400 text-center">Cancel failed. Try again.</p>}
 
             <Button
               fullWidth
@@ -705,7 +674,7 @@ export default function ManageDeal() {
               onClick={() => cancelDeal.cancel()}
               loading={cancelDeal.isPending || cancelDeal.isConfirming}
             >
-              Yes, Cancel This HandOff
+              {cancelDeal.isPending ? 'Confirm in wallet…' : cancelDeal.isConfirming ? 'Canceling…' : 'Yes, Cancel This HandOff'}
             </Button>
             <Button
               fullWidth
@@ -771,41 +740,21 @@ export default function ManageDeal() {
               />
             </div>
 
-            {/* TX states */}
-            {editDeal.isPending && (
-              <div className="flex items-center gap-2 text-amber-400 bg-amber-900/20 px-4 py-3 rounded-xl border border-amber-800/30">
-                <Spinner size="sm" /><span className="text-sm">Confirm in your wallet…</span>
-              </div>
-            )}
-            {editDeal.isConfirming && (
-              <div className="flex items-center gap-2 text-hoff-accent bg-hoff-accent-muted px-4 py-3 rounded-xl">
-                <Spinner size="sm" /><span className="text-sm">Updating on-chain…</span>
-              </div>
-            )}
-            {editDeal.isSuccess && (
-              <div className="bg-hoff-accent/10 border border-hoff-accent/30 rounded-xl px-4 py-3 text-center">
-                <p className="text-sm text-hoff-accent font-medium">Deal updated!</p>
-              </div>
-            )}
-            {editDeal.isError && (
-              <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
-                Update failed. Try again.
-              </div>
-            )}
+            {editDeal.isError && <p className="text-xs text-red-400 text-center">Update failed. Try again.</p>}
 
-            <Button
-              fullWidth
-              onClick={() => {
-                if (!amountValid) return
-                editDeal.edit(parseEther(editAmount as `${number}`), editDescription)
-              }}
-              disabled={!amountValid || editDeal.isPending || editDeal.isConfirming}
-              loading={editDeal.isPending || editDeal.isConfirming}
-            >
-              Save Changes
-            </Button>
-
-            {editDeal.isSuccess && (
+            {!editDeal.isSuccess ? (
+              <Button
+                fullWidth
+                onClick={() => {
+                  if (!amountValid) return
+                  editDeal.edit(parseEther(editAmount as `${number}`), editDescription)
+                }}
+                disabled={!amountValid || editDeal.isPending || editDeal.isConfirming}
+                loading={editDeal.isPending || editDeal.isConfirming}
+              >
+                {editDeal.isPending ? 'Confirm in wallet…' : editDeal.isConfirming ? 'Updating…' : 'Save Changes'}
+              </Button>
+            ) : (
               <Button fullWidth variant="ghost" onClick={() => setShowEdit(false)}>
                 Done
               </Button>

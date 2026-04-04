@@ -305,24 +305,7 @@ export default function CreateDeal() {
               </select>
             </div>
 
-            {/* TX states */}
-            {isPending && (
-              <div className="flex items-center gap-2 text-amber-400 bg-amber-900/20 px-4 py-3 rounded-xl border border-amber-800/30">
-                <Spinner size="sm" />
-                <span className="text-sm">Confirm in your wallet app</span>
-              </div>
-            )}
-            {isConfirming && (
-              <div className="flex items-center gap-2 text-hoff-accent bg-hoff-accent-muted px-4 py-3 rounded-xl">
-                <Spinner size="sm" />
-                <span className="text-sm">Transaction processing on-chain...</span>
-              </div>
-            )}
-            {isError && (
-              <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
-                {error?.message ?? 'Transaction failed'}
-              </div>
-            )}
+            {isError && <p className="text-xs text-red-400 text-center">{error?.message ?? 'Transaction failed'}</p>}
 
             <Button
               fullWidth
@@ -330,7 +313,7 @@ export default function CreateDeal() {
               loading={isPending || isConfirming}
               type="submit"
             >
-              Create HandOff
+              {isPending ? 'Confirm in wallet…' : isConfirming ? 'Deploying on-chain…' : 'Create HandOff'}
             </Button>
 
             <p className="text-center text-xs text-hoff-text-tertiary">
