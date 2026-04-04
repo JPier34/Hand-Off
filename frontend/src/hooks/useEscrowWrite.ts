@@ -57,10 +57,11 @@ function useRealCreateDeal() {
   // The factory atomically deploys a new HandOff escrow + registers it with HandOffReputation.
   function create(
     amount: string,
-    _description: string,   // description is frontend-only; not stored on-chain
+    _description: string,          // description is frontend-only; not stored on-chain
     timeoutHours: number,
     payoutTokenKey = 'ETH',
     sellerEns = '',
+    sellerPayoutAddress: Address = '0x0000000000000000000000000000000000000000' as Address,
   ) {
     const token = TOKENS[payoutTokenKey]
     const payoutToken: Address = (token?.address ?? '0x0000000000000000000000000000000000000000') as Address
@@ -70,7 +71,7 @@ function useRealCreateDeal() {
       address: FACTORY_ADDRESS,
       abi: FACTORY_ABI,
       functionName: 'createHandOff',
-      args: [payoutToken, parseEther(amount), expirationWindow, sellerEns],
+      args: [payoutToken, parseEther(amount), expirationWindow, sellerEns, sellerPayoutAddress],
     })
   }
 

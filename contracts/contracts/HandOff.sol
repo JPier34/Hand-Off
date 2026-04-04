@@ -169,15 +169,16 @@ contract HandOff is ReentrancyGuard {
 
     // ── Constructor ───────────────────────────────────────────────────────────
     /// @notice Deploy a new HandOff escrow deal.
-    /// @param _seller          The seller's address (must be non-zero).
-    /// @param _payoutToken     ERC-20 payout token, or address(0) for ETH.
-    /// @param _amount          Required escrow amount in wei or token units.
-    /// @param _expirationWindow Seconds until deal expires (minimum MIN_EXPIRY_WINDOW).
-    /// @param _dealId          Unique deal identifier (caller must enforce uniqueness).
-    /// @param _reputationRegistry HandOffReputation address, or address(0) to skip.
-    /// @param _subnameRegistrar   HandOffSubnameRegistrar address, or address(0) for cross-chain.
-    /// @param _sellerEns       Seller's ENS name for display (informational).
-    /// @param _allowedRouter   Uniswap router address for fundWithSwap, or address(0) to disable.
+    /// @param _seller               The seller's address (must be non-zero).
+    /// @param _payoutToken          ERC-20 payout token, or address(0) for ETH.
+    /// @param _amount               Required escrow amount in wei or token units.
+    /// @param _expirationWindow     Seconds until deal expires (minimum MIN_EXPIRY_WINDOW).
+    /// @param _dealId               Unique deal identifier (caller must enforce uniqueness).
+    /// @param _reputationRegistry   HandOffReputation address, or address(0) to skip.
+    /// @param _subnameRegistrar     HandOffSubnameRegistrar address, or address(0) for cross-chain.
+    /// @param _sellerEns            Seller's ENS name for display (informational).
+    /// @param _allowedRouter        Uniswap router address for fundWithSwap, or address(0) to disable.
+    /// @param _sellerPayoutAddress  Address that receives funds on unlock. Defaults to _seller if address(0).
     constructor(
         address _seller,
         address _payoutToken,
@@ -187,7 +188,8 @@ contract HandOff is ReentrancyGuard {
         address _reputationRegistry,
         address _subnameRegistrar,
         string memory _sellerEns,
-        address _allowedRouter
+        address _allowedRouter,
+        address _sellerPayoutAddress
     ) {
         if (_seller == address(0)) revert InvalidSeller();
         if (_amount == 0) revert AmountZero();
@@ -206,7 +208,8 @@ contract HandOff is ReentrancyGuard {
 
         payoutToken = _payoutToken;
         amount = _amount;
-        sellerPayoutAddress = _seller;
+        // Use provided payout address, or fall back to the seller's own wallet
+        sellerPayoutAddress = _sellerPayoutAddress != address(0) ? _sellerPayoutAddress : _seller;
         expirationTimestamp = block.timestamp + _expirationWindow;
         sellerEns = _sellerEns;
 

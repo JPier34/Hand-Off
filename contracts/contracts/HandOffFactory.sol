@@ -63,32 +63,35 @@ contract HandOffFactory {
     // ── Create ────────────────────────────────────────────────────────────────
     /// @notice Deploy a new HandOff escrow and register it with the reputation
     ///         registry atomically. msg.sender becomes the seller.
-    /// @param _payoutToken      ERC-20 payout token, or address(0) for ETH.
-    /// @param _amount           Required escrow amount in wei or token units.
-    /// @param _expirationWindow Seconds until deal expires (minimum 5 minutes).
-    /// @param _sellerEns        Seller's ENS name for UI display (informational, may be "").
+    /// @param _payoutToken          ERC-20 payout token, or address(0) for ETH.
+    /// @param _amount               Required escrow amount in wei or token units.
+    /// @param _expirationWindow     Seconds until deal expires (minimum 5 minutes).
+    /// @param _sellerEns            Seller's ENS name for UI display (informational, may be "").
+    /// @param _sellerPayoutAddress  Address to receive funds on unlock. Pass address(0) to default to msg.sender.
     /// @return escrow  The deployed HandOff contract address.
     /// @return dealId  The global deal ID assigned by the reputation registry.
     function createHandOff(
         address _payoutToken,
         uint256 _amount,
         uint256 _expirationWindow,
-        string calldata _sellerEns
+        string calldata _sellerEns,
+        address _sellerPayoutAddress
     ) external returns (address escrow, uint256 dealId) {
         // Pre-calculate the deal ID. The factory is the sole AUTHORIZED_DEPLOYER, so
         // totalDeals + 1 is guaranteed to be the next ID assigned by registerHandOff().
         uint256 expectedDealId = IHandOffReputationReg(REPUTATION_REGISTRY).totalDeals() + 1;
 
         HandOff handOff = new HandOff(
-            msg.sender,       // seller
+            msg.sender,            // seller
             _payoutToken,
             _amount,
             _expirationWindow,
-            expectedDealId,   // dealId stored as immutable inside HandOff for subname minting
+            expectedDealId,        // dealId stored as immutable inside HandOff for subname minting
             REPUTATION_REGISTRY,
             SUBNAME_REGISTRAR,
             _sellerEns,
-            ALLOWED_ROUTER
+            ALLOWED_ROUTER,
+            _sellerPayoutAddress   // address(0) → defaults to msg.sender inside HandOff
         );
 
         // Register the freshly deployed escrow — this is the only path to whitelist

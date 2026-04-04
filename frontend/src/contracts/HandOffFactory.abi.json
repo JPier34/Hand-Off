@@ -115,6 +115,11 @@
         "internalType": "string",
         "name": "_sellerEns",
         "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "_sellerPayoutAddress",
+        "type": "address"
       }
     ],
     "name": "createHandOff",
