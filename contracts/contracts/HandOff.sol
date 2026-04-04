@@ -10,11 +10,13 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // ---------------------------------------------------------------------------
 
 interface IHandOffReputation {
+    function registerHandOff(address escrow) external returns (uint256 dealId);
     function recordCompletion(address seller, address buyer, uint256 amount) external;
     function recordReview(address reviewer, address reviewed, address escrow, bool isPositive, bool reviewedAsSeller) external;
 }
 
 interface IHandOffSubnameRegistrar {
+    function registerHandOff(address escrow) external;
     function mintDealReceipt(
         uint256 dealId,
         address escrow,
@@ -209,6 +211,19 @@ contract HandOff is ReentrancyGuard {
         sellerEns = _sellerEns;
 
         state = State.CREATED;
+
+        // Self-register with the reputation registry so recordCompletion/recordReview work
+        // without requiring a separate deployer call. Gas-limited + try/catch so a bad
+        // registry address never blocks contract deployment.
+        if (_reputationRegistry != address(0)) {
+            try IHandOffReputation(_reputationRegistry).registerHandOff{gas: 100000}(address(this))
+            {} catch {}
+        }
+        // Same for the subname registrar (same-chain path; cross-chain path uses SubnameMintRequested event).
+        if (_subnameRegistrar != address(0)) {
+            try IHandOffSubnameRegistrar(_subnameRegistrar).registerHandOff{gas: 100000}(address(this))
+            {} catch {}
+        }
     }
 
     // ── Fund (ETH or ERC-20) ──────────────────────────────────────────────────

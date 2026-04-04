@@ -20,7 +20,7 @@ async function baseFixture() {
     1n, await rep.getAddress(), ethers.ZeroAddress, "seller.eth",
     ethers.ZeroAddress, // ALLOWED_ROUTER — address(0) disables swap
   ])) as HandOff;
-  await rep.connect(deployer).registerHandOff(await h.getAddress());
+  // HandOff self-registers with the reputation registry in its constructor — no manual call needed.
   return { h, rep, deployer, seller, buyer, other };
 }
 
@@ -34,7 +34,7 @@ async function tokenFixture() {
     2n, await rep.getAddress(), ethers.ZeroAddress, "",
     ethers.ZeroAddress, // ALLOWED_ROUTER
   ])) as HandOff;
-  await rep.connect(deployer).registerHandOff(await h.getAddress());
+  // HandOff self-registers with the reputation registry in its constructor — no manual call needed.
   return { h, rep, token, deployer, seller, buyer, other };
 }
 
@@ -325,7 +325,7 @@ describe("HandOff", function () {
         10n, await rep.getAddress(), ethers.ZeroAddress, "",
         await router.getAddress(), // ALLOWED_ROUTER
       ])) as HandOff;
-      await rep.connect(deployer).registerHandOff(await h.getAddress());
+      // HandOff self-registers with rep in its constructor — no manual call needed.
       await inputTok.mint(buyer.address, TWO_ETH);
       await inputTok.connect(buyer).approve(await h.getAddress(), TWO_ETH);
       const iface   = new ethers.Interface(["function swap(address,uint256)"]);
@@ -515,7 +515,7 @@ describe("HandOff", function () {
         99n, await rep.getAddress(), await bad.getAddress(), "",
         ethers.ZeroAddress,
       ])) as HandOff;
-      await rep.connect(deployer).registerHandOff(await h.getAddress());
+      // HandOff self-registers with rep in its constructor — no manual call needed.
       await h.connect(buyer).fund(VALID_HASH, "", { value: ONE_ETH });
       await expect(h.connect(seller).unlock(VALID_HASH))
         .to.emit(h, "HandOffCompleted")
@@ -612,7 +612,7 @@ describe("HandOff", function () {
         3n, await rep.getAddress(), ethers.ZeroAddress, "",
         ethers.ZeroAddress,
       ])) as HandOff;
-      await rep.connect(d).registerHandOff(await h.getAddress());
+      // HandOff self-registers with rep in its constructor — no manual call needed.
       await h.connect(buy).fund(VALID_HASH, "", { value: ONE_ETH });
       // Increase past the 300s expiry
       await time.increase(SHORT_WINDOW + 1n);
@@ -629,7 +629,7 @@ describe("HandOff", function () {
         7n, await rep.getAddress(), ethers.ZeroAddress, "",
         ethers.ZeroAddress,
       ])) as HandOff;
-      await rep.connect(dep).registerHandOff(await h.getAddress());
+      // HandOff self-registers with rep in its constructor — no manual call needed.
       await mal.setTarget(await h.getAddress(), VALID_HASH);
       await h.connect(buy).fund(VALID_HASH, "", { value: ONE_ETH });
       await mal.doUnlock();

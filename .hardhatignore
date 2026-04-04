@@ -1,7 +1,5 @@
-# Exclude frontend team's Hardhat v2 workspace (contracts/contracts/)
-# Those files are managed by their own hardhat config at contracts/hardhat.config.ts
-contracts/contracts/
-contracts/ignition/
+# The contracts/ workspace uses its own Hardhat v2 config.
+# node_modules and generated folders are excluded from the root toolbox.
 contracts/node_modules/
-contracts/artifacts/
-contracts/cache/
+contracts/typechain-types/
+frontend/
