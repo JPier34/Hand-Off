@@ -95,8 +95,8 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
       swapper:         address,
       tokenIn:         tokenIn,
       tokenOut:        WETH_ADDRESS,       // seller wants ETH → swap to WETH
-      tokenInChainId:  '84532',            // Base Sepolia
-      tokenOutChainId: '84532',
+      tokenInChainId:  '11155111',            // Eth Sepolia
+      tokenOutChainId: '11155111',
       amount:          amountOutWei.toString(),
       type:            'EXACT_OUTPUT',
       slippageTolerance: 0.5,
@@ -189,7 +189,7 @@ function useRealSwapAndDeposit(
       setState({ ...IDLE_SWAP, isApprovePending: true })
 
       const inputAmount = getOutputAmount(quoteResponse) // for EXACT_OUTPUT, this is the input amount
-      const approval = await checkApproval(address, token.address, inputAmount, 84532)
+      const approval = await checkApproval(address, token.address, inputAmount, 11155111)
 
       if (approval) {
         // Need to approve — swap will be triggered reactively after confirmation

@@ -8,7 +8,7 @@ export interface Token {
   mockRate: bigint          // mock rate vs ETH (in token's smallest unit per 1 ETH)
 }
 
-// Base Sepolia token addresses
+// Eth Sepolia token addresses
 // Note: testnet liquidity is thin — mock mode recommended for demo
 export const TOKENS: Record<string, Token> = {
   ETH: {
@@ -48,7 +48,7 @@ export const TOKEN_KEYS = Object.keys(TOKENS)
 // Native ETH placeholder used by Uniswap Trading API
 export const ETH_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 
-// WETH on Base Sepolia
+// WETH on Eth Sepolia
 export const WETH_ADDRESS = '0x4200000000000000000000000000000000000006' as Address
 
 // Look up token info by on-chain address (null = native ETH)
