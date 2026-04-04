@@ -1,3 +1,7 @@
+[build]
+  command = "npm run build"
+  publish = "frontend/dist"
+  functions = "frontend/netlify/functions"
 
 [build.environment]
   # These are intentionally client-side (public SDK IDs, non-sensitive config)
