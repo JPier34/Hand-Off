@@ -15,6 +15,7 @@ import { IntroScreen } from '@/components/escrow/IntroScreen'
 import { payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
+import { useReputation } from '@/hooks/useReputation'
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 function isValidDealId(param: string | undefined): param is string {
@@ -117,6 +118,7 @@ interface ViewEscrowProps {
 
 function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, description, sym, fmt, usdLabel, onUnlock }: ViewEscrowProps) {
   const navigate = useNavigate()
+  const { reputation } = useReputation(seller as `0x${string}`)
   const payLink = `${window.location.origin}/pay/${dealIdParam}`
   const progress = expiryProgress(expiresAt)
 
@@ -218,22 +220,18 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, descri
         <div className="space-y-2 pt-2 border-t border-hoff-brand">
           <div className="flex items-center justify-between">
             <span className="text-xs text-hoff-text-tertiary">Completed HandOffs</span>
-            <span className="text-xs font-medium text-hoff-text-secondary">2</span>
+            <span className="text-xs font-medium text-hoff-text-secondary">{reputation.sellerDealCount}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-hoff-text-tertiary">Reputation</span>
             <div className="flex items-center gap-2 text-xs">
               <span className="flex items-center gap-0.5 text-hoff-accent">
                 <svg width="10" height="10" viewBox="0 0 24 24"><path d="M12 4L20 20H4L12 4Z" fill="#2EBF7A"/></svg>
-                7
+                {reputation.sellerPositiveReviews}
               </span>
               <span className="flex items-center gap-0.5 text-hoff-text-tertiary">
                 <svg width="10" height="10" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#4B5563"/></svg>
-                4
-              </span>
-              <span className="flex items-center gap-0.5 text-red-400">
-                <svg width="10" height="10" viewBox="0 0 24 24"><path d="M12 20L4 4H20L12 20Z" fill="#f87171"/></svg>
-                1
+                {reputation.sellerTotalReviews - reputation.sellerPositiveReviews}
               </span>
             </div>
           </div>

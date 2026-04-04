@@ -17,6 +17,7 @@ import { IntroScreen } from '@/components/escrow/IntroScreen'
 import { TOKENS, TOKEN_KEYS, type TokenKey, payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
+import { useReputation } from '@/hooks/useReputation'
 
 const PROTOCOL_FEE_BPS  = 10n   // 0.1%
 const EST_GAS           = 800_000_000_000_000n // ~0.0008 ETH placeholder
@@ -326,6 +327,7 @@ export default function BuyerPay() {
   const { quotedIn, isLoading: quoteLoading, error: quoteError }         = useQuote(selectedToken, amountWei)
   const swap                                                              = useSwapAndDeposit(dealId, selectedToken)
 
+  const { reputation } = useReputation(details?.seller as `0x${string}` | undefined)
   const isSwapPath = selectedToken !== 'ETH'
 
   // Determine overall success from either direct deposit or swap path
@@ -517,7 +519,7 @@ export default function BuyerPay() {
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
                 <span className="text-xs text-hoff-text-tertiary">Completed HandOffs</span>
-                <span className="text-xs text-hoff-text-secondary font-medium">16</span>
+                <span className="text-xs text-hoff-text-secondary font-medium">{reputation.sellerDealCount}</span>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
                 <span className="text-xs text-hoff-text-tertiary">Reputation</span>
@@ -527,19 +529,12 @@ export default function BuyerPay() {
                     <svg width="10" height="10" viewBox="0 0 24 24">
                       <path d="M12 5L20 19H4L12 5Z" fill="#2EBF7A" stroke="#2EBF7A" strokeWidth="2" strokeLinejoin="round"/>
                     </svg>
-                    <span className="text-xs text-hoff-text-secondary">12</span>
+                    <span className="text-xs text-hoff-text-secondary">{reputation.sellerPositiveReviews}</span>
                   </div>
                   {/* Neutral */}
                   <div className="flex items-center gap-1">
                     <span className="w-2.5 h-0.5 rounded-full bg-hoff-text-tertiary inline-block" />
-                    <span className="text-xs text-hoff-text-secondary">3</span>
-                  </div>
-                  {/* Negative */}
-                  <div className="flex items-center gap-1">
-                    <svg width="10" height="10" viewBox="0 0 24 24">
-                      <path d="M12 19L4 5H20L12 19Z" fill="#f87171" stroke="#f87171" strokeWidth="2" strokeLinejoin="round"/>
-                    </svg>
-                    <span className="text-xs text-hoff-text-secondary">1</span>
+                    <span className="text-xs text-hoff-text-secondary">{reputation.sellerTotalReviews - reputation.sellerPositiveReviews}</span>
                   </div>
                 </div>
               </div>
