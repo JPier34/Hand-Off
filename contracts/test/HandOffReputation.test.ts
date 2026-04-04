@@ -63,6 +63,7 @@ describe("HandOffReputation", function () {
         .withArgs(escrow1.address, 1n);
       expect(await rep.registeredEscrows(escrow1.address)).to.be.true;
       expect(await rep.totalDeals()).to.equal(1n);
+      expect(await rep.getEscrowFromDealId(1n)).to.equal(escrow1.address);
     });
 
     it("deal IDs increment sequentially across multiple registrations", async function () {
