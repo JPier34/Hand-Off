@@ -4,10 +4,10 @@ import * as dotenv from "dotenv";
 
 dotenv.config({ path: "../.env" });
 
-const ALCHEMY_KEY    = process.env.ALCHEMY_API_KEY    ?? "";
-const PRIVATE_KEY    = process.env.PRIVATE_KEY        ?? "0x" + "0".repeat(64);
-const ETHERSCAN_KEY  = process.env.ETHERSCAN_API_KEY  ?? "";
-const BASESCAN_KEY   = process.env.BASESCAN_API_KEY   ?? "";
+const ALCHEMY_KEY = process.env.ALCHEMY_API_KEY ?? "";
+const PRIVATE_KEY = process.env.PRIVATE_KEY ?? "0x" + "0".repeat(64);
+const ETHERSCAN_KEY = process.env.ETHERSCAN_API_KEY ?? "";
+const BASESCAN_KEY = process.env.BASESCAN_API_KEY ?? "";
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -20,11 +20,6 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {},
-    baseSepolia: {
-      url: `https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-      accounts: [PRIVATE_KEY],
-      chainId: 84532,
-    },
     ethSepolia: {
       url: `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}`,
       accounts: [PRIVATE_KEY],
@@ -33,24 +28,17 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      baseSepolia: BASESCAN_KEY,
-      sepolia:     ETHERSCAN_KEY,
+
+      sepolia: ETHERSCAN_KEY,
     },
     customChains: [
-      {
-        network: "baseSepolia",
-        chainId: 84532,
-        urls: {
-          apiURL:  "https://api-sepolia.basescan.org/api",
-          browserURL: "https://sepolia.basescan.org",
-        },
-      },
+
     ],
   },
   paths: {
-    sources:   "./contracts",
-    tests:     "./test",
-    cache:     "./cache",
+    sources: "./contracts",
+    tests: "./test",
+    cache: "./cache",
     artifacts: "./artifacts",
   },
 };

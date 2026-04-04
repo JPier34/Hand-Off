@@ -2,7 +2,7 @@ import { parseEther } from 'viem'
 import { EscrowStatus } from './types'
 import type { Address, DealDetails } from './types'
 
-export const MOCK_MODE = import.meta.env.VITE_MOCK === 'true'
+export const MOCK_MODE = import.meta.env.MOCK === 'true'
 
 export const MOCK_DEAL_ID = 42n
 
