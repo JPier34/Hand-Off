@@ -74,7 +74,7 @@ export default function Home() {
         </div>
       )}
 
-      <main className="max-w-lg mx-auto px-4 py-20 space-y-8">
+      <main className="max-w-lg mx-auto px-4 py-8 space-y-8">
         <div className="space-y-3">
           <h2 className="text-4xl font-bold text-hoff-text-primary leading-tight">
             Safe in-person<br />payments.

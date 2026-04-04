@@ -9,9 +9,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { isConnected } = useAccount()
 
   return (
-    <div className="hoff-page-bg">
+    <div className="hoff-page-bg min-h-screen flex flex-col">
       <WrongNetworkBanner />
-      <header className="px-6 py-4">
+      <header className="px-6 py-4 shrink-0">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
@@ -41,7 +41,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      {children}
+      <div className="flex-1 flex flex-col justify-center">
+        {children}
+      </div>
     </div>
   )
 }
