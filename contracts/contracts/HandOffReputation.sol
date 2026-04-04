@@ -41,8 +41,11 @@ contract HandOffReputation {
     // ── Access control ────────────────────────────────────────────────────────
     address public immutable AUTHORIZED_DEPLOYER;
     mapping(address => bool) public registeredEscrows;
-    // Maps numeric dealId to the specific escrow contract address
+    /// @notice Returns the HandOff escrow contract address for a given global deal ID.
+    ///         Returns address(0) if the deal ID has not been registered or was subsequently revoked.
     mapping(uint256 => address) public getEscrowFromDealId;
+    // SECURITY FIX: reverse map — used by revokeHandOff to clear stale getEscrowFromDealId entries
+    mapping(address => uint256) private _escrowDealId;
 
     // ── Reputation storage ────────────────────────────────────────────────────
     mapping(address => ReputationData) private _reputation;
@@ -113,14 +116,25 @@ contract HandOffReputation {
         dealId = totalDeals;
 
         getEscrowFromDealId[dealId] = _escrow;
+        // SECURITY FIX: store reverse mapping so revokeHandOff can clear the stale forward entry
+        _escrowDealId[_escrow] = dealId;
 
         emit HandOffRegistered(_escrow, dealId);
     }
 
     /// @notice Revoke a previously registered escrow, preventing future writes.
+    ///         Also clears the getEscrowFromDealId entry so the frontend is not routed to
+    ///         a deregistered contract.
     /// @param _escrow The HandOff contract address to revoke.
     function revokeHandOff(address _escrow) external onlyDeployer {
         registeredEscrows[_escrow] = false;
+        // SECURITY FIX: clear stale getEscrowFromDealId entry — prevents frontend routing to
+        // a revoked contract address via the UI-routing mapping.
+        uint256 dealId = _escrowDealId[_escrow];
+        if (dealId != 0) {
+            delete getEscrowFromDealId[dealId];
+            delete _escrowDealId[_escrow];
+        }
         // QUALITY: emit revocation event so off-chain indexers can track deregistrations
         emit HandOffRevoked(_escrow);
     }

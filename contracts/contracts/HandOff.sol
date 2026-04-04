@@ -142,6 +142,9 @@ contract HandOff is ReentrancyGuard {
     );
     /// @dev UC-16: emitted when same-chain subname registrar call reverts
     event SubnameMintFailed(uint256 indexed dealId);
+    /// @dev QUALITY: emitted on every submitReview() call — frontend can track attempts
+    ///      even when the Reputation registry silently rejects duplicates.
+    event ReviewAttempted(address indexed reviewer, bool isPositive);
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     modifier onlySeller() {
@@ -387,6 +390,8 @@ contract HandOff is ReentrancyGuard {
                 isBuyer // reviewedAsSeller = isBuyer? true : false
             ) {} catch {}
         }
+        // QUALITY: emit so frontend can track every review attempt regardless of registry outcome
+        emit ReviewAttempted(msg.sender, _isPositive);
     }
 
     // ── Cancel ────────────────────────────────────────────────────────────────
@@ -420,6 +425,10 @@ contract HandOff is ReentrancyGuard {
     {
         if (_newAmount == 0) revert ZeroNewAmount();
         if (_newExpirationTimestamp <= block.timestamp) revert ExpirationNotFuture();
+        // SECURITY FIX: enforce MIN_EXPIRY_WINDOW on edit() — mirrors constructor invariant;
+        // without this, seller could set a 1-second expiry, bypassing the 5-minute safety floor.
+        if (_newExpirationTimestamp < block.timestamp + MIN_EXPIRY_WINDOW)
+            revert WindowTooShort(_newExpirationTimestamp - block.timestamp, MIN_EXPIRY_WINDOW);
         if (_newSellerPayoutAddress == address(0)) revert ZeroPayoutAddress();
 
         amount = _newAmount;

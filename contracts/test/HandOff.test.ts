@@ -187,6 +187,15 @@ describe("HandOff", function () {
         h.connect(seller).edit(ONE_ETH, ethers.ZeroAddress, ethers.ZeroAddress, exp)
       ).to.be.revertedWithCustomError(h, "ZeroPayoutAddress");
     });
+
+    it("reverts if new expiry is within MIN_EXPIRY_WINDOW — WindowTooShort", async function () {
+      // SECURITY FIX: edit() now enforces the same 5-minute floor as the constructor
+      const { h, seller } = await loadFixture(baseFixture);
+      const exp = BigInt(Math.floor(Date.now() / 1000) + 60); // only 60 seconds — below 300s floor
+      await expect(
+        h.connect(seller).edit(ONE_ETH, ethers.ZeroAddress, seller.address, exp)
+      ).to.be.revertedWithCustomError(h, "WindowTooShort");
+    });
   });
 
   // ── cancel() ────────────────────────────────────────────────────────────────

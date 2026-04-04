@@ -123,6 +123,15 @@ describe("HandOffReputation", function () {
         rep.connect(escrow1).recordCompletion(seller.address, buyer.address, ONE_ETH)
       ).to.be.revertedWithCustomError(rep, "NotRegisteredEscrow");
     });
+
+    it("getEscrowFromDealId is cleared when escrow is revoked — SECURITY FIX", async function () {
+      // SECURITY FIX: revokeHandOff now deletes the stale forward mapping entry so the
+      // frontend routing mapping returns address(0) after revocation, not a stale pointer.
+      const { rep, deployer, escrow1 } = await loadFixture(registeredFixture);
+      expect(await rep.getEscrowFromDealId(1n)).to.equal(escrow1.address);
+      await rep.connect(deployer).revokeHandOff(escrow1.address);
+      expect(await rep.getEscrowFromDealId(1n)).to.equal(ethers.ZeroAddress);
+    });
   });
 
   // ── recordCompletion ─────────────────────────────────────────────────────────
