@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { getWalletAccounts } from '@dynamic-labs-sdk/client'
 import { encodeFunctionData } from 'viem'
+import { baseSepolia } from 'viem/chains'
 import type { Abi, Address } from 'viem'
 
 interface WriteContractParams {
@@ -64,10 +65,12 @@ export function useDynamicWriteContract() {
       })
 
       const value = params.value ?? 0n
+      const chainIdHex = `0x${baseSepolia.id.toString(16)}` // 0x14a34
       const txParams = {
         from: walletAccount.address,
         to: params.address,
         data,
+        chainId: chainIdHex,
         ...(value > 0n ? { value: `0x${value.toString(16)}` } : {}),
       }
 
