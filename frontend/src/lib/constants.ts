@@ -2,16 +2,29 @@ import type { Abi } from 'viem'
 import HandOffAbi from '@/contracts/HandOff.abi.json'
 import HandOffReputationAbi from '@/contracts/HandOffReputation.abi.json'
 import HandOffSubnameAbi from '@/contracts/HandOffSubnameRegistrar.abi.json'
+import HandOffFactoryAbi from '@/contracts/HandOffFactory.abi.json'
+import { CONTRACT_ADDRESSES } from '@/contracts/addresses'
+import { CHAIN_IDS } from '@/lib/chains'
 
 // ─── ABIs ─────────────────────────────────────────────────────────────────────
-export const HANDOFF_ABI = HandOffAbi as unknown as Abi
+export const HANDOFF_ABI   = HandOffAbi as unknown as Abi
 export const REPUTATION_ABI = HandOffReputationAbi as unknown as Abi
-export const SUBNAME_ABI = HandOffSubnameAbi as unknown as Abi
+export const SUBNAME_ABI   = HandOffSubnameAbi as unknown as Abi
+// FACTORY: entry point for UC-1 — sellers call createHandOff() here
+export const FACTORY_ABI   = HandOffFactoryAbi as unknown as Abi
 
-// ─── Contract addresses (from .env) ──────────────────────────────────────────
+// ─── Contract addresses ───────────────────────────────────────────────────────
+// Primary chain: Base Sepolia. Fall back to env var for flexibility.
+const _base = CONTRACT_ADDRESSES[CHAIN_IDS.BASE_SEPOLIA]
+
 // Reputation registry on Base Sepolia — maps dealId → escrow address
 export const REPUTATION_ADDRESS = (
-  import.meta.env.VITE_REPUTATION_ADDRESS ?? '0x0000000000000000000000000000000000000000'
+  import.meta.env.VITE_REPUTATION_ADDRESS ?? _base.reputationRegistry
+) as `0x${string}`
+
+// Factory contract on Base Sepolia — canonical entry point for deal creation (UC-1)
+export const FACTORY_ADDRESS = (
+  import.meta.env.VITE_FACTORY_ADDRESS ?? _base.factory
 ) as `0x${string}`
 
 // ENS subname registrar on Ethereum Sepolia

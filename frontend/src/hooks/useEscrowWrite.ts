@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { parseEther } from 'viem'
-import { HANDOFF_ABI, REPUTATION_ABI, REPUTATION_ADDRESS } from '@/lib/constants'
+import { parseEther, parseEventLogs } from 'viem'
+import { HANDOFF_ABI, REPUTATION_ABI, REPUTATION_ADDRESS, FACTORY_ABI, FACTORY_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
 import { hashUnlockCode } from '@/lib/code-gen'
+import { TOKENS } from '@/lib/tokens'
 import type { Address } from '@/lib/types'
+import type { Abi } from 'viem'
 
 // ─── Mock TX state helpers ─────────────────────────────────────────────────────
 
@@ -40,22 +42,45 @@ function useMockTx(onConfirmed: () => void) {
 // ─── Real hooks (per-deal contract calls) ─────────────────────────────────────
 
 function useRealCreateDeal() {
-  // CREATE2 deployment — needs bytecode from teammate
-  // For now: placeholder that registers via reputation contract
   const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
   const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({ hash })
 
-  function create(_amount: string, _description: string, _timeoutHours: number) {
-    // TODO: Deploy HandOff.sol via CREATE2, then call registerHandOff
-    // For now this is a no-op — needs contract bytecode
+  // FACTORY WIRING (UC-1): call HandOffFactory.createHandOff() instead of deploying directly.
+  // The factory atomically deploys a new HandOff escrow + registers it with HandOffReputation.
+  function create(
+    amount: string,
+    _description: string,   // description is frontend-only; not stored on-chain
+    timeoutHours: number,
+    payoutTokenKey = 'ETH',
+    sellerEns = '',
+  ) {
+    const token = TOKENS[payoutTokenKey]
+    const payoutToken: Address = (token?.address ?? '0x0000000000000000000000000000000000000000') as Address
+    const expirationWindow = BigInt(timeoutHours * 3600)
+
+    writeContract({
+      address: FACTORY_ADDRESS,
+      abi: FACTORY_ABI,
+      functionName: 'createHandOff',
+      args: [payoutToken, parseEther(amount), expirationWindow, sellerEns],
+    })
   }
 
+  // Parse HandOffCreated(seller, escrow, dealId) from the factory receipt.
+  // All three params are indexed → each lives in topics[1..3]; data is empty.
   let newDealId: bigint | undefined
   if (receipt) {
     try {
-      // registerHandOff returns dealId
-      // Parse from receipt logs when wired
-    } catch { /* */ }
+      const logs = parseEventLogs({
+        abi: FACTORY_ABI as Abi,
+        logs: receipt.logs,
+        eventName: 'HandOffCreated',
+      })
+      if (logs.length > 0) {
+        const args = logs[0].args as { seller: Address; escrow: Address; dealId: bigint }
+        newDealId = args.dealId
+      }
+    } catch { /* logs from other contracts — safe to ignore */ }
   }
 
   return { create, isPending, isConfirming, isSuccess, isError, error, newDealId }
