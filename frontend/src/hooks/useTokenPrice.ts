@@ -25,7 +25,7 @@ async function fetchEthPrice(): Promise<number> {
   }
 }
 
-// Stablecoin addresses (Base Sepolia) — assumed $1
+// Stablecoin addresses (Eth Sepolia) — assumed $1
 const STABLECOIN_ADDRS = new Set([
   '0x036cbd53842c5426634e7929541ec2318f3dcf7e', // USDC
   '0x7683022d84f726a96c4a6611cd31dbf5409c0ac9', // DAI

@@ -23,7 +23,7 @@ export function parseContractError(error: Error | null | undefined): string | nu
 
   // Not enough gas money
   if (/insufficient funds/i.test(msg))
-    return 'Not enough ETH for gas. Top up your wallet on Base Sepolia.'
+    return 'Not enough ETH for gas. Top up your wallet on Eth Sepolia.'
 
   // HandOff custom errors (from HandOff.sol) — matched before generic revert
   if (/SellerCannotBeBuyer/i.test(msg))
@@ -76,7 +76,7 @@ export function parseContractError(error: Error | null | undefined): string | nu
 
   // Wrong network (belt-and-suspenders — WrongNetworkBanner catches this earlier)
   if (/chain mismatch|wrong chain|unsupported chain/i.test(msg))
-    return 'Wrong network. Switch to Base Sepolia in your wallet.'
+    return 'Wrong network. Switch to Ethereum Sepolia in your wallet.'
 
   // Nonce collision (happens when a previous tx is still pending)
   if (/nonce too low|replacement transaction/i.test(msg))

@@ -4,12 +4,5 @@
   functions = "frontend/netlify/functions"
 
 [build.environment]
-  # These are intentionally client-side (public SDK IDs, non-sensitive config)
   SECRETS_SCAN_OMIT_KEYS = "DYNAMIC_ENVIRONMENT_ID,CHAIN_ID,MOCK"
   PNPM_FLAGS = "--no-frozen-lockfile"
-
-[dev]
-  command = "npm run dev"
-  targetPort = 5173
-  port = 8888
-  autoLaunch = true
