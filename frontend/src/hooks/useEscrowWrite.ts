@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useWaitForTransactionReceipt } from 'wagmi'
 import { parseEther, parseEventLogs } from 'viem'
-import { HANDOFF_ABI, REPUTATION_ABI, REPUTATION_ADDRESS, SUBNAME_ADDRESS, FACTORY_ABI, FACTORY_ADDRESS } from '@/lib/constants'
+import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
 import { hashUnlockCode } from '@/lib/code-gen'
+import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { TOKENS } from '@/lib/tokens'
 import type { Address } from '@/lib/types'
 import type { Abi } from 'viem'
@@ -42,7 +43,7 @@ function useMockTx(onConfirmed: () => void) {
 // ─── Real hooks (per-deal contract calls) ─────────────────────────────────────
 
 function useRealCreateDeal() {
-  const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
+  const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
   const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({ hash })
 
   // FACTORY WIRING (UC-1): call HandOffFactory.createHandOff() instead of deploying directly.
@@ -90,7 +91,7 @@ function useRealCreateDeal() {
 
 // Fund: call fund(codeHash, buyerEns) on the escrow contract directly
 function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
-  const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
+  const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   function deposit(amount: string, codeHash: `0x${string}`, buyerEns = '') {
@@ -109,7 +110,7 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
 
 // Unlock: call unlock(submittedHash) — takes bytes32 hash, NOT plaintext
 function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
-  const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
+  const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   function release(code: string) {
@@ -128,7 +129,7 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
 
 // Refund: call refund() on escrow — no args
 function useRealClaimRefund(dealId: bigint, escrowAddress?: Address) {
-  const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
+  const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   function claimRefund() {
@@ -145,7 +146,7 @@ function useRealClaimRefund(dealId: bigint, escrowAddress?: Address) {
 
 // Cancel: call cancel() on escrow — no args
 function useRealCancelDeal(dealId: bigint, escrowAddress?: Address) {
-  const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
+  const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   function cancel() {
@@ -163,7 +164,7 @@ function useRealCancelDeal(dealId: bigint, escrowAddress?: Address) {
 // Edit: call edit(newAmount, newPayoutToken, newSellerPayoutAddress, newExpirationTimestamp)
 // Contract rejects zero values — caller must pass real current values for unchanged fields
 function useRealEditDeal(dealId: bigint, escrowAddress?: Address) {
-  const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
+  const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   function edit(
@@ -187,7 +188,7 @@ function useRealEditDeal(dealId: bigint, escrowAddress?: Address) {
 
 // SubmitReview: call submitReview(isPositive) on escrow
 function useRealSubmitReview(escrowAddress?: Address) {
-  const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
+  const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   function submitReview(isPositive: boolean) {

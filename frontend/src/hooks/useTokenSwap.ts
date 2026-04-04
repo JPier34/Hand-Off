@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
+import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
 import { TOKENS, WETH_ADDRESS, type TokenKey } from '@/lib/tokens'
 import { fetchQuote, getOutputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
@@ -164,11 +165,11 @@ function useRealSwapAndDeposit(
   const [state, setState] = useState(IDLE_SWAP)
 
   // Approval tx
-  const approveWrite = useWriteContract()
+  const approveWrite = useDynamicWriteContract()
   const approveReceipt = useWaitForTransactionReceipt({ hash: approveWrite.data })
 
   // fundWithSwap tx
-  const swapWrite = useWriteContract()
+  const swapWrite = useDynamicWriteContract()
   const swapReceipt = useWaitForTransactionReceipt({ hash: swapWrite.data })
 
   async function swapAndDeposit(codeHash: `0x${string}`) {

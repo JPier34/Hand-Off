@@ -42,11 +42,12 @@ function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Add
     },
   })
 
-  // Step 3: Read payoutToken() separately (not included in dealInfo)
-  const tokenResult = useReadContract({
+  // Step 3: Read getTerms() — returns (amount, payoutToken, sellerPayoutAddress, expiresAt, createdAt)
+  // This gives us the SELLER-SET amount, not the current balance (which is 0 before funding)
+  const termsResult = useReadContract({
     address: escrowAddress,
     abi: HANDOFF_ABI,
-    functionName: 'payoutToken',
+    functionName: 'getTerms',
     query: { enabled: !MOCK_MODE && !!escrowAddress },
   })
 
@@ -55,25 +56,28 @@ function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Add
     | [Address, Address, bigint, bigint, number, string, string]
     | undefined
 
-  const payoutTokenAddr = tokenResult.data as Address | undefined
+  // getTerms returns: (amount, payoutToken, sellerPayoutAddress, expirationTimestamp, createdAt)
+  const terms = termsResult.data as
+    | [bigint, Address, Address, bigint, bigint]
+    | undefined
 
   const details: DealDetails | undefined = raw
     ? {
         seller:      raw[0],
         buyer:       raw[1],
-        amount:      raw[3], // balance
+        amount:      terms?.[0] ?? raw[3], // prefer seller-set amount from getTerms, fall back to balance
         status:      raw[4] as EscrowStatus,
         expiresAt:   raw[2],
         description: '',     // not on-chain — frontend-only field
         sellerEns:   raw[5],
         buyerEns:    raw[6],
-        payoutToken: payoutTokenAddr === '0x0000000000000000000000000000000000000000'
+        payoutToken: terms?.[1] === '0x0000000000000000000000000000000000000000'
           ? null
-          : (payoutTokenAddr ?? null),
+          : (terms?.[1] ?? null),
       }
     : undefined
 
-  const isLoading = (!!dealId && !directEscrowAddress && addressResult.isLoading) || infoResult.isLoading || tokenResult.isLoading
+  const isLoading = (!!dealId && !directEscrowAddress && addressResult.isLoading) || infoResult.isLoading || termsResult.isLoading
   const isError = addressResult.isError || infoResult.isError
 
   return { details, isLoading, isError, escrowAddress }

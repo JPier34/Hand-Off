@@ -13,10 +13,6 @@ export const SUBNAME_ABI   = HandOffSubnameAbi as unknown as Abi
 // FACTORY: entry point for UC-1 — sellers call createHandOff() here
 export const FACTORY_ABI   = HandOffFactoryAbi as unknown as Abi
 
-// ─── Contract addresses ───────────────────────────────────────────────────────
-// Primary chain: Base Sepolia. Fall back to env var for flexibility.
-const _base = CONTRACT_ADDRESSES[CHAIN_IDS.BASE_SEPOLIA]
-
 // ─── Contract addresses ──────────────────────────────────────────────────────
 // Priority: .env override > addresses.ts > zero address fallback
 const baseAddrs = CONTRACT_ADDRESSES[CHAIN_IDS.BASE_SEPOLIA]
