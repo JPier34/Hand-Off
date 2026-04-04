@@ -4,12 +4,12 @@ import { configVariable, defineConfig } from "hardhat/config";
 export default defineConfig({
   plugins: [hardhatToolboxViemPlugin],
   paths: {
-    sources: "./contracts",
-    tests:   "./test",
-    cache:   "./cache",
-    artifacts: "./artifacts",
-    // Exclude the frontend team's nested contracts/ subfolder
-    // (contracts/contracts/) — those use Hardhat v2/ethers separately
+    // Contracts now live in the contracts/ workspace (Hardhat v2 + ethers).
+    // This root config is kept for network definitions and tooling only.
+    sources:   "./contracts/contracts",
+    tests:     "./contracts/test",
+    cache:     "./contracts/cache",
+    artifacts: "./contracts/artifacts",
   },
   solidity: {
     profiles: {
