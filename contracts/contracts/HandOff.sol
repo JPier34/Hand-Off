@@ -214,6 +214,13 @@ contract HandOff is ReentrancyGuard {
         sellerEns = _sellerEns;
 
         state = State.CREATED;
+
+        // UC-16: self-register with the SubnameRegistrar so mintDealReceipt can be called
+        // on deal completion. registerHandOff allows msg.sender == _escrow (self-registration).
+        // try/catch ensures a misconfigured registrar never blocks deal creation.
+        if (_subnameRegistrar != address(0)) {
+            try IHandOffSubnameRegistrar(_subnameRegistrar).registerHandOff(address(this)) {} catch {}
+        }
     }
 
     // ── Fund (ETH or ERC-20) ──────────────────────────────────────────────────

@@ -8,8 +8,10 @@ export interface Token {
   mockRate: bigint          // mock rate vs ETH (in token's smallest unit per 1 ETH)
 }
 
-// Base Sepolia token addresses
-// Note: testnet liquidity is thin — mock mode recommended for demo
+// Eth Sepolia token addresses
+// USDC: Circle's official testnet deployment
+// WETH: Uniswap WETH9 on Sepolia (used as WETH by the Universal Router)
+// Note: DAI is omitted — no canonical Uniswap-supported DAI on Eth Sepolia
 export const TOKENS: Record<string, Token> = {
   ETH: {
     symbol:   'ETH',
@@ -22,21 +24,14 @@ export const TOKENS: Record<string, Token> = {
     symbol:   'USDC',
     name:     'USD Coin',
     decimals: 6,
-    address:  '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
+    address:  '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address,
     mockRate: 2000_000_000n,  // 2000 USDC (6 dec) per 1 ETH
-  },
-  DAI: {
-    symbol:   'DAI',
-    name:     'Dai Stablecoin',
-    decimals: 18,
-    address:  '0x7683022d84F726a96c4A6611cD31DBf5409C0Ac9' as Address,
-    mockRate: 2000n * 10n ** 18n,  // 2000 DAI (18 dec) per 1 ETH
   },
   WETH: {
     symbol:   'WETH',
     name:     'Wrapped Ether',
     decimals: 18,
-    address:  '0x4200000000000000000000000000000000000006' as Address,
+    address:  '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14' as Address,
     mockRate: 10n ** 18n,  // 1:1 with ETH
   },
 }
@@ -48,8 +43,8 @@ export const TOKEN_KEYS = Object.keys(TOKENS)
 // Native ETH placeholder used by Uniswap Trading API
 export const ETH_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 
-// WETH on Base Sepolia
-export const WETH_ADDRESS = '0x4200000000000000000000000000000000000006' as Address
+// WETH on Eth Sepolia (Uniswap WETH9)
+export const WETH_ADDRESS = '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14' as Address
 
 // Look up token info by on-chain address (null = native ETH)
 export function getTokenByAddress(addr: Address | null): Token {
