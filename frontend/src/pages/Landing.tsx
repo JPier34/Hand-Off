@@ -16,7 +16,7 @@ export default function Landing() {
 
   return (
     <Layout>
-      <main className="max-w-lg mx-auto px-4 py-6 space-y-4">
+      <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-4">
 
         <Card>
           <p className="text-xs text-hoff-text-tertiary mb-1">Wallet</p>

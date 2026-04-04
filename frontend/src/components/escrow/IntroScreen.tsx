@@ -22,7 +22,7 @@ interface IntroScreenProps {
 
 export function IntroScreen({ onContinue }: IntroScreenProps) {
   return (
-    <main className="max-w-sm mx-auto px-4 py-6 space-y-6">
+    <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-6">
 
       {/* Checkmark + headline */}
       <div className="flex flex-col items-center gap-4 pt-2 text-center">

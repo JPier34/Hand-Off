@@ -36,7 +36,7 @@ export default function Home() {
   return (
     <Layout>
       {MOCK_MODE && (
-        <div className="max-w-lg mx-auto px-4 pt-4">
+        <div className="w-full px-4 sm:max-w-md sm:mx-auto pt-4">
           <div className="bg-amber-900/30 border border-amber-700/40 rounded-2xl p-4 space-y-3">
             {/* Header */}
             <div className="flex items-center gap-2">
@@ -74,7 +74,7 @@ export default function Home() {
         </div>
       )}
 
-      <main className="max-w-lg mx-auto px-4 py-8 space-y-8">
+      <main className="w-full px-4 sm:max-w-md sm:mx-auto py-8 space-y-8">
         <div className="space-y-3">
           <h2 className="text-4xl font-bold text-hoff-text-primary leading-tight">
             Safe in-person<br />payments.

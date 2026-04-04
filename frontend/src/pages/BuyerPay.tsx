@@ -187,7 +187,7 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
   }
 
   return (
-    <main className="max-w-sm mx-auto px-4 py-6 space-y-5">
+    <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
       <div className="flex flex-col items-center gap-3 pt-2">
         <div className="w-16 h-16 rounded-full bg-hoff-accent/20 border-2 border-hoff-accent flex items-center justify-center">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2EBF7A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -305,7 +305,7 @@ export default function BuyerPay() {
   if (!isValidDealId(dealIdParam)) {
     return (
       <Layout>
-        <main className="max-w-sm mx-auto px-4 py-6">
+        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
           <div className="bg-hoff-surface rounded-2xl p-5">
             <p className="text-sm text-red-400">Invalid deal link. Check the URL and try again.</p>
           </div>
@@ -425,7 +425,7 @@ export default function BuyerPay() {
 
   return (
     <Layout>
-      <main className="max-w-sm mx-auto px-4 py-4 space-y-3">
+      <main className="w-full px-4 sm:max-w-md sm:mx-auto py-4 space-y-3">
 
         {isError || !details ? (
           <div className="bg-hoff-surface rounded-2xl p-5">
@@ -455,32 +455,78 @@ export default function BuyerPay() {
                 Amount Due
               </p>
 
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
-                  {fmt(details.amount)}
-                </span>
-                {details.status === EscrowStatus.CREATED ? (
-                  <TokenSelector selected={selectedToken} onChange={setSelectedToken} />
-                ) : (
-                  <span className="text-xl font-medium text-hoff-text-secondary shrink-0">
-                    {sym}
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
+                    {fmt(details.amount)}
                   </span>
+                  <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
+                </div>
+                {details.status === EscrowStatus.CREATED && (
+                  <div className="flex flex-col items-end gap-0.5 shrink-0">
+                    <span className="text-[10px] text-hoff-text-tertiary uppercase tracking-wider">Pay with</span>
+                    <TokenSelector selected={selectedToken} onChange={setSelectedToken} />
+                  </div>
                 )}
               </div>
 
               <p className="text-xs text-hoff-text-tertiary">
                 {usdValue ? `≈ $${usdValue} USD` : 'Fetching price...'}
               </p>
+
             </div>
 
-            {/* Fee breakdown card */}
+            {/* Fee breakdown — adapts to selected pay token */}
             <div className="bg-hoff-surface rounded-2xl p-5 space-y-1">
-              <FeeRow label="Escrow Amount" value={`${fmt(details.amount)} ${sym}`} />
-              <FeeRow label="Protocol Fee (0.1%)" value={`${fmt(protocolFee)} ${sym}`} />
-              <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
-              <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
-                <FeeRow label="Total" value={`${fmt(total)} ${sym}`} highlight />
-              </div>
+              {isSwapPath && details.status === EscrowStatus.CREATED ? (
+                <>
+                  {quoteLoading && (
+                    <div className="flex items-center gap-2 py-1">
+                      <Spinner size="sm" />
+                      <span className="text-xs text-hoff-text-tertiary">Getting quote...</span>
+                    </div>
+                  )}
+                  {quoteError && (
+                    <p className="text-xs text-red-400 py-1">{quoteError}</p>
+                  )}
+                  {!quoteLoading && !quoteError && quotedIn !== undefined && (() => {
+                    const payToken = TOKENS[selectedToken]
+                    const payFmt = (v: bigint) => formatUnits(v, payToken.decimals)
+                    const paySym = payToken.symbol
+                    return (
+                      <>
+                        <FeeRow label={`Escrow Amount (${sym})`} value={`${fmt(details.amount)} ${sym}`} />
+                        <FeeRow label={`You pay (${paySym})`} value={`${payFmt(quotedIn)} ${paySym}`} />
+                        <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
+                        <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
+                          <FeeRow label="Total" value={`≈ ${payFmt(quotedIn)} ${paySym} + gas`} highlight />
+                        </div>
+                        <div className="flex items-center justify-between pt-1.5 border-t border-hoff-brand">
+                          <span className="text-xs text-hoff-text-tertiary">Slippage</span>
+                          <span className="text-xs text-hoff-text-secondary">0.5%</span>
+                        </div>
+                        <p className="text-[10px] text-hoff-text-tertiary pt-1">
+                          Powered by Uniswap · {paySym} → {sym}
+                        </p>
+                      </>
+                    )
+                  })()}
+                  {!quoteLoading && !quoteError && quotedIn === undefined && (
+                    <p className="text-xs text-hoff-text-tertiary py-1">
+                      No swap route available — try a different token.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <FeeRow label="Escrow Amount" value={`${fmt(details.amount)} ${sym}`} />
+                  <FeeRow label="Protocol Fee (0.1%)" value={`${fmt(protocolFee)} ${sym}`} />
+                  <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
+                  <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
+                    <FeeRow label="Total" value={`${fmt(total)} ${sym} + gas`} highlight />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Expires row with progress bar */}
@@ -491,17 +537,6 @@ export default function BuyerPay() {
               </div>
               <ExpiryBar expiresAt={Number(details.expiresAt) * 1000} totalMs={DEFAULT_TIMEOUT_MS} />
             </div>
-
-            {/* Swap preview (only when non-ETH token selected) */}
-            {details.status === EscrowStatus.CREATED && (
-              <SwapPreview
-                tokenKey={selectedToken}
-                quotedIn={quotedIn}
-                amountOutWei={amountWei}
-                isLoading={quoteLoading}
-                error={quoteError}
-              />
-            )}
 
             {/* Creator + reputation card */}
             <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">

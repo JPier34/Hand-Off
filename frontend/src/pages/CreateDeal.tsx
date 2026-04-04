@@ -103,7 +103,7 @@ export default function CreateDeal() {
   if (isSuccess && shareableLink) {
     return (
       <Layout>
-        <main className="max-w-sm mx-auto px-4 py-6 space-y-5">
+        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
           {/* Checkmark */}
           <div className="flex flex-col items-center gap-3 pt-2">
             <div className="w-16 h-16 rounded-full bg-hoff-accent/20 border-2 border-hoff-accent flex items-center justify-center">
@@ -174,7 +174,7 @@ export default function CreateDeal() {
   // ─── Form ───────────────────────────────────────────────────────────────────
   return (
     <Layout>
-      <main className="max-w-sm mx-auto px-4 py-6 space-y-3">
+      <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-3">
         <div className="mb-4">
           <h2 className="text-3xl font-bold text-hoff-text-primary">New HandOff</h2>
           <p className="text-sm text-hoff-text-tertiary mt-1">

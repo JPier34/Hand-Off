@@ -136,11 +136,11 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, descri
   }
 
   return (
-    <main className="max-w-sm mx-auto px-4 py-4 space-y-3">
+    <main className="w-full px-4 sm:max-w-md sm:mx-auto py-4 space-y-3">
 
       {/* Title + status */}
       <div className="space-y-1.5">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-hoff-text-primary">View Escrow</h1>
           <StatusBadge status={status} />
         </div>
@@ -300,7 +300,7 @@ function ClaimFundsView({
   const isComplete = fullCode.length === 4 && chars.every(c => c !== '')
 
   return (
-    <main className="max-w-sm mx-auto px-4 py-4 space-y-3">
+    <main className="w-full px-4 sm:max-w-md sm:mx-auto py-4 space-y-3">
 
       {/* Back + title */}
       <button
@@ -314,7 +314,7 @@ function ClaimFundsView({
       </button>
 
       <div className="space-y-1.5">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-hoff-text-primary">Claim Funds</h1>
           <StatusBadge status={EscrowStatus.COMPLETED} />
         </div>
@@ -411,7 +411,7 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel }:
     : etherscanBase
 
   return (
-    <main className="max-w-sm mx-auto px-4 py-6 space-y-5">
+    <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
 
       {/* Checkmark */}
       <div className="flex flex-col items-center gap-3 pt-2">
@@ -531,7 +531,7 @@ export default function ManageDeal() {
   if (!isValidDealId(dealIdParam)) {
     return (
       <Layout>
-        <main className="max-w-sm mx-auto px-4 py-6">
+        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
           <div className="bg-hoff-surface rounded-2xl p-5">
             <p className="text-sm text-red-400">Invalid deal link. Check the URL and try again.</p>
           </div>
@@ -570,7 +570,7 @@ export default function ManageDeal() {
   if (isError || !details) {
     return (
       <Layout>
-        <main className="max-w-sm mx-auto px-4 py-6">
+        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
           <div className="bg-hoff-surface rounded-2xl p-5">
             <p className="text-sm text-red-400">Could not load deal. Check the link and try again.</p>
           </div>
@@ -608,7 +608,7 @@ export default function ManageDeal() {
   if (details.status === EscrowStatus.EXPIRED) {
     return (
       <Layout>
-        <main className="max-w-sm mx-auto px-4 py-6 space-y-5">
+        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
           <div className="flex flex-col items-center gap-3 pt-2">
             <div className="w-16 h-16 rounded-full bg-hoff-elevated border-2 border-hoff-text-tertiary/40 flex items-center justify-center">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6B7B7B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -629,7 +629,7 @@ export default function ManageDeal() {
   if (details.status === EscrowStatus.CANCELED) {
     return (
       <Layout>
-        <main className="max-w-sm mx-auto px-4 py-6 space-y-5">
+        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
           <div className="flex flex-col items-center gap-3 pt-2">
             <div className="w-16 h-16 rounded-full bg-red-900/30 border-2 border-red-500/40 flex items-center justify-center">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round">
@@ -657,7 +657,7 @@ export default function ManageDeal() {
     if (showCancelConfirm) {
       return (
         <Layout>
-          <main className="max-w-sm mx-auto px-4 py-6 space-y-4">
+          <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-4">
             <h1 className="text-2xl font-bold text-hoff-text-primary">Cancel HandOff?</h1>
             <p className="text-sm text-hoff-text-tertiary">
               This will permanently cancel the deal. The payment link will stop working.
@@ -695,7 +695,7 @@ export default function ManageDeal() {
 
       return (
         <Layout>
-          <main className="max-w-sm mx-auto px-4 py-6 space-y-3">
+          <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-3">
             <button
               onClick={() => setShowEdit(false)}
               className="flex items-center gap-1.5 text-xs text-hoff-text-tertiary hover:text-hoff-text-secondary transition-colors"
@@ -771,9 +771,9 @@ export default function ManageDeal() {
     // ── Default PENDING view ──────────────────────────────────────────────────
     return (
       <Layout>
-        <main className="max-w-sm mx-auto px-4 py-4 space-y-3">
+        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-4 space-y-3">
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center justify-between">
               <h1 className="text-2xl font-bold text-hoff-text-primary">View Escrow</h1>
               <StatusBadge status={details.status} />
             </div>

@@ -11,7 +11,7 @@ import { Card } from '@/components/ui/Card'
 function StubPage({ title }: { title: string }) {
   return (
     <Layout>
-      <main className="max-w-lg mx-auto px-4 py-12">
+      <main className="w-full px-4 sm:max-w-md sm:mx-auto py-12">
         <Card>
           <p className="text-sm text-hoff-text-tertiary text-center py-2">
             {title} — coming soon

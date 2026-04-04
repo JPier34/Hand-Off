@@ -47,7 +47,7 @@ const PRESETS: Record<number, MockDealState> = {
     buyer: ZERO,
     amount: parseEther('0.633'),
     status: EscrowStatus.CREATED,
-    expiresAt: BigInt(Math.floor(Date.now() / 1000) + 86400 * 7),
+    expiresAt: BigInt(Math.floor(Date.now() / 1000) + 3600 * 4), // 4h
     description: 'iPhone 14 Pro – Facebook Marketplace',
     sellerEns: '', buyerEns: '',
     payoutToken: null,
@@ -57,7 +57,7 @@ const PRESETS: Record<number, MockDealState> = {
     buyer: MOCK_BUYER,
     amount: 1200_000_000n, // 1200 USDC
     status: EscrowStatus.FUNDED,
-    expiresAt: BigInt(Math.floor(Date.now() / 1000) + 86400),
+    expiresAt: BigInt(Math.floor(Date.now() / 1000) + 3600 * 2), // 2h
     description: 'MacBook Air M2 – Vinted',
     sellerEns: '', buyerEns: '',
     payoutToken: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
@@ -67,7 +67,7 @@ const PRESETS: Record<number, MockDealState> = {
     buyer: MOCK_BUYER,
     amount: 2500_000_000n, // 2500 USDC
     status: EscrowStatus.FUNDED,
-    expiresAt: BigInt(Math.floor(Date.now() / 1000) + 172800),
+    expiresAt: BigInt(Math.floor(Date.now() / 1000) + 3600 * 18), // 18h
     description: 'Rolex Submariner – Chrono24',
     sellerEns: '', buyerEns: '',
     payoutToken: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
@@ -107,7 +107,7 @@ const PRESETS: Record<number, MockDealState> = {
     buyer: ZERO,
     amount: parseEther('0.08'),
     status: EscrowStatus.CREATED,
-    expiresAt: BigInt(Math.floor(Date.now() / 1000) + 43200),
+    expiresAt: BigInt(Math.floor(Date.now() / 1000) + 3600 * 6), // 6h
     description: 'Nintendo Switch OLED – Marketplace',
     sellerEns: '', buyerEns: '',
     payoutToken: null,

@@ -244,7 +244,7 @@ export default function History() {
 
   return (
     <Layout>
-      <main className="max-w-sm mx-auto px-4 py-4 space-y-4">
+      <main className="w-full px-4 sm:max-w-md sm:mx-auto py-4 space-y-4">
 
         {/* Header */}
         <div className="space-y-1">
