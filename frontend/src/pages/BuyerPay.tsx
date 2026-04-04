@@ -459,7 +459,7 @@ export default function BuyerPay() {
                 <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
                   {fmt(details.amount)}
                 </span>
-                {details.status === EscrowStatus.PENDING ? (
+                {details.status === EscrowStatus.CREATED ? (
                   <TokenSelector selected={selectedToken} onChange={setSelectedToken} />
                 ) : (
                   <span className="text-xl font-medium text-hoff-text-secondary shrink-0">
@@ -493,7 +493,7 @@ export default function BuyerPay() {
             </div>
 
             {/* Swap preview (only when non-ETH token selected) */}
-            {details.status === EscrowStatus.PENDING && (
+            {details.status === EscrowStatus.CREATED && (
               <SwapPreview
                 tokenKey={selectedToken}
                 quotedIn={quotedIn}
@@ -541,7 +541,7 @@ export default function BuyerPay() {
             </div>
 
             {/* CTA */}
-            {details.status === EscrowStatus.PENDING && (
+            {details.status === EscrowStatus.CREATED && (
               <>
                 {anyError && <p className="text-xs text-red-400 text-center">Payment failed. Try again.</p>}
                 <Button
@@ -590,7 +590,7 @@ export default function BuyerPay() {
             )}
 
             {/* REFUNDED (already claimed, e.g. revisiting the page) */}
-            {details.status === EscrowStatus.REFUNDED && (
+            {details.status === EscrowStatus.EXPIRED && (
               <div className="space-y-4">
                 <div className="flex flex-col items-center gap-3 pt-2">
                   <div className="w-14 h-14 rounded-full bg-hoff-elevated border-2 border-hoff-text-tertiary/40 flex items-center justify-center">

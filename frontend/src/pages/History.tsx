@@ -26,10 +26,11 @@ const MOCK_HISTORY: HistoryEntry[] = [
       seller: MOCK_WALLET,
       buyer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as Address,
       amount: parseEther('0.633'),
-      status: EscrowStatus.COMPLETE,
+      status: EscrowStatus.COMPLETED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) - 3600),
       description: 'iPhone 14 Pro – Facebook Marketplace',
       payoutToken: null,
+      sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 2 * 86400_000,
     review: 'positive',
@@ -41,10 +42,11 @@ const MOCK_HISTORY: HistoryEntry[] = [
       seller: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC' as Address,
       buyer: MOCK_WALLET,
       amount: parseEther('0.025'),
-      status: EscrowStatus.COMPLETE,
+      status: EscrowStatus.COMPLETED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) - 86400),
       description: 'PS5 Controller – Kleinanzeigen',
       payoutToken: null,
+      sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 5 * 86400_000,
     review: 'positive',
@@ -60,6 +62,7 @@ const MOCK_HISTORY: HistoryEntry[] = [
       expiresAt: BigInt(Math.floor(Date.now() / 1000) + 86400),
       description: 'MacBook Air M2 – Vinted',
       payoutToken: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address, // USDC
+      sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 1 * 86400_000,
   },
@@ -70,10 +73,11 @@ const MOCK_HISTORY: HistoryEntry[] = [
       seller: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65' as Address,
       buyer: MOCK_WALLET,
       amount: 50_000_000n, // 50 USDC (6 decimals)
-      status: EscrowStatus.REFUNDED,
+      status: EscrowStatus.EXPIRED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) - 172800),
       description: 'AirPods Pro – Facebook Marketplace',
       payoutToken: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address, // USDC
+      sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 10 * 86400_000,
   },
@@ -84,10 +88,11 @@ const MOCK_HISTORY: HistoryEntry[] = [
       seller: MOCK_WALLET,
       buyer: '0x0000000000000000000000000000000000000000' as Address,
       amount: parseEther('0.08'),
-      status: EscrowStatus.PENDING,
+      status: EscrowStatus.CREATED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) + 43200),
       description: 'Nintendo Switch OLED – Marketplace',
       payoutToken: null, // ETH
+      sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 6 * 3600_000,
   },
@@ -98,10 +103,11 @@ const MOCK_HISTORY: HistoryEntry[] = [
       seller: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc' as Address,
       buyer: MOCK_WALLET,
       amount: parseEther('350'), // 350 DAI (18 decimals)
-      status: EscrowStatus.COMPLETE,
+      status: EscrowStatus.COMPLETED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) - 259200),
       description: 'Canon EOS R6 – eBay Kleinanzeigen',
       payoutToken: '0x7683022d84F726a96c4A6611cD31DBf5409C0Ac9' as Address, // DAI
+      sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 14 * 86400_000,
     review: 'positive',
@@ -113,10 +119,11 @@ const MOCK_HISTORY: HistoryEntry[] = [
       seller: MOCK_WALLET,
       buyer: '0x976EA74026E726554dB657fA54763abd0C3a0aa9' as Address,
       amount: parseEther('0.5'), // 0.5 WETH
-      status: EscrowStatus.COMPLETE,
+      status: EscrowStatus.COMPLETED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) - 432000),
       description: 'Herman Miller Aeron – Craigslist',
       payoutToken: '0x4200000000000000000000000000000000000006' as Address, // WETH
+      sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 20 * 86400_000,
     review: 'negative',
@@ -132,6 +139,7 @@ const MOCK_HISTORY: HistoryEntry[] = [
       expiresAt: BigInt(Math.floor(Date.now() / 1000) + 172800),
       description: 'Rolex Submariner – Chrono24',
       payoutToken: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address, // USDC
+      sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 12 * 3600_000,
   },
@@ -142,10 +150,11 @@ const MOCK_HISTORY: HistoryEntry[] = [
       seller: MOCK_WALLET,
       buyer: '0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f' as Address,
       amount: parseEther('1.2'),
-      status: EscrowStatus.COMPLETE,
+      status: EscrowStatus.COMPLETED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) - 604800),
       description: 'Trek Domane SL6 – Bike Exchange',
       payoutToken: null, // ETH
+      sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 30 * 86400_000,
     review: 'positive',
@@ -155,10 +164,10 @@ const MOCK_HISTORY: HistoryEntry[] = [
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<EscrowStatus, { label: string; dot: string }> = {
-  [EscrowStatus.PENDING]:  { label: 'Awaiting Payment', dot: 'bg-amber-400' },
+  [EscrowStatus.CREATED]:  { label: 'Awaiting Payment', dot: 'bg-amber-400' },
   [EscrowStatus.FUNDED]:   { label: 'Funds Held',       dot: 'bg-blue-400' },
-  [EscrowStatus.COMPLETE]: { label: 'Completed',        dot: 'bg-hoff-accent' },
-  [EscrowStatus.REFUNDED]: { label: 'Refunded',         dot: 'bg-hoff-text-tertiary' },
+  [EscrowStatus.COMPLETED]: { label: 'Completed',        dot: 'bg-hoff-accent' },
+  [EscrowStatus.EXPIRED]: { label: 'Refunded',         dot: 'bg-hoff-text-tertiary' },
   [EscrowStatus.CANCELED]: { label: 'Cancelled',        dot: 'bg-red-400' },
 }
 
@@ -191,9 +200,9 @@ type RoleFilter = 'all' | 'seller' | 'buyer'
 
 function matchesStatus(entry: HistoryEntry, filter: StatusFilter): boolean {
   if (filter === 'all') return true
-  if (filter === 'active') return entry.deal.status === EscrowStatus.PENDING || entry.deal.status === EscrowStatus.FUNDED
-  if (filter === 'completed') return entry.deal.status === EscrowStatus.COMPLETE
-  return entry.deal.status === EscrowStatus.REFUNDED
+  if (filter === 'active') return entry.deal.status === EscrowStatus.CREATED || entry.deal.status === EscrowStatus.FUNDED
+  if (filter === 'completed') return entry.deal.status === EscrowStatus.COMPLETED
+  return entry.deal.status === EscrowStatus.EXPIRED
 }
 
 function matchesRole(entry: HistoryEntry, filter: RoleFilter): boolean {
@@ -228,7 +237,7 @@ export default function History() {
   ]
 
   // Reputation summary
-  const completed = MOCK_HISTORY.filter(e => e.deal.status === EscrowStatus.COMPLETE)
+  const completed = MOCK_HISTORY.filter(e => e.deal.status === EscrowStatus.COMPLETED)
   const totalVolume = completed.reduce((sum, e) => sum + e.deal.amount, 0n)
   const positiveCount = MOCK_HISTORY.filter(e => e.review === 'positive').length
   const negativeCount = MOCK_HISTORY.filter(e => e.review === 'negative').length

@@ -28,10 +28,10 @@ export default function Landing() {
         <Card className="space-y-2">
           <p className="text-xs text-hoff-text-tertiary mb-2">StatusBadge</p>
           <div className="flex flex-wrap gap-2">
-            <StatusBadge status={EscrowStatus.PENDING} />
+            <StatusBadge status={EscrowStatus.CREATED} />
             <StatusBadge status={EscrowStatus.FUNDED} />
-            <StatusBadge status={EscrowStatus.COMPLETE} />
-            <StatusBadge status={EscrowStatus.REFUNDED} />
+            <StatusBadge status={EscrowStatus.COMPLETED} />
+            <StatusBadge status={EscrowStatus.EXPIRED} />
           </div>
         </Card>
 

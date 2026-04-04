@@ -316,7 +316,7 @@ function ClaimFundsView({
       <div className="space-y-1.5">
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-2xl font-bold text-hoff-text-primary">Claim Funds</h1>
-          <StatusBadge status={EscrowStatus.COMPLETE} />
+          <StatusBadge status={EscrowStatus.COMPLETED} />
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-hoff-text-tertiary truncate">
@@ -589,7 +589,7 @@ export default function ManageDeal() {
   }
 
   // ─── Completed (after successful release OR on-chain COMPLETE) ──────────────
-  if (isSuccess || details.status === EscrowStatus.COMPLETE) {
+  if (isSuccess || details.status === EscrowStatus.COMPLETED) {
     return (
       <Layout>
         <CompletedView
@@ -605,7 +605,7 @@ export default function ManageDeal() {
   }
 
   // ─── Refunded ───────────────────────────────────────────────────────────────
-  if (details.status === EscrowStatus.REFUNDED) {
+  if (details.status === EscrowStatus.EXPIRED) {
     return (
       <Layout>
         <main className="max-w-sm mx-auto px-4 py-6 space-y-5">
@@ -650,7 +650,7 @@ export default function ManageDeal() {
   }
 
   // ─── PENDING — waiting for buyer + edit/cancel ──────────────────────────────
-  if (details.status === EscrowStatus.PENDING) {
+  if (details.status === EscrowStatus.CREATED) {
     const payLink = `${window.location.origin}/pay/${dealIdParam}`
 
     // ── Cancel confirmation ───────────────────────────────────────────────────

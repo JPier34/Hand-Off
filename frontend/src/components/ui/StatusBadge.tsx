@@ -1,7 +1,7 @@
 import { EscrowStatus } from '@/lib/types'
 
 const config: Record<EscrowStatus, { label: string; dot: string; pill: string }> = {
-  [EscrowStatus.PENDING]: {
+  [EscrowStatus.CREATED]: {
     label: 'Awaiting payment',
     dot:  'bg-hoff-text-tertiary',
     pill: 'bg-hoff-elevated text-hoff-text-tertiary',
@@ -11,12 +11,12 @@ const config: Record<EscrowStatus, { label: string; dot: string; pill: string }>
     dot:  'bg-amber-400',
     pill: 'bg-amber-900/30 text-amber-300',
   },
-  [EscrowStatus.COMPLETE]: {
+  [EscrowStatus.COMPLETED]: {
     label: 'Completed · Claim',
     dot:  'bg-hoff-accent',
     pill: 'bg-hoff-accent-muted text-hoff-accent',
   },
-  [EscrowStatus.REFUNDED]: {
+  [EscrowStatus.EXPIRED]: {
     label: 'Refunded',
     dot:  'bg-hoff-text-tertiary',
     pill: 'bg-hoff-elevated text-hoff-text-tertiary',

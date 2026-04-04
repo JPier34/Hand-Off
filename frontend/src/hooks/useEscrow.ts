@@ -52,7 +52,9 @@ function useRealDealDetails(dealId: bigint) {
         amount:      raw[3], // balance
         status:      raw[4] as EscrowStatus,
         expiresAt:   raw[2],
-        description: raw[5] || raw[6] || '', // sellerEns as description fallback
+        description: '',     // not on-chain — frontend-only field
+        sellerEns:   raw[5],
+        buyerEns:    raw[6],
         payoutToken: payoutTokenAddr === '0x0000000000000000000000000000000000000000'
           ? null
           : (payoutTokenAddr ?? null),

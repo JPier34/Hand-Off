@@ -66,13 +66,13 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
   const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  function deposit(amount: string, codeHash: `0x${string}`) {
+  function deposit(amount: string, codeHash: `0x${string}`, buyerEns = '') {
     if (!escrowAddress) return
     writeContract({
       address: escrowAddress,
       abi: HANDOFF_ABI,
       functionName: 'fund',
-      args: [codeHash, ''], // buyerEns — empty for now
+      args: [codeHash, buyerEns],
       value: parseEther(amount),
     })
   }
@@ -185,7 +185,7 @@ function useMockCreateDeal() {
 
 function useMockDepositFunds(dealId: bigint) {
   const { trigger, ...state } = useMockTx(() => mockDeposit(dealId))
-  function deposit(_amount: string, _codeHash: `0x${string}`) { trigger() }
+  function deposit(_amount: string, _codeHash: `0x${string}`, _buyerEns = '') { trigger() }
   return { deposit, ...state }
 }
 
