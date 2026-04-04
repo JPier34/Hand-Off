@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPublicClient, http, type TransactionReceipt } from 'viem'
-import { baseSepolia } from 'viem/chains'
+import { sepolia } from 'viem/chains'
 
 /**
  * Polls for a transaction receipt directly via the public RPC,
@@ -24,8 +24,8 @@ export function useReceiptPoller(hash: `0x${string}` | undefined) {
     setError(null)
 
     const client = createPublicClient({
-      chain: baseSepolia,
-      transport: http('https://sepolia.base.org'),
+      chain: sepolia,
+      transport: http('https://ethereum-sepolia-rpc.publicnode.com'),
     })
 
     let attempts = 0

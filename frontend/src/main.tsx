@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { WagmiProvider, createConfig, http, useConnect, useDisconnect } from 'wagmi'
-import { baseSepolia, mainnet } from 'wagmi/chains'
+import { sepolia, mainnet } from 'wagmi/chains'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import './lib/dynamic' // side-effect: creates Dynamic client + adds EVM extension
@@ -13,10 +13,10 @@ import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 const dynamicConnector = dynamicWagmiConnector()
 
 const wagmiConfig = createConfig({
-  chains: [baseSepolia, mainnet],
+  chains: [sepolia, mainnet],
   connectors: [dynamicConnector],
   transports: {
-    [baseSepolia.id]: http(),
+    [sepolia.id]: http(),
     [mainnet.id]: http(),
   },
 })

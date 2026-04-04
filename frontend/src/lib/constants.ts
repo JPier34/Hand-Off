@@ -15,17 +15,17 @@ export const FACTORY_ABI   = HandOffFactoryAbi as unknown as Abi
 
 // ─── Contract addresses ──────────────────────────────────────────────────────
 // Priority: .env override > addresses.ts > zero address fallback
-const baseAddrs = CONTRACT_ADDRESSES[CHAIN_IDS.BASE_SEPOLIA]
-const ethAddrs  = CONTRACT_ADDRESSES[CHAIN_IDS.ETH_SEPOLIA]
+// All core contracts now deployed on Ethereum Sepolia (11155111)
+const ethAddrs = CONTRACT_ADDRESSES[CHAIN_IDS.ETH_SEPOLIA]
 
-// Reputation registry on Base Sepolia — maps dealId → escrow address
+// Reputation registry on Eth Sepolia
 export const REPUTATION_ADDRESS = (
-  import.meta.env.VITE_REPUTATION_ADDRESS || baseAddrs?.reputationRegistry || '0x0000000000000000000000000000000000000000'
+  import.meta.env.VITE_REPUTATION_ADDRESS || ethAddrs?.reputationRegistry || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
-// Factory contract on Base Sepolia — canonical entry point for deal creation (UC-1)
+// Factory contract on Eth Sepolia — canonical entry point for deal creation (UC-1)
 export const FACTORY_ADDRESS = (
-  import.meta.env.VITE_FACTORY_ADDRESS || baseAddrs?.factory || '0x0000000000000000000000000000000000000000'
+  import.meta.env.VITE_FACTORY_ADDRESS || ethAddrs?.factory || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
 // ENS subname registrar on Ethereum Sepolia
@@ -33,12 +33,9 @@ export const SUBNAME_ADDRESS = (
   import.meta.env.VITE_SUBNAME_ADDRESS || ethAddrs?.subnameRegistrar || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
-// Uniswap Universal Router 2.0 on Base Sepolia (for fundWithSwap).
-// HandOff.fundWithSwap() enforces _router == ALLOWED_ROUTER on-chain.
-// The Uniswap Trading API generates calldata for this router.
-// After redeployment, Factory.ALLOWED_ROUTER must equal this address.
+// Uniswap Universal Router 2.0 on Eth Sepolia (for fundWithSwap)
 export const UNIVERSAL_ROUTER_ADDRESS = (
-  import.meta.env.VITE_UNIVERSAL_ROUTER_ADDRESS ?? '0x492e6456d9528771018deb9e87ef7750ef184104'
+  import.meta.env.VITE_UNIVERSAL_ROUTER_ADDRESS ?? '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD'
 ) as `0x${string}`
 
 // Legacy alias — keep for backward compat during migration

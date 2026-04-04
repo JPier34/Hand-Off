@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { getWalletAccounts, switchActiveNetwork } from '@dynamic-labs-sdk/client'
 import { createWalletClientForWalletAccount } from '@dynamic-labs-sdk/evm/viem'
 import { encodeFunctionData } from 'viem'
-import { baseSepolia } from 'viem/chains'
+import { sepolia } from 'viem/chains'
 import type { Abi, Address } from 'viem'
 
 interface WriteContractParams {
@@ -27,7 +27,7 @@ const IDLE: WriteState = {
   error: null,
 }
 
-const BASE_SEPOLIA_ID = String(baseSepolia.id) // "84532"
+const ETH_SEPOLIA_ID = String(sepolia.id) // "11155111"
 
 /**
  * Drop-in replacement for wagmi's useWriteContract that uses
@@ -66,7 +66,7 @@ export function useDynamicWriteContract() {
 
       // Switch to Base Sepolia if needed — uses Dynamic SDK which routes to the CORRECT wallet
       try {
-        await switchActiveNetwork({ walletAccount, networkId: BASE_SEPOLIA_ID })
+        await switchActiveNetwork({ walletAccount, networkId: ETH_SEPOLIA_ID })
         console.log('[useDynamicWrite] Network switched to Base Sepolia')
       } catch (e) {
         // May throw if already on correct chain or if network needs to be added
@@ -90,8 +90,8 @@ export function useDynamicWriteContract() {
         const msg = (e as Error)?.message ?? ''
         if (msg.includes('No network data')) {
           throw new Error(
-            'Base Sepolia not configured in Dynamic dashboard. ' +
-            'Go to app.dynamic.xyz → Chains & Networks → enable Base Sepolia (84532).'
+            'Ethereum Sepolia not configured in Dynamic dashboard. ' +
+            'Go to app.dynamic.xyz → Chains & Networks → enable Ethereum Sepolia (11155111).'
           )
         }
         throw e
@@ -101,19 +101,19 @@ export function useDynamicWriteContract() {
       try {
         const currentChainHex = await walletClient.request({ method: 'eth_chainId' }) as string
         const currentChainId = parseInt(currentChainHex, 16)
-        if (currentChainId !== baseSepolia.id) {
+        if (currentChainId !== sepolia.id) {
           console.log('[useDynamicWrite] Wallet on chain', currentChainId, '→ switching to Base Sepolia via WalletClient')
           try {
             await walletClient.request({
               method: 'wallet_switchEthereumChain',
-              params: [{ chainId: `0x${baseSepolia.id.toString(16)}` }],
+              params: [{ chainId: `0x${sepolia.id.toString(16)}` }],
             })
           } catch (switchErr: unknown) {
             if ((switchErr as { code?: number })?.code === 4902) {
               await walletClient.request({
                 method: 'wallet_addEthereumChain',
                 params: [{
-                  chainId: `0x${baseSepolia.id.toString(16)}`,
+                  chainId: `0x${sepolia.id.toString(16)}`,
                   chainName: 'Base Sepolia',
                   nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
                   rpcUrls: ['https://sepolia.base.org'],

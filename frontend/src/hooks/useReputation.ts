@@ -46,19 +46,20 @@ export function useReputation(walletAddress: Address | undefined) {
     return { reputation: MOCK_REP, isLoading: false }
   }
 
+  // wagmi decodes named tuples as objects with named properties, not arrays
   const raw = result.data as
-    | [bigint, number, number, number, number, number, number]
+    | { sellerTotalVolume: bigint; sellerDealCount: number; sellerPositiveReviews: number; sellerTotalReviews: number; buyerDealCount: number; buyerPositiveReviews: number; buyerTotalReviews: number }
     | undefined
 
   const reputation: ReputationData = raw
     ? {
-        sellerTotalVolume:    raw[0],
-        sellerDealCount:      raw[1],
-        sellerPositiveReviews: raw[2],
-        sellerTotalReviews:   raw[3],
-        buyerDealCount:       raw[4],
-        buyerPositiveReviews: raw[5],
-        buyerTotalReviews:    raw[6],
+        sellerTotalVolume:     raw.sellerTotalVolume,
+        sellerDealCount:       Number(raw.sellerDealCount),
+        sellerPositiveReviews: Number(raw.sellerPositiveReviews),
+        sellerTotalReviews:    Number(raw.sellerTotalReviews),
+        buyerDealCount:        Number(raw.buyerDealCount),
+        buyerPositiveReviews:  Number(raw.buyerPositiveReviews),
+        buyerTotalReviews:     Number(raw.buyerTotalReviews),
       }
     : EMPTY
 
