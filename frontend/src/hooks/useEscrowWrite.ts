@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { parseEther, parseEventLogs } from 'viem'
-import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS } from '@/lib/constants'
+import { parseEther, parseUnits, parseEventLogs, createPublicClient, createWalletClient, http, custom } from 'viem'
+import { sepolia } from 'viem/chains'
+import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS, SUBNAME_ABI, SUBNAME_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
 import { hashUnlockCode } from '@/lib/code-gen'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
-import { TOKENS } from '@/lib/tokens'
+import { TOKENS, getTokenByAddress } from '@/lib/tokens'
 import type { Address } from '@/lib/types'
 import type { Abi } from 'viem'
 
@@ -147,8 +148,9 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
       })
     } else {
       // ERC20 escrow: step 1 = approve, step 2 = fund (chained via useEffect)
-      const tokenAmount = parseEther(amount) // TODO: use parseUnits(amount, decimals) for non-18 tokens
-      console.log('[useEscrowWrite] ERC20 path, approving', payoutToken, 'amount:', tokenAmount.toString())
+      const decimals = getTokenByAddress(payoutToken).decimals
+      const tokenAmount = parseUnits(amount, decimals)
+      console.log('[useEscrowWrite] ERC20 path, approving', payoutToken, 'decimals:', decimals, 'amount:', tokenAmount.toString())
       setPendingFund({ codeHash, buyerEns, amount: tokenAmount })
       approveWrite.writeContract({
         address: payoutToken,
@@ -191,9 +193,12 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
 }
 
 // Unlock: call unlock(submittedHash) — takes bytes32 hash, NOT plaintext
+// After confirmation, also attempts cross-chain ENS subname minting on ETH Sepolia
+// if SUBNAME_ADDRESS is configured (UC-16).
 function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
   const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useReceiptPoller(hash)
+  const receiptQuery = useReceiptPoller(hash)
+  const { isLoading: isConfirming, isSuccess, receipt } = receiptQuery
 
   function release(code: string) {
     if (!escrowAddress) return
@@ -205,6 +210,49 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
       args: [codeHash],
     })
   }
+
+  // UC-16: after unlock confirms, parse SubnameMintRequested and call ETH Sepolia registrar
+  useEffect(() => {
+    if (!isSuccess || !receipt || SUBNAME_ADDRESS === '0x0000000000000000000000000000000000000000') return
+
+    try {
+      const logs = parseEventLogs({
+        abi:       HANDOFF_ABI as Abi,
+        logs:      receipt.logs,
+        eventName: 'SubnameMintRequested',
+      })
+      if (logs.length === 0) return
+
+      const args = logs[0].args as {
+        dealId: bigint; escrow: Address; buyer: Address; seller: Address; amount: bigint; timestamp: bigint
+      }
+
+      // Trigger mint on ETH Sepolia — requires window.ethereum (MetaMask / Dynamic injected provider)
+      if (typeof window !== 'undefined' && (window as unknown as { ethereum?: unknown }).ethereum) {
+        const ethProvider = (window as unknown as { ethereum: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum
+        const walletClient = createWalletClient({ chain: sepolia, transport: custom(ethProvider) })
+
+        ethProvider.request({ method: 'eth_requestAccounts' }).then(async (accounts) => {
+          const accs = accounts as `0x${string}`[]
+          if (accs.length === 0) return
+
+          await walletClient.writeContract({
+            address:      SUBNAME_ADDRESS,
+            abi:          SUBNAME_ABI,
+            functionName: 'mintDealReceipt',
+            args:         [args.dealId, args.escrow, args.buyer, args.seller, args.amount, args.timestamp],
+            account:      accs[0],
+            chain:        sepolia,
+          })
+        }).catch((err: unknown) => {
+          console.warn('[useReleaseEscrow] ENS subname mint failed (non-blocking):', err)
+        })
+      }
+    } catch (err) {
+      console.warn('[useReleaseEscrow] Failed to parse SubnameMintRequested (non-blocking):', err)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuccess])
 
   return { release, isPending, isConfirming, isSuccess, isError, error }
 }

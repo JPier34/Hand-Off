@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
@@ -300,7 +300,14 @@ export default function BuyerPay() {
   const navigate = useNavigate()
   const { isConnected } = useAccount()
   const { login } = useDynamicAuth()
-  const [unlockCode, setUnlockCode] = useState<string | null>(null)
+  // Persist unlock code in localStorage keyed by escrow address so it survives page refresh
+  const [unlockCode, setUnlockCodeState] = useState<string | null>(null)
+  function setUnlockCode(code: string | null) {
+    setUnlockCodeState(code)
+    if (code && escrowAddress) {
+      try { localStorage.setItem(`handoff_code_${escrowAddress}`, code) } catch { /* quota */ }
+    }
+  }
   const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
   const [showIntro, setShowIntro] = useState(true)
 
@@ -335,6 +342,15 @@ export default function BuyerPay() {
 
   const { reputation } = useReputation(details?.seller as `0x${string}` | undefined)
   const isSwapPath = selectedToken !== 'ETH'
+
+  // Restore saved unlock code from localStorage when a FUNDED escrow is revisited after page refresh
+  useEffect(() => {
+    if (unlockCode || !escrowAddress || details?.status !== EscrowStatus.FUNDED) return
+    try {
+      const saved = localStorage.getItem(`handoff_code_${escrowAddress}`)
+      if (saved) setUnlockCodeState(saved)
+    } catch { /* ignore */ }
+  }, [escrowAddress, details?.status, unlockCode])
 
   // Determine overall success from either direct deposit or swap path
   const fundingSuccess = isSwapPath ? swap.isSuccess : isSuccess
@@ -580,16 +596,23 @@ export default function BuyerPay() {
                 <span className="text-xs text-hoff-text-secondary font-medium">{reputation.sellerDealCount}</span>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
+                <span className="text-xs text-hoff-text-tertiary">Volume</span>
+                <span className="text-xs text-hoff-text-secondary font-medium">{formatEther(reputation.sellerTotalVolume)} ETH</span>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
                 <span className="text-xs text-hoff-text-tertiary">Reputation</span>
                 <div className="flex items-center gap-3">
-                  {/* Positive */}
+                  <span className="text-xs text-hoff-text-secondary font-medium">
+                    {reputation.sellerTotalReviews > 0
+                      ? `${Math.round((reputation.sellerPositiveReviews / reputation.sellerTotalReviews) * 100)}% positive`
+                      : 'No reviews yet'}
+                  </span>
                   <div className="flex items-center gap-1">
                     <svg width="10" height="10" viewBox="0 0 24 24">
                       <path d="M12 5L20 19H4L12 5Z" fill="#2EBF7A" stroke="#2EBF7A" strokeWidth="2" strokeLinejoin="round"/>
                     </svg>
                     <span className="text-xs text-hoff-text-secondary">{reputation.sellerPositiveReviews}</span>
                   </div>
-                  {/* Neutral */}
                   <div className="flex items-center gap-1">
                     <span className="w-2.5 h-0.5 rounded-full bg-hoff-text-tertiary inline-block" />
                     <span className="text-xs text-hoff-text-secondary">{reputation.sellerTotalReviews - reputation.sellerPositiveReviews}</span>

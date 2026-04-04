@@ -256,34 +256,22 @@ export default function CreateDeal() {
               </div>
             </div>
 
-            {/* Recipient */}
+            {/* ENS name (display only — payout goes to connected wallet) */}
             <div className="bg-hoff-surface rounded-2xl p-5">
-              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-3">
-                Recipient Wallet
+              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-1">
+                Your ENS Name <span className="normal-case font-normal">(Optional)</span>
+              </p>
+              <p className="text-xs text-hoff-text-tertiary mb-3">
+                Funds are sent to your connected wallet. Enter your ENS name to display it on the payment page.
               </p>
               <div className="flex items-center gap-3">
                 <input
                   type="text"
                   value={recipient}
                   onChange={e => setRecipient(e.target.value)}
-                  placeholder="Paste address or ENS name"
+                  placeholder="yourname.eth"
                   className="flex-1 bg-transparent text-hoff-text-primary text-sm placeholder:text-hoff-text-tertiary focus:outline-none"
                 />
-                <button
-                  onClick={() =>
-                    navigator.clipboard
-                      .readText()
-                      .then(t => setRecipient(t))
-                      .catch(() => {})
-                  }
-                  className="text-hoff-text-tertiary hover:text-hoff-text-secondary transition-colors shrink-0"
-                  aria-label="Paste from clipboard"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="9" y="9" width="13" height="13" rx="2" />
-                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                  </svg>
-                </button>
               </div>
               {isEnsInput && ensLoading && (
                 <p className="text-xs text-hoff-text-tertiary mt-2">Resolving…</p>
@@ -291,7 +279,7 @@ export default function CreateDeal() {
               {isEnsInput && !ensLoading && resolvedAddress && (
                 <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  {resolvedAddress.slice(0, 6)}...{resolvedAddress.slice(-4)}
+                  Verified: {resolvedAddress.slice(0, 6)}...{resolvedAddress.slice(-4)}
                 </p>
               )}
               {isEnsInput && !ensLoading && !resolvedAddress && recipient.length > 4 && (

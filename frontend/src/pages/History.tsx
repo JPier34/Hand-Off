@@ -4,6 +4,10 @@ import { payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { Layout } from '@/components/Layout'
 import { EnsName } from '@/components/EnsName'
 import { EscrowStatus } from '@/lib/types'
+import { MOCK_MODE } from '@/lib/mock'
+import { useWalletHistory } from '@/hooks/useWalletHistory'
+import { useAccount } from 'wagmi'
+import { Spinner } from '@/components/ui/Spinner'
 import type { Address, DealDetails } from '@/lib/types'
 
 // ─── Mock history data ────────────────────────────────────────────────────────
@@ -215,11 +219,20 @@ function matchesRole(entry: HistoryEntry, filter: RoleFilter): boolean {
 import { useState } from 'react'
 
 export default function History() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const { address } = useAccount()
+  const { entries: liveEntries, isLoading } = useWalletHistory(
+    MOCK_MODE ? undefined : (address as Address | undefined)
+  )
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
 
-  const filtered = MOCK_HISTORY
+  // In mock mode use hardcoded data; in real mode use on-chain data
+  const allEntries: HistoryEntry[] = MOCK_MODE
+    ? MOCK_HISTORY
+    : liveEntries.map(e => ({ ...e, review: undefined }))
+
+  const filtered = allEntries
     .filter(e => matchesStatus(e, statusFilter) && matchesRole(e, roleFilter))
     .sort((a, b) => b.date - a.date)
 
@@ -237,10 +250,30 @@ export default function History() {
   ]
 
   // Reputation summary
-  const completed = MOCK_HISTORY.filter(e => e.deal.status === EscrowStatus.COMPLETED)
-  const totalVolume = completed.reduce((sum, e) => sum + e.deal.amount, 0n)
-  const positiveCount = MOCK_HISTORY.filter(e => e.review === 'positive').length
-  const negativeCount = MOCK_HISTORY.filter(e => e.review === 'negative').length
+  const completed     = allEntries.filter(e => e.deal.status === EscrowStatus.COMPLETED)
+  const totalVolume   = completed.reduce((sum, e) => sum + e.deal.amount, 0n)
+  const positiveCount = allEntries.filter(e => e.review === 'positive').length
+  const negativeCount = allEntries.filter(e => e.review === 'negative').length
+
+  if (!MOCK_MODE && isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-24"><Spinner /></div>
+      </Layout>
+    )
+  }
+
+  if (!MOCK_MODE && !address) {
+    return (
+      <Layout>
+        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-12">
+          <div className="bg-hoff-surface rounded-2xl p-5 text-center">
+            <p className="text-sm text-hoff-text-tertiary">Connect your wallet to view your transaction history.</p>
+          </div>
+        </main>
+      </Layout>
+    )
+  }
 
   return (
     <Layout>

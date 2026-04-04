@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAccount } from 'wagmi'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
@@ -164,6 +164,8 @@ function useRealSwapAndDeposit(
 ): SwapAndDepositState {
   const { address } = useAccount()
   const [state, setState] = useState(IDLE_SWAP)
+  // Store codeHash across the async approval → swap boundary
+  const pendingCodeHashRef = useRef<`0x${string}` | null>(null)
 
   // Approval tx
   const approveWrite = useDynamicWriteContract()
@@ -180,15 +182,17 @@ function useRealSwapAndDeposit(
       return
     }
 
+    // Persist codeHash so the approval useEffect can use it
+    pendingCodeHashRef.current = codeHash
+
     try {
-      // Phase 1: Check if approval is needed
       setState({ ...IDLE_SWAP, isApprovePending: true })
 
-      const inputAmount = getOutputAmount(quoteResponse) // for EXACT_OUTPUT, this is the input
+      const inputAmount = getOutputAmount(quoteResponse) // for EXACT_OUTPUT, this is the input amount
       const approval = await checkApproval(address, token.address, inputAmount, 84532)
 
       if (approval) {
-        // Need to approve — send approval tx via wallet
+        // Need to approve — swap will be triggered reactively after confirmation
         approveWrite.writeContract({
           address: token.address as `0x${string}`,
           abi: [{ name: 'approve', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }] }] as const,
@@ -196,9 +200,8 @@ function useRealSwapAndDeposit(
           args: [escrowAddress, BigInt(inputAmount)],
         })
         setState({ ...IDLE_SWAP, isApproveConfirming: true })
-        // Wait handled via useWaitForTransactionReceipt reactively
       } else {
-        // Already approved — skip to swap
+        // Already approved — go straight to swap
         setState({ ...IDLE_SWAP, isApproveSuccess: true, isSwapPending: true })
         executeSwap(codeHash, token.address as `0x${string}`, inputAmount, quoteResponse)
       }
@@ -228,15 +231,17 @@ function useRealSwapAndDeposit(
     })
   }
 
-  // React to approval confirmation → trigger swap
+  // After approval confirms → fire the swap using the stored codeHash
   useEffect(() => {
-    if (approveReceipt.isSuccess && !swapWrite.data && quoteResponse) {
-      const token = TOKENS[_tokenKey]
-      if (!token?.address) return
-      const inputAmount = getOutputAmount(quoteResponse)
-      setState(prev => ({ ...prev, isApproveSuccess: true, isSwapPending: true }))
-      // Need the codeHash — stored from initial call. We pass it via state.
-    }
+    if (!approveReceipt.isSuccess || swapWrite.data || !quoteResponse || !pendingCodeHashRef.current) return
+    const token = TOKENS[_tokenKey]
+    if (!token?.address) return
+    const inputAmount = getOutputAmount(quoteResponse)
+    const codeHash = pendingCodeHashRef.current
+    pendingCodeHashRef.current = null
+    setState(prev => ({ ...prev, isApproveSuccess: true, isSwapPending: true }))
+    executeSwap(codeHash, token.address as `0x${string}`, inputAmount, quoteResponse)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approveReceipt.isSuccess])
 
   // Map wagmi state to our state interface

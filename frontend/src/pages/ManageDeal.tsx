@@ -224,8 +224,17 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, descri
             <span className="text-xs font-medium text-hoff-text-secondary">{reputation.sellerDealCount}</span>
           </div>
           <div className="flex items-center justify-between">
+            <span className="text-xs text-hoff-text-tertiary">Volume</span>
+            <span className="text-xs font-medium text-hoff-text-secondary">{formatEther(reputation.sellerTotalVolume)} ETH</span>
+          </div>
+          <div className="flex items-center justify-between">
             <span className="text-xs text-hoff-text-tertiary">Reputation</span>
             <div className="flex items-center gap-2 text-xs">
+              <span className="text-hoff-text-secondary font-medium">
+                {reputation.sellerTotalReviews > 0
+                  ? `${Math.round((reputation.sellerPositiveReviews / reputation.sellerTotalReviews) * 100)}%`
+                  : '—'}
+              </span>
               <span className="flex items-center gap-0.5 text-hoff-accent">
                 <svg width="10" height="10" viewBox="0 0 24 24"><path d="M12 4L20 20H4L12 4Z" fill="#2EBF7A"/></svg>
                 {reputation.sellerPositiveReviews}
@@ -534,6 +543,7 @@ export default function ManageDeal() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [editAmount, setEditAmount] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [editExpirationHours, setEditExpirationHours] = useState(168)
 
   const { dealId, escrowAddress: directAddress } = parseDealParam(dealIdParam)
 
@@ -749,6 +759,28 @@ export default function ManageDeal() {
               />
             </div>
 
+            {/* Expiration */}
+            <div className="bg-hoff-surface rounded-2xl p-5">
+              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-2">
+                New Expiration
+              </p>
+              <select
+                value={editExpirationHours}
+                onChange={e => setEditExpirationHours(Number(e.target.value))}
+                className="w-full bg-transparent text-hoff-text-primary text-sm focus:outline-none cursor-pointer"
+              >
+                {[
+                  { label: '1 Day',   hours: 24 },
+                  { label: '3 Days',  hours: 72 },
+                  { label: '7 Days',  hours: 168 },
+                  { label: '14 Days', hours: 336 },
+                  { label: '30 Days', hours: 720 },
+                ].map(o => (
+                  <option key={o.hours} value={o.hours} className="bg-hoff-elevated">{o.label}</option>
+                ))}
+              </select>
+            </div>
+
             {editDeal.isError && (() => { const msg = parseContractError(editDeal.error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
 
             {!editDeal.isSuccess ? (
@@ -756,12 +788,13 @@ export default function ManageDeal() {
                 fullWidth
                 onClick={() => {
                   if (!amountValid) return
+                  const newExpiry = BigInt(Math.floor(Date.now() / 1000) + editExpirationHours * 3600)
                   editDeal.edit(
                     parseEther(editAmount as `${number}`),
                     editDescription,
                     (details?.payoutToken ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
                     (details?.seller ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
-                    details?.expiresAt ?? 0n,
+                    newExpiry,
                   )
                 }}
                 disabled={!amountValid || editDeal.isPending || editDeal.isConfirming}
@@ -859,6 +892,7 @@ export default function ManageDeal() {
                 onClick={() => {
                   setEditAmount(formatEther(details.amount))
                   setEditDescription(details.description)
+                  setEditExpirationHours(168)
                   setShowEdit(true)
                 }}
               >
