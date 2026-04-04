@@ -314,9 +314,7 @@ describe("HandOffSubnameRegistrar", function () {
         99n, await rep.getAddress(), await registrar.getAddress(), "",
         ethers.ZeroAddress, // no swap router
       ]);
-      await rep.connect(deployer).registerHandOff(await h.getAddress());
-      await registrar.connect(deployer).registerHandOff(await h.getAddress());
-
+      // HandOff self-registers with both rep and registrar in its constructor — no manual calls needed.
       const code = ethers.keccak256(ethers.toUtf8Bytes("test"));
       await h.connect(buyer).fund(code, "", { value: ethers.parseEther("0.1") });
 

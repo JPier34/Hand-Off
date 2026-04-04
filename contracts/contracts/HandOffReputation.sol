@@ -101,13 +101,17 @@ contract HandOffReputation {
 
     // ── Registration ──────────────────────────────────────────────────────────
     /// @notice Register a deployed HandOff escrow contract so it can write reputation data.
+    ///         Callable by AUTHORIZED_DEPLOYER OR by the escrow contract itself (self-registration).
+    ///         Self-registration allows per-deal contracts deployed directly by users to auto-enroll.
     /// @param _escrow The HandOff contract address to register.
     /// @return dealId The global deal counter at registration time.
     function registerHandOff(address _escrow)
         external
-        onlyDeployer
         returns (uint256 dealId)
     {
+        // Allow deployer OR the escrow self-registering (msg.sender == _escrow)
+        if (msg.sender != AUTHORIZED_DEPLOYER && msg.sender != _escrow)
+            revert NotAuthorizedDeployer();
         if (_escrow == address(0)) revert InvalidEscrowAddress();
         if (registeredEscrows[_escrow]) revert AlreadyRegistered();
 

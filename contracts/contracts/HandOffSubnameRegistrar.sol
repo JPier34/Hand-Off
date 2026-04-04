@@ -110,7 +110,11 @@ contract HandOffSubnameRegistrar {
 
     // ── Registration ──────────────────────────────────────────────────────────
     /// @notice Register a HandOff escrow contract so it may call mintDealReceipt.
-    function registerHandOff(address _escrow) external onlyDeployer {
+    ///         Callable by AUTHORIZED_DEPLOYER OR by the escrow itself (self-registration).
+    function registerHandOff(address _escrow) external {
+        // Allow deployer OR the escrow self-registering (msg.sender == _escrow)
+        if (msg.sender != AUTHORIZED_DEPLOYER && msg.sender != _escrow)
+            revert NotAuthorizedDeployer();
         if (_escrow == address(0)) revert InvalidEscrow();
         if (registeredEscrows[_escrow]) revert AlreadyRegistered();
         registeredEscrows[_escrow] = true;
