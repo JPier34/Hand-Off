@@ -22,9 +22,10 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ["react", "react-dom", "react-router-dom"],
-          web3: ["wagmi", "viem", "@tanstack/react-query"],
+        manualChunks: (id) => {
+          if (id.includes('node_modules/react') || id.includes('react-router-dom')) return 'vendor'
+          if (id.includes('wagmi') || id.includes('viem') || id.includes('@tanstack')) return 'web3'
+          return undefined
         },
       },
     },

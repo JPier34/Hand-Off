@@ -85,7 +85,11 @@ export default function CreateDeal() {
   function handleCreate() {
     setTouched(true)
     if (hasErrors) return
-    create(amount, description, timeoutHours, payoutToken)
+    // Pass payoutToken key and ENS name so the factory call is fully specified.
+    // The seller's payout address defaults to msg.sender inside the escrow contract.
+    // If recipient is an ENS name, pass it as sellerEns for on-chain display.
+    const sellerEns = isEnsInput && resolvedAddress ? recipient : ''
+    create(amount, description, timeoutHours, payoutToken, sellerEns)
   }
 
   function handleShare() {
