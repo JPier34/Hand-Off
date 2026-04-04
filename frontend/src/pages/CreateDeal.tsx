@@ -192,7 +192,7 @@ export default function CreateDeal() {
                   Deal created but we couldn't extract the payment link automatically.
                 </p>
                 <p className="text-xs text-amber-400/70">
-                  Check your recent transactions on BaseScan to find the new escrow address, then share <span className="font-mono">{window.location.origin}/pay/[address]</span> with your buyer.
+                  Check your recent transactions on Etherscan (Sepolia) to find the new escrow address, then share <span className="font-mono">{window.location.origin}/pay/[address]</span> with your buyer.
                 </p>
               </div>
               <Button fullWidth onClick={() => navigate('/')}>
