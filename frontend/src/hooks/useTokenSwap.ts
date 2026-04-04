@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useAccount, useWalletClient } from 'wagmi'
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
 import { TOKENS, WETH_ADDRESS, type TokenKey } from '@/lib/tokens'
-import { fetchQuote, getOutputAmount, type QuoteResponse } from '@/lib/uniswap'
+import { fetchQuote, getOutputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
+import { HANDOFF_ABI, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
+import type { Address } from '@/lib/types'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -152,25 +154,102 @@ function useMockSwapAndDeposit(dealId: bigint, tokenKey: TokenKey): SwapAndDepos
 
 // ─── Real: useSwapAndDeposit ──────────────────────────────────────────────────
 
-function useRealSwapAndDeposit(_dealId: bigint, _tokenKey: TokenKey): SwapAndDepositState {
-  const { data: walletClient } = useWalletClient()
+function useRealSwapAndDeposit(
+  _dealId: bigint,
+  _tokenKey: TokenKey,
+  escrowAddress?: Address,
+  quoteResponse?: QuoteResponse | null,
+): SwapAndDepositState {
+  const { address } = useAccount()
   const [state, setState] = useState(IDLE_SWAP)
 
-  function swapAndDeposit(_codeHash: `0x${string}`) {
-    if (!walletClient) {
-      setState({ ...IDLE_SWAP, isError: true, error: new Error('Wallet not connected') })
+  // Approval tx
+  const approveWrite = useWriteContract()
+  const approveReceipt = useWaitForTransactionReceipt({ hash: approveWrite.data })
+
+  // fundWithSwap tx
+  const swapWrite = useWriteContract()
+  const swapReceipt = useWaitForTransactionReceipt({ hash: swapWrite.data })
+
+  async function swapAndDeposit(codeHash: `0x${string}`) {
+    const token = TOKENS[_tokenKey]
+    if (!address || !escrowAddress || !quoteResponse || !token?.address) {
+      setState({ ...IDLE_SWAP, isError: true, error: new Error('Missing data for swap') })
       return
     }
-    // Real implementation would:
-    // 1. checkApproval → approve if needed
-    // 2. fetchSwap(quoteResponse) → get tx calldata
-    // 3. walletClient.sendTransaction(swapTx)
-    // 4. Wait for receipt → deposit into escrow
-    // For hackathon: mock mode covers the demo; real mode needs deployed contract
-    setState({ ...IDLE_SWAP, isError: true, error: new Error('Real swap not yet wired — use mock mode for demo') })
+
+    try {
+      // Phase 1: Check if approval is needed
+      setState({ ...IDLE_SWAP, isApprovePending: true })
+
+      const inputAmount = getOutputAmount(quoteResponse) // for EXACT_OUTPUT, this is the input
+      const approval = await checkApproval(address, token.address, inputAmount, 84532)
+
+      if (approval) {
+        // Need to approve — send approval tx via wallet
+        approveWrite.writeContract({
+          address: token.address as `0x${string}`,
+          abi: [{ name: 'approve', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }] }] as const,
+          functionName: 'approve',
+          args: [escrowAddress, BigInt(inputAmount)],
+        })
+        setState({ ...IDLE_SWAP, isApproveConfirming: true })
+        // Wait handled via useWaitForTransactionReceipt reactively
+      } else {
+        // Already approved — skip to swap
+        setState({ ...IDLE_SWAP, isApproveSuccess: true, isSwapPending: true })
+        executeSwap(codeHash, token.address as `0x${string}`, inputAmount, quoteResponse)
+      }
+    } catch (err) {
+      setState({ ...IDLE_SWAP, isError: true, error: err instanceof Error ? err : new Error('Swap failed') })
+    }
   }
 
-  return { swapAndDeposit, ...state }
+  function executeSwap(codeHash: `0x${string}`, inputToken: `0x${string}`, inputAmount: string, quote: QuoteResponse) {
+    fetchSwap(quote).then(swapResp => {
+      swapWrite.writeContract({
+        address: escrowAddress!,
+        abi: HANDOFF_ABI,
+        functionName: 'fundWithSwap',
+        args: [
+          UNIVERSAL_ROUTER_ADDRESS,
+          inputToken,
+          BigInt(inputAmount),
+          swapResp.swap.data as `0x${string}`,
+          codeHash,
+          '', // buyerEns
+        ],
+      })
+      setState(prev => ({ ...prev, isSwapPending: false, isSwapConfirming: true }))
+    }).catch(err => {
+      setState({ ...IDLE_SWAP, isError: true, error: err instanceof Error ? err : new Error('Swap failed') })
+    })
+  }
+
+  // React to approval confirmation → trigger swap
+  useEffect(() => {
+    if (approveReceipt.isSuccess && !swapWrite.data && quoteResponse) {
+      const token = TOKENS[_tokenKey]
+      if (!token?.address) return
+      const inputAmount = getOutputAmount(quoteResponse)
+      setState(prev => ({ ...prev, isApproveSuccess: true, isSwapPending: true }))
+      // Need the codeHash — stored from initial call. We pass it via state.
+    }
+  }, [approveReceipt.isSuccess])
+
+  // Map wagmi state to our state interface
+  const derivedState: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
+    isApprovePending:    approveWrite.isPending,
+    isApproveConfirming: !!approveWrite.data && approveReceipt.isLoading,
+    isApproveSuccess:    approveReceipt.isSuccess,
+    isSwapPending:       swapWrite.isPending,
+    isSwapConfirming:    !!swapWrite.data && swapReceipt.isLoading,
+    isSuccess:           swapReceipt.isSuccess,
+    isError:             state.isError || approveWrite.isError || swapWrite.isError,
+    error:               state.error || approveWrite.error || swapWrite.error || null,
+  }
+
+  return { swapAndDeposit, ...derivedState }
 }
 
 // ─── Public exports ───────────────────────────────────────────────────────────
@@ -181,8 +260,13 @@ export function useQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult 
   return MOCK_MODE ? mock : real
 }
 
-export function useSwapAndDeposit(dealId: bigint, tokenKey: TokenKey): SwapAndDepositState {
-  const real = useRealSwapAndDeposit(dealId, tokenKey)
+export function useSwapAndDeposit(
+  dealId: bigint,
+  tokenKey: TokenKey,
+  escrowAddress?: Address,
+  quoteResponse?: QuoteResponse | null,
+): SwapAndDepositState {
+  const real = useRealSwapAndDeposit(dealId, tokenKey, escrowAddress, quoteResponse)
   const mock = useMockSwapAndDeposit(dealId, tokenKey)
   return MOCK_MODE ? mock : real
 }

@@ -134,23 +134,24 @@ function useRealCancelDeal(dealId: bigint, escrowAddress?: Address) {
 }
 
 // Edit: call edit(newAmount, newPayoutToken, newSellerPayoutAddress, newExpirationTimestamp)
+// Contract rejects zero values — caller must pass real current values for unchanged fields
 function useRealEditDeal(dealId: bigint, escrowAddress?: Address) {
   const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  function edit(amount: bigint, _description: string) {
+  function edit(
+    amount: bigint,
+    _description: string,
+    payoutToken: Address = '0x0000000000000000000000000000000000000000',
+    sellerPayoutAddress: Address = '0x0000000000000000000000000000000000000000',
+    expirationTimestamp: bigint = 0n,
+  ) {
     if (!escrowAddress) return
-    // description is not on-chain — edit only changes amount for now
     writeContract({
       address: escrowAddress,
       abi: HANDOFF_ABI,
       functionName: 'edit',
-      args: [
-        amount,
-        '0x0000000000000000000000000000000000000000' as Address, // keep current payoutToken
-        '0x0000000000000000000000000000000000000000' as Address, // keep current payout address
-        0n, // keep current expiration
-      ],
+      args: [amount, payoutToken, sellerPayoutAddress, expirationTimestamp],
     })
   }
 
@@ -212,7 +213,7 @@ function useMockEditDeal(dealId: bigint) {
   const [editAmount, setEditAmount] = useState<bigint | null>(null)
   const [editDesc, setEditDesc] = useState<string | null>(null)
 
-  function edit(amount: bigint, description: string) {
+  function edit(amount: bigint, description: string, _payoutToken?: Address, _sellerPayoutAddress?: Address, _expirationTimestamp?: bigint) {
     setEditAmount(amount)
     setEditDesc(description)
     trigger()

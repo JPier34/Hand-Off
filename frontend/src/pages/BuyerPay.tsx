@@ -324,8 +324,8 @@ export default function BuyerPay() {
 
   const amountWei = details?.amount ?? 0n
   const usdValue  = useUsdValue(amountWei, details?.payoutToken ?? null)
-  const { quotedIn, isLoading: quoteLoading, error: quoteError }         = useQuote(selectedToken, amountWei)
-  const swap                                                              = useSwapAndDeposit(dealId, selectedToken)
+  const { quotedIn, quoteResponse, isLoading: quoteLoading, error: quoteError } = useQuote(selectedToken, amountWei)
+  const swap = useSwapAndDeposit(dealId, selectedToken, escrowAddress, quoteResponse)
 
   const { reputation } = useReputation(details?.seller as `0x${string}` | undefined)
   const isSwapPath = selectedToken !== 'ETH'

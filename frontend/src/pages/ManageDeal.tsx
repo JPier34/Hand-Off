@@ -745,7 +745,13 @@ export default function ManageDeal() {
                 fullWidth
                 onClick={() => {
                   if (!amountValid) return
-                  editDeal.edit(parseEther(editAmount as `${number}`), editDescription)
+                  editDeal.edit(
+                    parseEther(editAmount as `${number}`),
+                    editDescription,
+                    (details?.payoutToken ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
+                    (details?.seller ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
+                    details?.expiresAt ?? 0n,
+                  )
                 }}
                 disabled={!amountValid || editDeal.isPending || editDeal.isConfirming}
                 loading={editDeal.isPending || editDeal.isConfirming}
