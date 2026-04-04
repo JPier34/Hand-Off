@@ -557,7 +557,7 @@ describe("HandOff", function () {
 
     it("reverts before expiration — DealExpired", async function () {
       const { h, buyer } = await loadFixture(fundedEth);
-      await expect(h.connect(buyer).refund()).to.be.revertedWithCustomError(h, "DealExpired");
+      await expect(h.connect(buyer).refund()).to.be.revertedWithCustomError(h, "NotYetExpired");
     });
 
     it("reverts if non-buyer calls refund — NotBuyer", async function () {

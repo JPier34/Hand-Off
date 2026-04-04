@@ -11,6 +11,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IHandOffReputation {
     function recordCompletion(address seller, address buyer, uint256 amount) external;
+    function recordReview(address reviewer, address reviewed, address escrow, bool isPositive, bool reviewedAsSeller) external;
 }
 
 interface IHandOffSubnameRegistrar {
@@ -61,6 +62,8 @@ contract HandOff is ReentrancyGuard {
     error SwapCallReverted();
     error SlippageExceeded();
     error HandOffAlreadyExpired();
+    error NotYetExpired();
+    error NotParticipant();
     error WrongCodeHash();
     error ETHSendFailed();
     error ZeroNewAmount();
@@ -269,8 +272,12 @@ contract HandOff is ReentrancyGuard {
         if (_inputAmount == 0) revert ZeroInputAmount();
         if (block.timestamp >= expirationTimestamp) revert DealExpired();
 
+        uint256 inputBefore = IERC20(_inputToken).balanceOf(address(this));
         IERC20(_inputToken).safeTransferFrom(msg.sender, address(this), _inputAmount);
-        IERC20(_inputToken).forceApprove(_router, _inputAmount);
+        uint256 actualInput = IERC20(_inputToken).balanceOf(address(this)) - inputBefore;
+
+        // SECURITY FIX: Approve only the actual amount received (fee-on-transfer safe)
+        IERC20(_inputToken).forceApprove(_router, actualInput);
 
         uint256 balanceBefore = IERC20(payoutToken).balanceOf(address(this));
         (bool success, ) = _router.call(_swapData);
@@ -282,9 +289,11 @@ contract HandOff is ReentrancyGuard {
         // SECURITY FIX: always revoke router approval unconditionally — prevents residual
         // allowance for tokens (e.g. USDT) that don't decrement allowances atomically
         IERC20(_inputToken).forceApprove(_router, 0);
-        uint256 leftover = IERC20(_inputToken).balanceOf(address(this));
-        if (leftover > 0) {
-            IERC20(_inputToken).safeTransfer(msg.sender, leftover);
+
+        // SECURITY FIX: Refund only the leftover from this specific swap attempt
+        uint256 inputRemainingPostSwap = IERC20(_inputToken).balanceOf(address(this)) - inputBefore;
+        if (inputRemainingPostSwap > 0) {
+            IERC20(_inputToken).safeTransfer(msg.sender, inputRemainingPostSwap);
         }
 
         buyer = msg.sender;
@@ -311,7 +320,8 @@ contract HandOff is ReentrancyGuard {
         state = State.COMPLETED;
 
         if (REPUTATION_REGISTRY != address(0)) {
-            try IHandOffReputation(REPUTATION_REGISTRY).recordCompletion(
+            // SECURITY FIX: Gas limit prevents OOG attacks from a malicious/bloated registry
+            try IHandOffReputation(REPUTATION_REGISTRY).recordCompletion{gas: 150000}(
                 SELLER, buyer, amount
             ) {} catch {}
         }
@@ -319,7 +329,8 @@ contract HandOff is ReentrancyGuard {
         emit SubnameMintRequested(DEAL_ID, address(this), buyer, SELLER, amount, block.timestamp);
 
         if (SUBNAME_REGISTRAR != address(0)) {
-            try IHandOffSubnameRegistrar(SUBNAME_REGISTRAR).mintDealReceipt(
+            // SECURITY FIX: Gas limit ensures ENS minting doesn't exhaust block gas
+            try IHandOffSubnameRegistrar(SUBNAME_REGISTRAR).mintDealReceipt{gas: 500000}(
                 DEAL_ID, address(this), buyer, SELLER, amount, block.timestamp
             ) {} catch {
                 emit SubnameMintFailed(DEAL_ID);
@@ -342,7 +353,8 @@ contract HandOff is ReentrancyGuard {
         onlyBuyer
         inState(State.FUNDED)
     {
-        if (block.timestamp <= expirationTimestamp) revert DealExpired();
+        // QUALITY: Custom error properly reflects the reality matching the logic
+        if (block.timestamp <= expirationTimestamp) revert NotYetExpired();
 
         state = State.EXPIRED;
 
@@ -350,6 +362,31 @@ contract HandOff is ReentrancyGuard {
         _transferOut(buyer, refundAmount);
 
         emit HandOffExpired(address(this), buyer, refundAmount);
+    }
+
+    // ── Submit Review (UC-14) ──────────────────────────────────────────────────
+    /// @notice Submit a performance review. The escrow serves as the authenticated
+    ///         proxy to the Reputation registry.
+    /// @param _isPositive True if the experience was positive.
+    function submitReview(bool _isPositive)
+        external
+        nonReentrant
+        inState(State.COMPLETED)
+    {
+        bool isSeller = (msg.sender == SELLER);
+        bool isBuyer = (msg.sender == buyer);
+        if (!isSeller && !isBuyer) revert NotParticipant();
+        
+        if (REPUTATION_REGISTRY != address(0)) {
+            // SECURITY FIX: Gas limit prevents OOG.
+            try IHandOffReputation(REPUTATION_REGISTRY).recordReview{gas: 150000}(
+                msg.sender,
+                isBuyer ? SELLER : buyer,
+                address(this),
+                _isPositive,
+                isBuyer // reviewedAsSeller = isBuyer? true : false
+            ) {} catch {}
+        }
     }
 
     // ── Cancel ────────────────────────────────────────────────────────────────
