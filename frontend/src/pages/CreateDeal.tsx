@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { parseEther } from 'viem'
-import { useAccount } from 'wagmi'
+import { parseEther, isAddress } from 'viem'
+import { useAccount, useEnsAddress } from 'wagmi'
+import { mainnet } from 'wagmi/chains'
 import { useNavigate } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
@@ -39,6 +40,12 @@ export default function CreateDeal() {
 
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
+  const isEnsInput = recipient.endsWith('.eth')
+  const { data: resolvedAddress, isLoading: ensLoading } = useEnsAddress({
+    name: recipient,
+    chainId: mainnet.id,
+    query: { enabled: isEnsInput },
+  })
   const [description, setDescription] = useState('')
   const [payoutToken, setPayoutToken] = useState<TokenKey>('ETH')
   const [timeoutHours, setTimeoutHours] = useState(168)
@@ -185,22 +192,18 @@ export default function CreateDeal() {
                     <p className="text-xs text-red-400 mt-2">{errors.amount}</p>
                   )}
                 </div>
-                <div className="relative shrink-0 mt-6">
-                  <select
-                    value={payoutToken}
-                    onChange={e => setPayoutToken(e.target.value)}
-                    className="h-9 pl-3 pr-7 rounded-xl bg-hoff-elevated border border-hoff-brand text-hoff-text-secondary font-medium text-sm appearance-none cursor-pointer focus:outline-none focus:border-hoff-accent/60 transition-colors"
-                  >
-                    {TOKEN_KEYS.map(key => (
-                      <option key={key} value={key} className="bg-hoff-elevated">
-                        {TOKENS[key].symbol}
-                      </option>
-                    ))}
-                  </select>
-                  <svg className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6B7B7B" strokeWidth="2.5" strokeLinecap="round">
-                    <polyline points="6 9 12 15 18 9"/>
-                  </svg>
-                </div>
+                <select
+                  value={payoutToken}
+                  onChange={e => setPayoutToken(e.target.value)}
+                  className="shrink-0 mt-6 h-9 px-3 rounded-xl bg-hoff-elevated border border-hoff-brand text-hoff-text-secondary font-medium text-sm appearance-none cursor-pointer focus:outline-none focus:border-hoff-accent/60 transition-colors text-center"
+                  style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
+                >
+                  {TOKEN_KEYS.map(key => (
+                    <option key={key} value={key} className="bg-hoff-elevated">
+                      {TOKENS[key].symbol}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -233,6 +236,18 @@ export default function CreateDeal() {
                   </svg>
                 </button>
               </div>
+              {isEnsInput && ensLoading && (
+                <p className="text-xs text-hoff-text-tertiary mt-2">Resolving…</p>
+              )}
+              {isEnsInput && !ensLoading && resolvedAddress && (
+                <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  {resolvedAddress.slice(0, 6)}...{resolvedAddress.slice(-4)}
+                </p>
+              )}
+              {isEnsInput && !ensLoading && !resolvedAddress && recipient.length > 4 && (
+                <p className="text-xs text-red-400 mt-2">Could not resolve ENS name</p>
+              )}
             </div>
 
             {/* Description */}

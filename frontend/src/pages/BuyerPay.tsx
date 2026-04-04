@@ -16,6 +16,7 @@ import { MOCK_MODE, mockExpire } from '@/lib/mock'
 import { IntroScreen } from '@/components/escrow/IntroScreen'
 import { TOKENS, TOKEN_KEYS, type TokenKey, payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
+import { EnsName } from '@/components/EnsName'
 
 const PROTOCOL_FEE_BPS  = 10n   // 0.1%
 const EST_GAS           = 800_000_000_000_000n // ~0.0008 ETH placeholder
@@ -74,7 +75,8 @@ function TokenSelector({ selected, onChange }: TokenSelectorProps) {
       value={selected}
       onChange={e => onChange(e.target.value)}
       style={{ width }}
-      className="shrink-0 h-8 px-2 rounded-lg bg-hoff-accent-muted text-hoff-accent text-xl font-medium appearance-none cursor-pointer focus:outline-none transition-colors text-center"
+      className="shrink-0 h-8 px-2 rounded-lg bg-hoff-accent-muted text-hoff-accent text-xl font-medium appearance-none [&::-ms-expand]:hidden cursor-pointer focus:outline-none transition-colors text-center"
+      style={{ width, WebkitAppearance: 'none', MozAppearance: 'none' }}
     >
       {TOKEN_KEYS.map(key => (
         <option key={key} value={key} className="bg-hoff-elevated text-hoff-text-primary">
@@ -424,23 +426,6 @@ export default function BuyerPay() {
     <Layout>
       <main className="max-w-sm mx-auto px-4 py-4 space-y-3">
 
-        {/* Breadcrumb */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => navigate(`/deal/${dealIdParam}`)}
-            className="flex items-center gap-1.5 text-xs text-hoff-text-tertiary hover:text-hoff-text-secondary transition-colors"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-            View Existing · Buyer
-          </button>
-          <span className="flex items-center gap-1.5 text-xs font-medium text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            <span className="w-1.5 h-1.5 rounded-full bg-hoff-accent shrink-0" />
-            #{dealIdParam} deals
-          </span>
-        </div>
-
         {isError || !details ? (
           <div className="bg-hoff-surface rounded-2xl p-5">
             <p className="text-sm text-red-400">Could not load deal. Check the link and try again.</p>
@@ -449,7 +434,7 @@ export default function BuyerPay() {
           <>
             {/* Title + status */}
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold text-hoff-text-primary">Pay Escrow</h1>
                 <StatusBadge status={details.status} />
               </div>
@@ -525,9 +510,10 @@ export default function BuyerPay() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs text-hoff-text-tertiary mb-0.5">Creator</p>
-                  <p className="text-sm text-hoff-text-primary font-mono truncate">
-                    {details.seller.slice(0, 6)}...{details.seller.slice(-4)}
-                  </p>
+                  <EnsName
+                    address={details.seller as `0x${string}`}
+                    className="text-sm text-hoff-text-primary font-mono truncate block"
+                  />
                 </div>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
@@ -679,7 +665,7 @@ export default function BuyerPay() {
             {/* Mock debug: simulate expiry — poll picks up the change within 500ms */}
             {MOCK_MODE && details.status === EscrowStatus.FUNDED && !isExpired && (
               <button
-                onClick={() => mockExpire()}
+                onClick={() => mockExpire(dealId)}
                 className="w-full text-xs text-hoff-text-tertiary hover:text-amber-400 transition-colors py-1 text-center"
               >
                 [Mock] Simulate expiry

@@ -14,6 +14,7 @@ import { MOCK_MODE } from '@/lib/mock'
 import { IntroScreen } from '@/components/escrow/IntroScreen'
 import { payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
+import { EnsName } from '@/components/EnsName'
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 function isValidDealId(param: string | undefined): param is string {
@@ -192,9 +193,10 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, descri
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs text-hoff-text-tertiary mb-0.5">Creator</p>
-            <p className="text-sm text-hoff-text-primary font-mono truncate">
-              {seller.slice(0, 6)}...{seller.slice(-4)}
-            </p>
+            <EnsName
+              address={seller as `0x${string}`}
+              className="text-sm text-hoff-text-primary font-mono truncate block"
+            />
           </div>
           <a
             href={MOCK_MODE

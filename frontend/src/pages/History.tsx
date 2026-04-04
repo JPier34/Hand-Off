@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { formatEther, formatUnits, parseEther } from 'viem'
 import { payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { Layout } from '@/components/Layout'
+import { EnsName } from '@/components/EnsName'
 import { EscrowStatus } from '@/lib/types'
 import type { Address, DealDetails } from '@/lib/types'
 
@@ -361,9 +362,10 @@ export default function History() {
                     </div>
                     <div className="flex items-center gap-2">
                       {!isZeroAddr && (
-                        <span className="text-xs font-mono text-hoff-text-tertiary">
-                          {counterparty.slice(0, 4)}...{counterparty.slice(-3)}
-                        </span>
+                        <EnsName
+                          address={counterparty as `0x${string}`}
+                          className="text-xs font-mono text-hoff-text-tertiary"
+                        />
                       )}
                       {reviewIcon(entry.review)}
                     </div>

@@ -118,7 +118,7 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
 
 // ─── Mock: useSwapAndDeposit ──────────────────────────────────────────────────
 
-function useMockSwapAndDeposit(_dealId: bigint, tokenKey: TokenKey): SwapAndDepositState {
+function useMockSwapAndDeposit(dealId: bigint, tokenKey: TokenKey): SwapAndDepositState {
   const [state, setState] = useState(IDLE_SWAP)
 
   function swapAndDeposit(_codeHash: `0x${string}`) {
@@ -137,7 +137,7 @@ function useMockSwapAndDeposit(_dealId: bigint, tokenKey: TokenKey): SwapAndDepo
           setTimeout(() => {
             setState({ ...IDLE_SWAP, isApproveSuccess: true, isSwapConfirming: true })
             setTimeout(() => {
-              mockDeposit()
+              mockDeposit(dealId)
               setState({ ...IDLE_SWAP, isApproveSuccess: true, isSuccess: true })
             }, 1500)
           }, 1000)

@@ -39,7 +39,7 @@ function useRealDealDetails(dealId: bigint) {
 // Polls the module-level mock state every 500ms so components re-render after
 // mockDeposit / mockRelease / mockRefund calls.
 
-function useMockDealDetails(_dealId: bigint) {
+function useMockDealDetails(dealId: bigint) {
   const [, tick] = useState(0)
 
   useEffect(() => {
@@ -48,7 +48,7 @@ function useMockDealDetails(_dealId: bigint) {
   }, [])
 
   return {
-    details:   getMockDeal(),
+    details:   getMockDeal(dealId),
     isLoading: false,
     isError:   false,
     error:     null,

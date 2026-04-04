@@ -130,39 +130,39 @@ function useMockCreateDeal() {
   return { create, ...state, newDealId: state.isSuccess ? MOCK_DEAL_ID : undefined }
 }
 
-function useMockDepositFunds(_dealId: bigint) {
-  const { trigger, ...state } = useMockTx(mockDeposit)
+function useMockDepositFunds(dealId: bigint) {
+  const { trigger, ...state } = useMockTx(() => mockDeposit(dealId))
 
   function deposit(_amount: string, _codeHash: `0x${string}`) { trigger() }
 
   return { deposit, ...state }
 }
 
-function useMockReleaseEscrow(_dealId: bigint) {
-  const { trigger, ...state } = useMockTx(mockRelease)
+function useMockReleaseEscrow(dealId: bigint) {
+  const { trigger, ...state } = useMockTx(() => mockRelease(dealId))
 
   function release(_code: string) { trigger() }
 
   return { release, ...state }
 }
 
-function useMockClaimRefund(_dealId: bigint) {
-  const { trigger, ...state } = useMockTx(mockRefund)
+function useMockClaimRefund(dealId: bigint) {
+  const { trigger, ...state } = useMockTx(() => mockRefund(dealId))
 
   function claimRefund() { trigger() }
 
   return { claimRefund, ...state }
 }
 
-function useMockCancelDeal(_dealId: bigint) {
-  const { trigger, ...state } = useMockTx(mockCancel)
+function useMockCancelDeal(dealId: bigint) {
+  const { trigger, ...state } = useMockTx(() => mockCancel(dealId))
 
   function cancel() { trigger() }
 
   return { cancel, ...state }
 }
 
-function useMockEditDeal(_dealId: bigint) {
+function useMockEditDeal(dealId: bigint) {
   const { trigger, ...state } = useMockTx(() => {})
   const [editAmount, setEditAmount] = useState<bigint | null>(null)
   const [editDesc, setEditDesc] = useState<string | null>(null)
@@ -175,7 +175,7 @@ function useMockEditDeal(_dealId: bigint) {
 
   // Apply the edit after mock TX succeeds
   if (state.isSuccess && editAmount !== null && editDesc !== null) {
-    mockEditDeal(editAmount, editDesc)
+    mockEditDeal(dealId, editAmount, editDesc)
   }
 
   return { edit, ...state }
