@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useReadContract } from 'wagmi'
 import { isAddress } from 'viem'
+import { useContractRead } from '@/hooks/useContractRead'
 import { REPUTATION_ABI, REPUTATION_ADDRESS, HANDOFF_ABI } from '@/lib/constants'
 import type { Address, DealDetails } from '@/lib/types'
 import { EscrowStatus } from '@/lib/types'
@@ -21,7 +21,7 @@ export function parseDealParam(param: string | undefined): { dealId?: bigint; es
 
 function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Address | undefined) {
   // Step 1: Resolve dealId → escrow address via Reputation registry (skip if we already have address)
-  const addressResult = useReadContract({
+  const addressResult = useContractRead({
     address: REPUTATION_ADDRESS,
     abi: REPUTATION_ABI,
     functionName: 'getEscrowFromDealId',
@@ -32,7 +32,7 @@ function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Add
   const escrowAddress = directEscrowAddress ?? (addressResult.data as Address | undefined)
 
   // Step 2: Read dealInfo() from the per-deal escrow contract
-  const infoResult = useReadContract({
+  const infoResult = useContractRead({
     address: escrowAddress,
     abi: HANDOFF_ABI,
     functionName: 'dealInfo',
@@ -44,7 +44,7 @@ function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Add
 
   // Step 3: Read getTerms() — returns (amount, payoutToken, sellerPayoutAddress, expiresAt, createdAt)
   // This gives us the SELLER-SET amount, not the current balance (which is 0 before funding)
-  const termsResult = useReadContract({
+  const termsResult = useContractRead({
     address: escrowAddress,
     abi: HANDOFF_ABI,
     functionName: 'getTerms',

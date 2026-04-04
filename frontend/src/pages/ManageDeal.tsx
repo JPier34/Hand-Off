@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAccount } from 'wagmi'
 import { formatEther, formatUnits, parseEther } from 'viem'
+import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
@@ -527,7 +527,7 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, o
 export default function ManageDeal() {
   const { dealId: dealIdParam } = useParams<{ dealId: string }>()
   const navigate = useNavigate()
-  const { address } = useAccount()
+  const { walletAddress: address } = useDynamicAuth()
   const [showCodeEntry, setShowCodeEntry] = useState(false)
   const [showIntro, setShowIntro] = useState(true)
   const [showEdit, setShowEdit] = useState(false)

@@ -3,6 +3,7 @@ import { getWalletAccounts, switchActiveNetwork } from '@dynamic-labs-sdk/client
 import { createWalletClientForWalletAccount } from '@dynamic-labs-sdk/evm/viem'
 import { encodeFunctionData } from 'viem'
 import { baseSepolia } from 'viem/chains'
+import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import type { Abi, Address } from 'viem'
 
 interface WriteContractParams {
@@ -41,6 +42,7 @@ const BASE_SEPOLIA_ID = String(baseSepolia.id) // "84532"
  */
 export function useDynamicWriteContract() {
   const [state, setState] = useState<WriteState>(IDLE)
+  const { walletAddress: _activeAddress } = useDynamicAuth()
 
   const writeContract = useCallback(async (params: WriteContractParams) => {
     setState({ ...IDLE, isPending: true })
@@ -56,10 +58,12 @@ export function useDynamicWriteContract() {
       const accounts = getWalletAccounts()
       if (!accounts || accounts.length === 0) throw new Error('No wallet connected')
 
-      // Prefer MetaMask over Rainbow — Rainbow's inpage.js has a broken
-      // chrome.runtime.sendMessage that prevents transactions from working.
-      const walletAccount = accounts.find(a => a.walletProviderKey?.includes('metamask'))
-        ?? accounts.find(a => !a.walletProviderKey?.includes('rainbow'))
+      // Use the wallet the user actively connected with (matches useDynamicAuth's walletAddress).
+      // This ensures the wallet the user sees in the UI is the one that pays gas.
+      const activeAddress = _activeAddress
+      const walletAccount = (activeAddress
+          ? accounts.find(a => a.address?.toLowerCase() === activeAddress.toLowerCase())
+          : undefined)
         ?? accounts[0]
 
       console.log('[useDynamicWrite] Wallet:', walletAccount.address, 'provider:', walletAccount.walletProviderKey, '(from', accounts.length, 'accounts)')
@@ -150,7 +154,7 @@ export function useDynamicWriteContract() {
         error: err instanceof Error ? err : new Error(String(err)),
       })
     }
-  }, [])
+  }, [_activeAddress])
 
   return {
     writeContract,

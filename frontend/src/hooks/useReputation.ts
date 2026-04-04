@@ -1,4 +1,4 @@
-import { useReadContract } from 'wagmi'
+import { useContractRead } from '@/hooks/useContractRead'
 import { REPUTATION_ABI, REPUTATION_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE } from '@/lib/mock'
 import type { Address } from '@/lib/types'
@@ -34,7 +34,7 @@ const MOCK_REP: ReputationData = {
 }
 
 export function useReputation(walletAddress: Address | undefined) {
-  const result = useReadContract({
+  const result = useContractRead({
     address: REPUTATION_ADDRESS,
     abi: REPUTATION_ABI,
     functionName: 'getReputation',

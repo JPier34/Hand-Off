@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useAccount } from 'wagmi'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
+import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
 import { TOKENS, WETH_ADDRESS, type TokenKey } from '@/lib/tokens'
@@ -69,7 +69,7 @@ function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
 // ─── Real: useQuote ───────────────────────────────────────────────────────────
 
 function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
-  const { address } = useAccount()
+  const { walletAddress: address } = useDynamicAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [quotedIn, setQuotedIn]   = useState<bigint | undefined>(undefined)
   const [quoteResponse, setQuoteResponse] = useState<QuoteResponse | null>(null)
@@ -162,7 +162,7 @@ function useRealSwapAndDeposit(
   escrowAddress?: Address,
   quoteResponse?: QuoteResponse | null,
 ): SwapAndDepositState {
-  const { address } = useAccount()
+  const { walletAddress: address } = useDynamicAuth()
   const [state, setState] = useState(IDLE_SWAP)
   const [pendingCodeHash, setPendingCodeHash] = useState<`0x${string}` | null>(null)
 

@@ -1,4 +1,4 @@
-import { useAccount } from 'wagmi'
+import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import { Layout } from '@/components/Layout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -12,7 +12,7 @@ import { EscrowStatus } from '@/lib/types'
 // Replace with real Home/Landing page at the hackathon.
 
 export default function Landing() {
-  const { address, isConnected } = useAccount()
+  const { walletAddress: address, isAuthenticated: isConnected } = useDynamicAuth()
 
   return (
     <Layout>

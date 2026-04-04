@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAccount } from 'wagmi'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import { formatEther, formatUnits } from 'viem'
 import { Layout } from '@/components/Layout'
@@ -298,8 +297,7 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
 export default function BuyerPay() {
   const { dealId: dealIdParam } = useParams<{ dealId: string }>()
   const navigate = useNavigate()
-  const { isConnected } = useAccount()
-  const { login } = useDynamicAuth()
+  const { isAuthenticated: isConnected, login } = useDynamicAuth()
   const [unlockCode, setUnlockCode] = useState<string | null>(null)
   const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
   const [showIntro, setShowIntro] = useState(true)
