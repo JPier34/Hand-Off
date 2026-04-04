@@ -37,7 +37,7 @@ const ETH_SEPOLIA_ID = String(sepolia.id) // "11155111"
  * WalletClient for the ACTUAL connected wallet (MetaMask, Rainbow, etc),
  * not window.ethereum which may be a different extension.
  *
- * Switches to Eth Sepolia via Dynamic's switchActiveNetwork if needed.
+ * Switches to Ethereum Sepolia via Dynamic's switchActiveNetwork if needed.
  */
 export function useDynamicWriteContract() {
   const [state, setState] = useState<WriteState>(IDLE)
@@ -64,10 +64,10 @@ export function useDynamicWriteContract() {
 
       console.log('[useDynamicWrite] Wallet:', walletAccount.address, 'provider:', walletAccount.walletProviderKey, '(from', accounts.length, 'accounts)')
 
-      // Switch to Eth Sepolia if needed — uses Dynamic SDK which routes to the CORRECT wallet
+      // Switch to Ethereum Sepolia if needed — uses Dynamic SDK which routes to the CORRECT wallet
       try {
         await switchActiveNetwork({ walletAccount, networkId: ETH_SEPOLIA_ID })
-        console.log('[useDynamicWrite] Network switched to Eth Sepolia')
+        console.log('[useDynamicWrite] Network switched to Ethereum Sepolia')
       } catch (e) {
         // May throw if already on correct chain or if network needs to be added
         console.log('[useDynamicWrite] switchActiveNetwork result:', (e as Error)?.message ?? 'ok')
@@ -102,7 +102,7 @@ export function useDynamicWriteContract() {
         const currentChainHex = await walletClient.request({ method: 'eth_chainId' }) as string
         const currentChainId = parseInt(currentChainHex, 16)
         if (currentChainId !== sepolia.id) {
-          console.log('[useDynamicWrite] Wallet on chain', currentChainId, '→ switching to Eth Sepolia via WalletClient')
+          console.log('[useDynamicWrite] Wallet on chain', currentChainId, '→ switching to Ethereum Sepolia via WalletClient')
           try {
             await walletClient.request({
               method: 'wallet_switchEthereumChain',
