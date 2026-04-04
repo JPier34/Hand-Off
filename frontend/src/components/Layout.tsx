@@ -2,7 +2,6 @@ import { useNavigate } from 'react-router-dom'
 import { WalletButton } from './WalletButton'
 import { AuthModal } from './AuthModal'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
-import { MOCK_MODE } from '@/lib/mock'
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
@@ -24,7 +23,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="flex items-center gap-3">
-            {(isAuthenticated || MOCK_MODE) && (
+            {isAuthenticated && (
               <button
                 onClick={() => navigate('/create')}
                 className="w-9 h-9 rounded-full bg-hoff-accent hover:bg-hoff-accent-hover flex items-center justify-center text-white transition-colors"
