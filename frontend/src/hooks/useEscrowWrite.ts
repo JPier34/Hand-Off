@@ -95,13 +95,16 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   function deposit(amount: string, codeHash: `0x${string}`, buyerEns = '') {
-    if (!escrowAddress) return
+    console.log('[useEscrowWrite] deposit called:', { amount, codeHash, buyerEns, escrowAddress, hasEscrow: !!escrowAddress })
+    if (!escrowAddress) { console.log('[useEscrowWrite] No escrowAddress, aborting deposit'); return }
+    const value = parseEther(amount)
+    console.log('[useEscrowWrite] Calling fund() on', escrowAddress, 'value:', value.toString())
     writeContract({
       address: escrowAddress,
       abi: HANDOFF_ABI,
       functionName: 'fund',
       args: [codeHash, buyerEns],
-      value: parseEther(amount),
+      value,
     })
   }
 

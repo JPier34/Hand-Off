@@ -343,14 +343,28 @@ export default function BuyerPay() {
 
   // ─── Actions ────────────────────────────────────────────────────────────────
   function handleDeposit() {
-    if (!details) return
+    console.log('[BuyerPay] handleDeposit called', {
+      hasDetails: !!details,
+      amount: details?.amount?.toString(),
+      status: details?.status,
+      escrowAddress,
+      isSwapPath,
+      selectedToken,
+      canAct,
+    })
+    if (!details) { console.log('[BuyerPay] No details, aborting'); return }
     const code = generateUnlockCode()
+    const codeHash = hashUnlockCode(code)
+    console.log('[BuyerPay] Generated code:', code, 'hash:', codeHash)
     setUnlockCode(code)
 
     if (isSwapPath) {
-      swap.swapAndDeposit(hashUnlockCode(code))
+      console.log('[BuyerPay] Taking SWAP path')
+      swap.swapAndDeposit(codeHash)
     } else {
-      deposit(formatEther(details.amount), hashUnlockCode(code))
+      const amountStr = formatEther(details.amount)
+      console.log('[BuyerPay] Taking DIRECT deposit path, amount:', amountStr, 'escrowAddress:', escrowAddress)
+      deposit(amountStr, codeHash)
     }
   }
 
