@@ -1,9 +1,14 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 import HandOffReputationModule from "./HandOffReputation";
 
-// Uniswap V3 SwapRouter02 — same address on most EVM chains
-// Set to ZeroAddress to disable the swap path on networks without Uniswap
-const UNISWAP_ROUTER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
+// Uniswap Universal Router 2.0 on Base Sepolia
+// The Uniswap Trading API generates calldata targeting this router.
+// HandOff.fundWithSwap() enforces _router == ALLOWED_ROUTER on-chain.
+// Set to ZeroAddress to disable the swap path on networks without Uniswap.
+//
+// Previous deployment used SwapRouter02 (0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45)
+// which is INCOMPATIBLE with the Trading API calldata format.
+const UNISWAP_ROUTER = "0x492e6456d9528771018deb9e87ef7750ef184104";
 
 // HandOffSubnameRegistrar address on Eth Sepolia (deployed separately)
 // Set to ZeroAddress if deploying on Base Sepolia (cross-chain subname minting via event)

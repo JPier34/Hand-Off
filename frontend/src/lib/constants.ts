@@ -33,7 +33,10 @@ export const SUBNAME_ADDRESS = (
   import.meta.env.VITE_SUBNAME_ADDRESS || ethAddrs?.subnameRegistrar || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
-// Uniswap Universal Router on Base Sepolia (for fundWithSwap)
+// Uniswap Universal Router 2.0 on Base Sepolia (for fundWithSwap).
+// HandOff.fundWithSwap() enforces _router == ALLOWED_ROUTER on-chain.
+// The Uniswap Trading API generates calldata for this router.
+// After redeployment, Factory.ALLOWED_ROUTER must equal this address.
 export const UNIVERSAL_ROUTER_ADDRESS = (
   import.meta.env.VITE_UNIVERSAL_ROUTER_ADDRESS ?? '0x492e6456d9528771018deb9e87ef7750ef184104'
 ) as `0x${string}`

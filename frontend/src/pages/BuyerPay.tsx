@@ -9,7 +9,8 @@ import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { CountdownTimer } from '@/components/escrow/CountdownTimer'
 import { useDealDetails, parseDealParam } from '@/hooks/useEscrow'
-import { useDepositFunds, useClaimRefund } from '@/hooks/useEscrowWrite'
+import { useDepositFunds, useClaimRefund, useSubmitReview } from '@/hooks/useEscrowWrite'
+import { parseContractError } from '@/lib/errors'
 import { useQuote, useSwapAndDeposit } from '@/hooks/useTokenSwap'
 import { generateUnlockCode, hashUnlockCode } from '@/lib/code-gen'
 import { EscrowStatus } from '@/lib/types'
@@ -323,8 +324,9 @@ export default function BuyerPay() {
   // ─── Hooks (always called, rules of hooks) ─────────────────────────────────
   const { details, isLoading, isError, escrowAddress }                     = useDealDetails(dealId, directAddress)
   const mockDealId = dealId ?? 0n
-  const { deposit, isPending, isConfirming, isSuccess, isError: txError } = useDepositFunds(mockDealId, escrowAddress)
+  const { deposit, isPending, isConfirming, isSuccess, isError: txError, error: txErrorObj } = useDepositFunds(mockDealId, escrowAddress)
   const refund = useClaimRefund(mockDealId, escrowAddress)
+  const reviewHook = useSubmitReview(escrowAddress)
 
   const amountWei = details?.amount ?? 0n
   const usdValue  = useUsdValue(amountWei, details?.payoutToken ?? null)
@@ -363,8 +365,8 @@ export default function BuyerPay() {
       swap.swapAndDeposit(codeHash)
     } else {
       const amountStr = formatEther(details.amount)
-      console.log('[BuyerPay] Taking DIRECT deposit path, amount:', amountStr, 'escrowAddress:', escrowAddress)
-      deposit(amountStr, codeHash)
+      console.log('[BuyerPay] Taking DIRECT deposit path, amount:', amountStr, 'escrowAddress:', escrowAddress, 'payoutToken:', details.payoutToken)
+      deposit(amountStr, codeHash, '', details.payoutToken)
     }
   }
 
@@ -376,7 +378,8 @@ export default function BuyerPay() {
           code={unlockCode}
           description={details?.description ?? ''}
           dealIdParam={dealIdParam}
-          onSubmitReview={() => {
+          onSubmitReview={(vote) => {
+            reviewHook.submitReview(vote === 'positive')
             if (MOCK_MODE) setTimeout(() => navigate('/'), 800)
           }}
         />
@@ -415,7 +418,9 @@ export default function BuyerPay() {
   const anyPending    = isSwapPath ? (swap.isApprovePending || swap.isSwapPending) : isPending
   const anyConfirming = isSwapPath ? (swap.isApproveConfirming || swap.isSwapConfirming) : isConfirming
   const anyError      = isSwapPath ? swap.isError : txError
+  const anyErrorObj   = isSwapPath ? swap.error : txErrorObj
   const anyBusy       = anyPending || anyConfirming
+  const friendlyErr   = anyError ? parseContractError(anyErrorObj) : null
 
   // CTA label
   function ctaLabel(): string {
@@ -596,7 +601,11 @@ export default function BuyerPay() {
             {/* CTA */}
             {details.status === EscrowStatus.CREATED && (
               <>
-                {anyError && <p className="text-xs text-red-400 text-center">Payment failed. Try again.</p>}
+                {anyError && friendlyErr && (
+                  <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3">
+                    <p className="text-sm text-red-400 text-center">{friendlyErr}</p>
+                  </div>
+                )}
                 <Button
                   fullWidth
                   onClick={canAct ? handleDeposit : () => login()}

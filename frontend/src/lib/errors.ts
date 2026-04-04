@@ -25,12 +25,50 @@ export function parseContractError(error: Error | null | undefined): string | nu
   if (/insufficient funds/i.test(msg))
     return 'Not enough ETH for gas. Top up your wallet on Base Sepolia.'
 
-  // Contract reverted — try to surface the reason string
+  // HandOff custom errors (from HandOff.sol) — matched before generic revert
+  if (/SellerCannotBeBuyer/i.test(msg))
+    return 'You can\u2019t fund your own deal. The buyer needs to open the payment link from a different wallet.'
+  if (/WrongETHAmount/i.test(msg))
+    return 'Payment amount doesn\u2019t match. Refresh the page and try again.'
+  if (/DealExpired/i.test(msg))
+    return 'This deal has expired. The seller needs to create a new one.'
+  if (/WrongState/i.test(msg))
+    return 'This deal is no longer available for this action.'
+  if (/WrongCodeHash/i.test(msg))
+    return 'Incorrect code. Double-check with the buyer and try again.'
+  if (/NotSeller/i.test(msg))
+    return 'Only the seller can perform this action.'
+  if (/NotBuyer/i.test(msg))
+    return 'Only the buyer can claim a refund.'
+  if (/NotYetExpired/i.test(msg))
+    return 'This deal hasn\u2019t expired yet. Refunds become available after expiration.'
+  if (/HandOffAlreadyExpired/i.test(msg))
+    return 'This deal has expired. The buyer can now claim a refund.'
+  if (/NotParticipant/i.test(msg))
+    return 'Only the buyer or seller can leave a review.'
+  if (/ETHForbiddenForTokenEscrow/i.test(msg))
+    return 'This deal expects a token payment, not ETH.'
+  if (/SlippageExceeded/i.test(msg))
+    return 'Swap slippage too high. Try again or use a different token.'
+  if (/SwapCallReverted/i.test(msg))
+    return 'Token swap failed. Try again or pay directly with the requested token.'
+  if (/ZeroCodeHash/i.test(msg))
+    return 'Code generation failed. Refresh the page and try again.'
+
+  // Generic contract revert — try to surface the reason string
   if (/execution reverted/i.test(msg)) {
     const reason = extractRevertReason(msg)
     if (reason) return `Transaction rejected: ${reason}`
     return 'Transaction rejected by the contract. Check deal status and try again.'
   }
+
+  // Wallet errors
+  if (/timed out/i.test(msg))
+    return 'Wallet didn\u2019t respond. Check your wallet for a pending request, or try again.'
+  if (/no wallet connected/i.test(msg))
+    return 'No wallet connected. Please connect your wallet first.'
+  if (/error sending/i.test(msg))
+    return 'Your wallet rejected the transaction. Check the details and try again.'
 
   // Contract not found at address
   if (/contract not deployed|could not fetch|returned no data/i.test(msg))

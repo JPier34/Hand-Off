@@ -8,7 +8,8 @@ import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { CountdownTimer } from '@/components/escrow/CountdownTimer'
 import { useDealDetails, parseDealParam } from '@/hooks/useEscrow'
-import { useReleaseEscrow, useCancelDeal, useEditDeal } from '@/hooks/useEscrowWrite'
+import { useReleaseEscrow, useCancelDeal, useEditDeal, useSubmitReview } from '@/hooks/useEscrowWrite'
+import { parseContractError } from '@/lib/errors'
 import { EscrowStatus } from '@/lib/types'
 import { MOCK_MODE } from '@/lib/mock'
 import { IntroScreen } from '@/components/escrow/IntroScreen'
@@ -288,11 +289,12 @@ interface ClaimFundsProps {
   isPending: boolean
   isConfirming: boolean
   isError: boolean
+  error?: Error | null
 }
 
 function ClaimFundsView({
   dealIdParam, amount, expiresAt, description, sym, fmt, usdLabel,
-  onBack, onRelease, isPending, isConfirming, isError,
+  onBack, onRelease, isPending, isConfirming, isError, error,
 }: ClaimFundsProps) {
   const [chars, setChars] = useState(['', '', '', ''])
   const progress = expiryProgress(expiresAt)
@@ -376,7 +378,7 @@ function ClaimFundsView({
         </div>
       </div>
 
-      {isError && <p className="text-xs text-red-400 text-center">Wrong code or transaction failed. Try again.</p>}
+      {isError && (() => { const msg = parseContractError(error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
 
       <Button
         fullWidth
@@ -400,9 +402,10 @@ interface CompletedProps {
   sym: string
   fmt: (v: bigint) => string
   usdLabel: string
+  onSubmitReview?: (isPositive: boolean) => void
 }
 
-function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel }: CompletedProps) {
+function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, onSubmitReview }: CompletedProps) {
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
   const etherscanBase = 'https://sepolia.basescan.org/tx/'
@@ -498,7 +501,11 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel }:
             </button>
           </div>
           <button
-            onClick={() => { if (review) setSubmitted(true) }}
+            onClick={() => {
+              if (!review) return
+              onSubmitReview?.(review === 'positive')
+              setSubmitted(true)
+            }}
             disabled={!review}
             className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
           >
@@ -545,9 +552,10 @@ export default function ManageDeal() {
   const mockDealId = dealId ?? 0n
 
   const { details, isLoading, isError, escrowAddress }                              = useDealDetails(dealId, directAddress)
-  const { release, isPending, isConfirming, isSuccess, isError: releaseError }     = useReleaseEscrow(mockDealId, escrowAddress)
+  const { release, isPending, isConfirming, isSuccess, isError: releaseError, error: releaseErrorObj } = useReleaseEscrow(mockDealId, escrowAddress)
   const cancelDeal = useCancelDeal(mockDealId, escrowAddress)
   const editDeal   = useEditDeal(mockDealId, escrowAddress)
+  const reviewHook = useSubmitReview(escrowAddress)
 
   // Token display helpers
   const sym = details ? payoutSymbol(details.payoutToken) : 'ETH'
@@ -601,6 +609,7 @@ export default function ManageDeal() {
           sym={sym}
           fmt={fmt}
           usdLabel={usdLabel}
+          onSubmitReview={(isPositive) => reviewHook.submitReview(isPositive)}
         />
       </Layout>
     )
@@ -666,7 +675,7 @@ export default function ManageDeal() {
               No funds have been deposited, so nothing needs to be refunded.
             </p>
 
-            {cancelDeal.isError && <p className="text-xs text-red-400 text-center">Cancel failed. Try again.</p>}
+            {cancelDeal.isError && (() => { const msg = parseContractError(cancelDeal.error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
 
             <Button
               fullWidth
@@ -740,7 +749,7 @@ export default function ManageDeal() {
               />
             </div>
 
-            {editDeal.isError && <p className="text-xs text-red-400 text-center">Update failed. Try again.</p>}
+            {editDeal.isError && (() => { const msg = parseContractError(editDeal.error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
 
             {!editDeal.isSuccess ? (
               <Button
@@ -886,6 +895,7 @@ export default function ManageDeal() {
           isPending={isPending}
           isConfirming={isConfirming}
           isError={releaseError}
+          error={releaseErrorObj}
         />
       </Layout>
     )

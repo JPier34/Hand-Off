@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import { useWaitForTransactionReceipt } from 'wagmi'
+import { useState, useEffect } from 'react'
 import { parseEther, parseEventLogs } from 'viem'
 import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
 import { hashUnlockCode } from '@/lib/code-gen'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
+import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { TOKENS } from '@/lib/tokens'
 import type { Address } from '@/lib/types'
 import type { Abi } from 'viem'
@@ -44,7 +44,13 @@ function useMockTx(onConfirmed: () => void) {
 
 function useRealCreateDeal() {
   const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
-  const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({ hash })
+  const receiptQuery = useReceiptPoller(hash)
+  const { isLoading: isConfirming, isSuccess, receipt } = receiptQuery
+
+  // Debug: trace the full create flow
+  if (hash) {
+    console.log('[useCreateDeal] hash:', hash, 'isConfirming:', isConfirming, 'isSuccess:', isSuccess, 'receipt:', !!receipt, 'receiptStatus:', receipt?.status, 'receiptError:', receiptQuery.isError, receiptQuery.error?.message)
+  }
 
   // FACTORY WIRING (UC-1): call HandOffFactory.createHandOff() instead of deploying directly.
   // The factory atomically deploys a new HandOff escrow + registers it with HandOffReputation.
@@ -72,49 +78,122 @@ function useRealCreateDeal() {
   let newDealId: bigint | undefined
   let newEscrowAddress: Address | undefined
   if (receipt) {
+    console.log('[useEscrowWrite] Receipt received, logs:', receipt.logs.length, 'status:', receipt.status)
     try {
       const logs = parseEventLogs({
         abi: FACTORY_ABI as Abi,
         logs: receipt.logs,
         eventName: 'HandOffCreated',
       })
+      console.log('[useEscrowWrite] HandOffCreated logs found:', logs.length)
       if (logs.length > 0) {
         const args = logs[0].args as { seller: Address; escrow: Address; dealId: bigint }
         newDealId = args.dealId
         newEscrowAddress = args.escrow
+        console.log('[useEscrowWrite] Parsed dealId:', newDealId?.toString(), 'escrow:', newEscrowAddress)
       }
-    } catch { /* logs from other contracts — safe to ignore */ }
+    } catch (e) {
+      console.warn('[useEscrowWrite] Failed to parse HandOffCreated event:', e)
+      // Fallback: try to extract from raw log topics if parseEventLogs fails
+      // HandOffCreated topic0 = keccak256("HandOffCreated(address,address,uint256)")
+      for (const log of receipt.logs) {
+        if (log.topics.length === 4 && log.address.toLowerCase() === FACTORY_ADDRESS.toLowerCase()) {
+          console.log('[useEscrowWrite] Fallback: found factory log with 4 topics')
+          try {
+            // topics[1] = seller (address, padded), topics[2] = escrow, topics[3] = dealId
+            newEscrowAddress = ('0x' + log.topics[2]!.slice(26)) as Address
+            newDealId = BigInt(log.topics[3]!)
+            console.log('[useEscrowWrite] Fallback parsed dealId:', newDealId.toString(), 'escrow:', newEscrowAddress)
+          } catch (e2) {
+            console.warn('[useEscrowWrite] Fallback parsing also failed:', e2)
+          }
+          break
+        }
+      }
+    }
   }
 
   return { create, isPending, isConfirming, isSuccess, isError, error, newDealId, newEscrowAddress }
 }
 
-// Fund: call fund(codeHash, buyerEns) on the escrow contract directly
+// Fund: call fund(codeHash, buyerEns) on the escrow contract directly.
+// For ETH escrows (payoutToken = null/undefined), send msg.value.
+// For ERC20 escrows, approve the escrow to pull tokens then call fund() with value = 0.
 function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
+  const approveWrite = useDynamicWriteContract()
+  const approveReceipt = useReceiptPoller(approveWrite.data)
   const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const { isLoading: isConfirming, isSuccess } = useReceiptPoller(hash)
 
-  function deposit(amount: string, codeHash: `0x${string}`, buyerEns = '') {
-    console.log('[useEscrowWrite] deposit called:', { amount, codeHash, buyerEns, escrowAddress, hasEscrow: !!escrowAddress })
+  // Store params for the chained fund() call after ERC20 approval
+  const [pendingFund, setPendingFund] = useState<{
+    codeHash: `0x${string}`; buyerEns: string; amount: bigint
+  } | null>(null)
+
+  function deposit(amount: string, codeHash: `0x${string}`, buyerEns = '', payoutToken?: Address | null) {
+    console.log('[useEscrowWrite] deposit called:', { amount, codeHash, buyerEns, escrowAddress, payoutToken })
     if (!escrowAddress) { console.log('[useEscrowWrite] No escrowAddress, aborting deposit'); return }
-    const value = parseEther(amount)
-    console.log('[useEscrowWrite] Calling fund() on', escrowAddress, 'value:', value.toString())
-    writeContract({
-      address: escrowAddress,
-      abi: HANDOFF_ABI,
-      functionName: 'fund',
-      args: [codeHash, buyerEns],
-      value,
-    })
+
+    if (!payoutToken) {
+      // ETH escrow: send native ETH as msg.value
+      const value = parseEther(amount)
+      console.log('[useEscrowWrite] ETH path, calling fund() with value:', value.toString())
+      writeContract({
+        address: escrowAddress,
+        abi: HANDOFF_ABI,
+        functionName: 'fund',
+        args: [codeHash, buyerEns],
+        value,
+      })
+    } else {
+      // ERC20 escrow: step 1 = approve, step 2 = fund (chained via useEffect)
+      const tokenAmount = parseEther(amount) // TODO: use parseUnits(amount, decimals) for non-18 tokens
+      console.log('[useEscrowWrite] ERC20 path, approving', payoutToken, 'amount:', tokenAmount.toString())
+      setPendingFund({ codeHash, buyerEns, amount: tokenAmount })
+      approveWrite.writeContract({
+        address: payoutToken,
+        abi: [{
+          name: 'approve', type: 'function', stateMutability: 'nonpayable',
+          inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
+          outputs: [{ name: '', type: 'bool' }],
+        }] as unknown as Abi,
+        functionName: 'approve',
+        args: [escrowAddress, tokenAmount],
+      })
+    }
   }
 
-  return { deposit, isPending, isConfirming, isSuccess, isError, error }
+  // Chain: after ERC20 approval confirms, call fund() with value = 0
+  useEffect(() => {
+    if (approveReceipt.isSuccess && pendingFund && escrowAddress && !hash) {
+      console.log('[useEscrowWrite] ERC20 approval confirmed, calling fund() with value: 0')
+      writeContract({
+        address: escrowAddress,
+        abi: HANDOFF_ABI,
+        functionName: 'fund',
+        args: [pendingFund.codeHash, pendingFund.buyerEns],
+        // No value — contract pulls tokens via safeTransferFrom
+      })
+      setPendingFund(null)
+    }
+  }, [approveReceipt.isSuccess, pendingFund, escrowAddress, hash, writeContract])
+
+  const isApproving = approveWrite.isPending || (!!approveWrite.data && approveReceipt.isLoading)
+
+  return {
+    deposit,
+    isPending: isPending || isApproving,
+    isConfirming,
+    isSuccess,
+    isError: isError || approveWrite.isError,
+    error: error || approveWrite.error,
+  }
 }
 
 // Unlock: call unlock(submittedHash) — takes bytes32 hash, NOT plaintext
 function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
   const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const { isLoading: isConfirming, isSuccess } = useReceiptPoller(hash)
 
   function release(code: string) {
     if (!escrowAddress) return
@@ -133,7 +212,7 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
 // Refund: call refund() on escrow — no args
 function useRealClaimRefund(dealId: bigint, escrowAddress?: Address) {
   const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const { isLoading: isConfirming, isSuccess } = useReceiptPoller(hash)
 
   function claimRefund() {
     if (!escrowAddress) return
@@ -150,7 +229,7 @@ function useRealClaimRefund(dealId: bigint, escrowAddress?: Address) {
 // Cancel: call cancel() on escrow — no args
 function useRealCancelDeal(dealId: bigint, escrowAddress?: Address) {
   const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const { isLoading: isConfirming, isSuccess } = useReceiptPoller(hash)
 
   function cancel() {
     if (!escrowAddress) return
@@ -168,7 +247,7 @@ function useRealCancelDeal(dealId: bigint, escrowAddress?: Address) {
 // Contract rejects zero values — caller must pass real current values for unchanged fields
 function useRealEditDeal(dealId: bigint, escrowAddress?: Address) {
   const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const { isLoading: isConfirming, isSuccess } = useReceiptPoller(hash)
 
   function edit(
     amount: bigint,
@@ -192,7 +271,7 @@ function useRealEditDeal(dealId: bigint, escrowAddress?: Address) {
 // SubmitReview: call submitReview(isPositive) on escrow
 function useRealSubmitReview(escrowAddress?: Address) {
   const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const { isLoading: isConfirming, isSuccess } = useReceiptPoller(hash)
 
   function submitReview(isPositive: boolean) {
     if (!escrowAddress) return
@@ -221,7 +300,7 @@ function useMockCreateDeal() {
 
 function useMockDepositFunds(dealId: bigint) {
   const { trigger, ...state } = useMockTx(() => mockDeposit(dealId))
-  function deposit(_amount: string, _codeHash: `0x${string}`, _buyerEns = '') { trigger() }
+  function deposit(_amount: string, _codeHash: `0x${string}`, _buyerEns = '', _payoutToken?: Address | null) { trigger() }
   return { deposit, ...state }
 }
 

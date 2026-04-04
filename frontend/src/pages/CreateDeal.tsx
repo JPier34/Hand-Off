@@ -82,6 +82,9 @@ export default function CreateDeal() {
   const shareableLink =
     dealParam ? `${window.location.origin}/pay/${dealParam}` : null
 
+  // Debug: trace success screen gate
+  console.log('[CreateDeal] isSuccess:', isSuccess, 'newDealId:', newDealId?.toString(), 'newEscrowAddress:', newEscrowAddress, 'dealParam:', dealParam, 'shareableLink:', shareableLink)
+
   function handleCreate() {
     setTouched(true)
     if (hasErrors) return
@@ -106,7 +109,8 @@ export default function CreateDeal() {
   }
 
   // ─── Success screen ─────────────────────────────────────────────────────────
-  if (isSuccess && shareableLink) {
+  // Show success if tx confirmed — even if event parsing fails (shareableLink may be null)
+  if (isSuccess) {
     return (
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
@@ -121,57 +125,76 @@ export default function CreateDeal() {
               HandOff Created
             </h1>
             <p className="text-sm text-hoff-text-tertiary text-center">
-              Share this link with your buyer
+              {shareableLink ? 'Share this link with your buyer' : 'Your escrow is live on-chain'}
             </p>
           </div>
 
-          {/* Link card */}
-          <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-            <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-              Payment Link
-            </p>
-            <div className="flex items-center gap-2 bg-hoff-elevated rounded-xl px-3 py-2.5 border border-hoff-brand">
-              <span className="flex-1 min-w-0 text-xs font-mono break-all text-hoff-text-tertiary">
-                {shareableLink}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(shareableLink)
-                  setCopied(true)
-                  setTimeout(() => setCopied(false), 2000)
-                }}
-                className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg hover:bg-hoff-surface transition-colors"
-                aria-label="Copy link"
+          {shareableLink ? (
+            <>
+              {/* Link card */}
+              <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
+                <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+                  Payment Link
+                </p>
+                <div className="flex items-center gap-2 bg-hoff-elevated rounded-xl px-3 py-2.5 border border-hoff-brand">
+                  <span className="flex-1 min-w-0 text-xs font-mono break-all text-hoff-text-tertiary">
+                    {shareableLink}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareableLink)
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
+                    }}
+                    className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg hover:bg-hoff-surface transition-colors"
+                    aria-label="Copy link"
+                  >
+                    {copied ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2EBF7A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-hoff-text-tertiary">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                <Button fullWidth variant="ghost" onClick={handleShare}>
+                  Share
+                </Button>
+              </div>
+
+              {/* Go to deal */}
+              <Button
+                fullWidth
+                onClick={() => navigate(`/deal/${dealParam}`)}
               >
-                {copied ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2EBF7A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-hoff-text-tertiary">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                  </svg>
-                )}
-              </button>
-            </div>
-            <Button fullWidth variant="ghost" onClick={handleShare}>
-              Share
-            </Button>
-          </div>
+                Go to my deal →
+              </Button>
 
-          {/* Go to deal */}
-          <Button
-            fullWidth
-            onClick={() => navigate(`/deal/${dealParam}`)}
-          >
-            Go to my deal →
-          </Button>
-
-          <p className="text-xs text-hoff-text-tertiary text-center">
-            You'll enter the buyer's code there to release funds
-          </p>
+              <p className="text-xs text-hoff-text-tertiary text-center">
+                You'll enter the buyer's code there to release funds
+              </p>
+            </>
+          ) : (
+            <>
+              {/* Fallback: tx confirmed but event parsing failed — still show success */}
+              <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3 space-y-2">
+                <p className="text-sm text-amber-400">
+                  Deal created but we couldn't extract the payment link automatically.
+                </p>
+                <p className="text-xs text-amber-400/70">
+                  Check your recent transactions on BaseScan to find the new escrow address, then share <span className="font-mono">{window.location.origin}/pay/[address]</span> with your buyer.
+                </p>
+              </div>
+              <Button fullWidth onClick={() => navigate('/')}>
+                Back to Home
+              </Button>
+            </>
+          )}
         </main>
       </Layout>
     )

@@ -848,5 +848,24 @@
   {
     "stateMutability": "payable",
     "type": "receive"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "reviewer",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isPositive",
+        "type": "bool"
+      }
+    ],
+    "name": "ReviewAttempted",
+    "type": "event"
   }
 ]

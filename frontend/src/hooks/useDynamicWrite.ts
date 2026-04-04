@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
-import { getWalletAccounts } from '@dynamic-labs-sdk/client'
+import { getWalletAccounts, switchActiveNetwork } from '@dynamic-labs-sdk/client'
+import { createWalletClientForWalletAccount } from '@dynamic-labs-sdk/evm/viem'
 import { encodeFunctionData } from 'viem'
 import { baseSepolia } from 'viem/chains'
 import type { Abi, Address } from 'viem'
@@ -26,16 +27,17 @@ const IDLE: WriteState = {
   error: null,
 }
 
+const BASE_SEPOLIA_ID = String(baseSepolia.id) // "84532"
+
 /**
  * Drop-in replacement for wagmi's useWriteContract that uses
- * Dynamic SDK's wallet provider directly.
+ * Dynamic SDK's wallet provider.
  *
- * Bypasses Dynamic's createWalletClientForWalletAccount (which calls
- * getActiveNetworkData and triggers a broken chrome.runtime.sendMessage
- * in some wallet extensions). Instead, we get the EIP-1193 provider
- * from Dynamic and create the viem client ourselves with a hardcoded chain.
+ * Uses Dynamic's createWalletClientForWalletAccount to get a viem
+ * WalletClient for the ACTUAL connected wallet (MetaMask, Rainbow, etc),
+ * not window.ethereum which may be a different extension.
  *
- * Works with: browser extensions (Rainbow, MetaMask), embedded wallets (email/social).
+ * Switches to Base Sepolia via Dynamic's switchActiveNetwork if needed.
  */
 export function useDynamicWriteContract() {
   const [state, setState] = useState<WriteState>(IDLE)
@@ -52,11 +54,24 @@ export function useDynamicWriteContract() {
       })
 
       const accounts = getWalletAccounts()
-      console.log('[useDynamicWrite] Wallet accounts:', accounts?.length, accounts?.[0]?.address, 'providerKey:', accounts?.[0]?.walletProviderKey)
-      const walletAccount = accounts?.[0]
-      if (!walletAccount) throw new Error('No wallet connected')
+      if (!accounts || accounts.length === 0) throw new Error('No wallet connected')
 
-      console.log('[useDynamicWrite] Wallet provider key:', walletAccount.walletProviderKey)
+      // Prefer MetaMask over Rainbow — Rainbow's inpage.js has a broken
+      // chrome.runtime.sendMessage that prevents transactions from working.
+      const walletAccount = accounts.find(a => a.walletProviderKey?.includes('metamask'))
+        ?? accounts.find(a => !a.walletProviderKey?.includes('rainbow'))
+        ?? accounts[0]
+
+      console.log('[useDynamicWrite] Wallet:', walletAccount.address, 'provider:', walletAccount.walletProviderKey, '(from', accounts.length, 'accounts)')
+
+      // Switch to Base Sepolia if needed — uses Dynamic SDK which routes to the CORRECT wallet
+      try {
+        await switchActiveNetwork({ walletAccount, networkId: BASE_SEPOLIA_ID })
+        console.log('[useDynamicWrite] Network switched to Base Sepolia')
+      } catch (e) {
+        // May throw if already on correct chain or if network needs to be added
+        console.log('[useDynamicWrite] switchActiveNetwork result:', (e as Error)?.message ?? 'ok')
+      }
 
       const data = encodeFunctionData({
         abi: params.abi,
@@ -65,27 +80,64 @@ export function useDynamicWriteContract() {
       })
 
       const value = params.value ?? 0n
-      const chainIdHex = `0x${baseSepolia.id.toString(16)}` // 0x14a34
-      const txParams = {
-        from: walletAccount.address,
-        to: params.address,
-        data,
-        chainId: chainIdHex,
-        ...(value > 0n ? { value: `0x${value.toString(16)}` } : {}),
+
+      // Use Dynamic's WalletClient — routes to the correct wallet extension
+      console.log('[useDynamicWrite] Creating WalletClient for', walletAccount.walletProviderKey)
+      let walletClient
+      try {
+        walletClient = await createWalletClientForWalletAccount({ walletAccount })
+      } catch (e) {
+        const msg = (e as Error)?.message ?? ''
+        if (msg.includes('No network data')) {
+          throw new Error(
+            'Base Sepolia not configured in Dynamic dashboard. ' +
+            'Go to app.dynamic.xyz → Chains & Networks → enable Base Sepolia (84532).'
+          )
+        }
+        throw e
       }
 
-      console.log('[useDynamicWrite] Sending eth_sendTransaction:', txParams)
+      // Switch chain via the wallet client's own provider (MetaMask, not window.ethereum)
+      try {
+        const currentChainHex = await walletClient.request({ method: 'eth_chainId' }) as string
+        const currentChainId = parseInt(currentChainHex, 16)
+        if (currentChainId !== baseSepolia.id) {
+          console.log('[useDynamicWrite] Wallet on chain', currentChainId, '→ switching to Base Sepolia via WalletClient')
+          try {
+            await walletClient.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: `0x${baseSepolia.id.toString(16)}` }],
+            })
+          } catch (switchErr: unknown) {
+            if ((switchErr as { code?: number })?.code === 4902) {
+              await walletClient.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: `0x${baseSepolia.id.toString(16)}`,
+                  chainName: 'Base Sepolia',
+                  nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                  rpcUrls: ['https://sepolia.base.org'],
+                  blockExplorerUrls: ['https://sepolia.basescan.org'],
+                }],
+              })
+            } else {
+              throw switchErr
+            }
+          }
+          console.log('[useDynamicWrite] Chain switched, waiting for wallet to settle...')
+          await new Promise(r => setTimeout(r, 1000))
+        }
+      } catch (e) {
+        console.warn('[useDynamicWrite] Chain switch attempt:', e)
+      }
 
-      // Use window.ethereum directly — Dynamic's wrapped provider triggers
-      // broken chrome.runtime.sendMessage in Rainbow's inpage.js.
-      // window.ethereum is Rainbow's raw injected EIP-1193 provider.
-      const rawProvider = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum
-      if (!rawProvider) throw new Error('No window.ethereum provider found — is a wallet extension installed?')
-
-      const hash = await rawProvider.request({
-        method: 'eth_sendTransaction',
-        params: [txParams],
-      }) as `0x${string}`
+      // Send tx without chain assertion — we already switched above
+      const hash = await walletClient.sendTransaction({
+        to: params.address,
+        data,
+        value,
+        chain: null,
+      })
 
       console.log('[useDynamicWrite] TX hash:', hash)
       setState({ data: hash, isPending: false, isError: false, error: null })
