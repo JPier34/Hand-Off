@@ -20,17 +20,17 @@ const ethAddrs  = CONTRACT_ADDRESSES[CHAIN_IDS.ETH_SEPOLIA]
 
 // Reputation registry on Base Sepolia — maps dealId → escrow address
 export const REPUTATION_ADDRESS = (
-  import.meta.env.VITE_REPUTATION_ADDRESS || baseAddrs?.reputationRegistry || '0x0000000000000000000000000000000000000000'
+  import.meta.env.REPUTATION_ADDRESS || baseAddrs?.reputationRegistry || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
 // Factory contract on Base Sepolia — canonical entry point for deal creation (UC-1)
 export const FACTORY_ADDRESS = (
-  import.meta.env.VITE_FACTORY_ADDRESS || baseAddrs?.factory || '0x0000000000000000000000000000000000000000'
+  import.meta.env.FACTORY_ADDRESS || baseAddrs?.factory || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
 // ENS subname registrar on Ethereum Sepolia
 export const SUBNAME_ADDRESS = (
-  import.meta.env.VITE_SUBNAME_ADDRESS || ethAddrs?.subnameRegistrar || '0x0000000000000000000000000000000000000000'
+  import.meta.env.SUBNAME_ADDRESS || ethAddrs?.subnameRegistrar || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
 // Uniswap Universal Router 2.0 on Base Sepolia (for fundWithSwap).
@@ -38,7 +38,7 @@ export const SUBNAME_ADDRESS = (
 // The Uniswap Trading API generates calldata for this router.
 // After redeployment, Factory.ALLOWED_ROUTER must equal this address.
 export const UNIVERSAL_ROUTER_ADDRESS = (
-  import.meta.env.VITE_UNIVERSAL_ROUTER_ADDRESS ?? '0x492e6456d9528771018deb9e87ef7750ef184104'
+  import.meta.env.UNIVERSAL_ROUTER_ADDRESS ?? '0x492e6456d9528771018deb9e87ef7750ef184104'
 ) as `0x${string}`
 
 // Legacy alias — keep for backward compat during migration

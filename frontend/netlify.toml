@@ -2,6 +2,11 @@
   command = "npm run build"
   publish = "dist"
 
+[build.environment]
+  # DYNAMIC_ENVIRONMENT_ID is public by design (like Firebase API key — security via allowed origins)
+  # CHAIN_ID and MOCK are non-sensitive config
+  SECRETS_SCAN_OMIT_KEYS = "DYNAMIC_ENVIRONMENT_ID,CHAIN_ID,MOCK"
+
 [dev]
   command = "npm run dev"
   targetPort = 5173

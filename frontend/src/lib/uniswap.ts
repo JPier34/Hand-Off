@@ -1,14 +1,13 @@
 // Uniswap Trading API client
-// Uses CORS proxy in dev (/api/uniswap → trade-api.gateway.uniswap.org/v1)
-// and Vercel rewrite in production.
+// Requests go to /api/uniswap/* which is proxied server-side:
+// - Production (Netlify): Netlify Function adds the API key server-side
+// - Dev: Vite proxy forwards to Uniswap API (API key added via dev proxy or Netlify dev)
 
 const API_BASE = '/api/uniswap'
-const API_KEY = import.meta.env.UNISWAP_API_KEY ?? ''
 
 const HEADERS: HeadersInit = {
   'Content-Type': 'application/json',
-  'x-api-key': API_KEY,
-  'x-universal-router-version': '2.0',
+  // API key is added server-side by Netlify Function — not in client bundle
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────

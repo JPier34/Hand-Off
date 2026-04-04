@@ -8,7 +8,11 @@ var __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
     plugins: [react()],
     base: "/",
-    envPrefix: "VITE_",
+    // Allow all env vars (not just VITE_*) to be exposed via import.meta.env
+    // WARNING: only put non-secret values in .env — everything is bundled into client JS
+    // Expose these env var prefixes to client via import.meta.env
+    // NOTE: UNISWAP_API_KEY is NOT here — it stays server-side (Netlify Function)
+    envPrefix: ["VITE_", "DYNAMIC_", "CHAIN_", "MOCK", "REPUTATION_", "FACTORY_", "SUBNAME_", "UNIVERSAL_"],
     css: {
         postcss: {
             plugins: [tailwindcss, autoprefixer],
@@ -30,5 +34,25 @@ export default defineConfig({
             },
         },
     },
-    server: { port: 5173 },
+    server: {
+        port: 5173,
+        proxy: {
+            // Dev proxy for Uniswap API — adds API key server-side (reads from .env)
+            '/api/uniswap': {
+                target: 'https://trade-api.gateway.uniswap.org/v1',
+                changeOrigin: true,
+                rewrite: function (p) { return p.replace(/^\/api\/uniswap/, ''); },
+                configure: function (proxy) {
+                    proxy.on('proxyReq', function (proxyReq) {
+                        var _a;
+                        // Read API key from process.env (loaded by Vite from .env, but NOT exposed to client)
+                        var key = (_a = process.env.UNISWAP_API_KEY) !== null && _a !== void 0 ? _a : '';
+                        if (key)
+                            proxyReq.setHeader('x-api-key', key);
+                        proxyReq.setHeader('x-universal-router-version', '2.0');
+                    });
+                },
+            },
+        },
+    },
 });
