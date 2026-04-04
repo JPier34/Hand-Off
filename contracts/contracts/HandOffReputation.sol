@@ -10,6 +10,10 @@ pragma solidity ^0.8.26;
 /// @title HandOffReputation
 /// @notice Singleton reputation registry. Only registered HandOff escrow contracts
 ///         may write to it. Tracks deal counts, volume, and reviews per wallet.
+///
+/// @dev AUTHORIZED_DEPLOYER is intentionally mutable so the initial EOA deployer can
+///      transfer control to HandOffFactory after it is deployed, making escrow creation
+///      fully permissionless and trustless (no human in the loop post-transfer).
 contract HandOffReputation {
 
     // ── Custom errors ─────────────────────────────────────────────────────────
@@ -39,7 +43,9 @@ contract HandOffReputation {
     }
 
     // ── Access control ────────────────────────────────────────────────────────
-    address public immutable AUTHORIZED_DEPLOYER;
+    // Not immutable — must be transferable to HandOffFactory after both contracts are deployed.
+    // See transferDeployer().
+    address public AUTHORIZED_DEPLOYER;
     mapping(address => bool) public registeredEscrows;
     /// @notice Returns the HandOff escrow contract address for a given global deal ID.
     ///         Returns address(0) if the deal ID has not been registered or was subsequently revoked.
@@ -80,6 +86,7 @@ contract HandOffReputation {
     event HandOffRegistered(address indexed escrow, uint256 dealId);
     // QUALITY: emit event on revocation so indexers can track deregistrations
     event HandOffRevoked(address indexed escrow);
+    event DeployerTransferred(address indexed previousDeployer, address indexed newDeployer);
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     modifier onlyDeployer() {
@@ -97,6 +104,19 @@ contract HandOffReputation {
     constructor(address _authorizedDeployer) {
         if (_authorizedDeployer == address(0)) revert InvalidDeployer();
         AUTHORIZED_DEPLOYER = _authorizedDeployer;
+    }
+
+    // ── Deployer transfer ─────────────────────────────────────────────────────
+    /// @notice Transfer the AUTHORIZED_DEPLOYER role to a new address (e.g. HandOffFactory).
+    ///         Called once by the initial EOA deployer immediately after HandOffFactory is deployed.
+    ///         After this transfer, only the factory can register new escrows, making the system
+    ///         fully permissionless (no human intervention required per-deal).
+    /// @param _newDeployer The address to receive the deployer role. Cannot be zero.
+    function transferDeployer(address _newDeployer) external onlyDeployer {
+        if (_newDeployer == address(0)) revert InvalidDeployer();
+        address previous = AUTHORIZED_DEPLOYER;
+        AUTHORIZED_DEPLOYER = _newDeployer;
+        emit DeployerTransferred(previous, _newDeployer);
     }
 
     // ── Registration ──────────────────────────────────────────────────────────
