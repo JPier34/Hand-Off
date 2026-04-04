@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import { DynamicWidget } from '@dynamic-labs/sdk-react-core'
-import { WrongNetworkBanner } from './WrongNetworkBanner'
 import { MOCK_MODE } from '@/lib/mock'
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -10,7 +9,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="hoff-page-bg min-h-screen flex flex-col">
-      <WrongNetworkBanner />
       <header className="px-6 py-4 shrink-0">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <button
@@ -37,7 +35,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </svg>
               </button>
             )}
-            <DynamicWidget />
+            <DynamicWidget variant="dropdown" />
           </div>
         </div>
       </header>

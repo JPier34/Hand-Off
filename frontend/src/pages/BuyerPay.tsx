@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
+import { useDynamicContext } from '@dynamic-labs/sdk-react-core'
 import { formatEther, formatUnits } from 'viem'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
@@ -297,6 +298,7 @@ export default function BuyerPay() {
   const { dealId: dealIdParam } = useParams<{ dealId: string }>()
   const navigate = useNavigate()
   const { isConnected } = useAccount()
+  const { setShowAuthFlow } = useDynamicContext()
   const [unlockCode, setUnlockCode] = useState<string | null>(null)
   const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
   const [showIntro, setShowIntro] = useState(true)
@@ -315,7 +317,7 @@ export default function BuyerPay() {
   }
 
   const dealId = BigInt(dealIdParam)
-  const canAct = isConnected || MOCK_MODE
+  const canAct = isConnected
 
   // ─── Hooks (always called, rules of hooks) ─────────────────────────────────
   const { details, isLoading, isError, escrowAddress }                     = useDealDetails(dealId)
@@ -581,7 +583,7 @@ export default function BuyerPay() {
                 {anyError && <p className="text-xs text-red-400 text-center">Payment failed. Try again.</p>}
                 <Button
                   fullWidth
-                  onClick={canAct ? handleDeposit : undefined}
+                  onClick={canAct ? handleDeposit : () => setShowAuthFlow(true)}
                   loading={anyBusy}
                   disabled={anyBusy || (isSwapPath && quotedIn === undefined && !quoteLoading)}
                 >

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { parseEther, isAddress, createPublicClient, http } from 'viem'
 import { useAccount } from 'wagmi'
+import { useDynamicContext } from '@dynamic-labs/sdk-react-core'
 import { mainnet } from 'viem/chains'
 import { useNavigate } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
@@ -37,7 +38,8 @@ const TIMEOUT_OPTIONS = [
 export default function CreateDeal() {
   const navigate = useNavigate()
   const { isConnected } = useAccount()
-  const canAct = isConnected || MOCK_MODE
+  const { setShowAuthFlow } = useDynamicContext()
+  const canAct = isConnected
 
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
@@ -183,11 +185,9 @@ export default function CreateDeal() {
         </div>
 
         {!canAct && (
-          <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-hoff-text-tertiary text-center">
-              Connect your wallet to create a HandOff.
-            </p>
-          </div>
+          <Button fullWidth onClick={() => setShowAuthFlow(true)}>
+            Connect Wallet
+          </Button>
         )}
 
         {canAct && (
