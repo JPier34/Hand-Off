@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { parseEther, isAddress, createPublicClient, http } from 'viem'
-import { useAccount } from 'wagmi'
-import { useDynamicContext } from '@dynamic-labs/sdk-react-core'
+import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import { mainnet } from 'viem/chains'
 import { useNavigate } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
@@ -37,9 +36,8 @@ const TIMEOUT_OPTIONS = [
 
 export default function CreateDeal() {
   const navigate = useNavigate()
-  const { isConnected } = useAccount()
-  const { setShowAuthFlow } = useDynamicContext()
-  const canAct = isConnected
+  const { isAuthenticated, login } = useDynamicAuth()
+  const canAct = isAuthenticated
 
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
@@ -185,7 +183,7 @@ export default function CreateDeal() {
         </div>
 
         {!canAct && (
-          <Button fullWidth onClick={() => setShowAuthFlow(true)}>
+          <Button fullWidth onClick={() => login()}>
             Connect Wallet
           </Button>
         )}

@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useAccount } from 'wagmi'
-import { useDynamicContext } from '@dynamic-labs/sdk-react-core'
+import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
 import { MOCK_MODE } from '@/lib/mock'
@@ -30,8 +29,7 @@ const MOCK_DEALS = [
 
 export default function Home() {
   const navigate = useNavigate()
-  const { isConnected } = useAccount()
-  const { setShowAuthFlow } = useDynamicContext()
+  const { isAuthenticated, login } = useDynamicAuth()
 
   return (
     <Layout>
@@ -85,8 +83,8 @@ export default function Home() {
           </p>
         </div>
 
-        <Button fullWidth onClick={() => isConnected ? navigate('/create') : setShowAuthFlow(true)}>
-          {isConnected ? 'Create a HandOff' : 'Connect Wallet'}
+        <Button fullWidth onClick={() => isAuthenticated ? navigate('/create') : login()}>
+          {isAuthenticated ? 'Create a HandOff' : 'Connect Wallet'}
         </Button>
 
         <p className="text-xs text-hoff-text-tertiary text-center">
