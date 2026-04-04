@@ -74,7 +74,6 @@ function TokenSelector({ selected, onChange }: TokenSelectorProps) {
     <select
       value={selected}
       onChange={e => onChange(e.target.value)}
-      style={{ width }}
       className="shrink-0 h-8 px-2 rounded-lg bg-hoff-accent-muted text-hoff-accent text-xl font-medium appearance-none [&::-ms-expand]:hidden cursor-pointer focus:outline-none transition-colors text-center"
       style={{ width, WebkitAppearance: 'none', MozAppearance: 'none' }}
     >

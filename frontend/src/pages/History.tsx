@@ -252,9 +252,10 @@ export default function History() {
               {MOCK_WALLET.slice(2, 4).toUpperCase()}
             </div>
             <div>
-              <p className="text-sm font-mono text-hoff-text-primary">
-                {MOCK_WALLET.slice(0, 6)}...{MOCK_WALLET.slice(-4)}
-              </p>
+              <EnsName
+                address={MOCK_WALLET}
+                className="text-sm font-mono text-hoff-text-primary"
+              />
               <p className="text-xs text-hoff-text-tertiary">
                 {completed.length} deals · {formatEther(totalVolume)} ETH volume
               </p>
