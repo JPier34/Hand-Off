@@ -9,12 +9,10 @@ type ContractAddresses = {
 
 export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
   [CHAIN_IDS.BASE_SEPOLIA]: {
-    // TODO: fill in after Option A redeploy:
-    //   cd contracts && npx hardhat ignition deploy ignition/modules/HandOffFactory.ts --network baseSepolia --reset
-    // Old factory (0x1446c3a816e9607F0300c36AAb231fEa65e453aa) used SwapRouter02 — incompatible with Universal Router calldata.
-    // Old reputation (0xc5DfcfdC8dDB3CC21f826A273890d4193444D53a) was tied to the old factory.
-    reputationRegistry: "0x0000000000000000000000000000000000000000" as Address,
-    factory:            "0x0000000000000000000000000000000000000000" as Address,
+    // Redeployed with Universal Router 2.0 (0x492e6456d9528771018deb9e87ef7750ef184104)
+    // Old factory (0x1446c3a) used SwapRouter02 — incompatible with Trading API calldata.
+    reputationRegistry: "0x18958294a9897cde69dABd491ed7Ade82487b99a" as Address,
+    factory:            "0x63838546767C30202DFAf52C3fB8bd99ce81B771" as Address,
     subnameRegistrar:   "0x0000000000000000000000000000000000000000" as Address,
   },
   [CHAIN_IDS.ETH_SEPOLIA]: {
