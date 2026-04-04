@@ -5,7 +5,6 @@ docs/
 node_modules/
 .pnpm-store/
 
-# Environment files
 # Build output
 dist/
 dist-ssr/
@@ -16,36 +15,13 @@ frontend/.vite/
 .env
 .env.local
 .env.*.local
-!.env.example
 
-# Root build output
-/dist
-/bundle
-
-# Contracts workspace artifacts
+# Hardhat artifacts & cache
 contracts/artifacts/
 contracts/cache/
-contracts/coverage/
 contracts/typechain-types/
 contracts/ignition/deployments/
 
-# Legacy single-package Hardhat artifacts
-/artifacts
-/cache
-/coverage
-/typechain-types
-/types
-/ignition/deployments
-
-# Frontend build output
-frontend/dist/
-frontend/.vite/
-
-# Tooling / local state
-/.agents
-/.claude
-skills-lock.json
-.postcss-cache/
 # TypeScript build info
 *.tsbuildinfo
 
@@ -56,7 +32,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# OS / editor
 # Lock files
 package-lock.json
 
