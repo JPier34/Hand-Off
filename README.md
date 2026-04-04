@@ -69,9 +69,9 @@ Copy `.env.example` → `.env` and fill in every value before running.
 | `VITE_REPUTATION_CONTRACT_ADDRESS` | Deployed `HandOffReputation` address | Set after running deploy |
 | `VITE_SUBNAME_REGISTRAR_ADDRESS` | Deployed `HandOffSubnameRegistrar` address | Set after running deploy |
 | `VITE_ALCHEMY_API_KEY` | Same key as above, exposed to browser | Same as `ALCHEMY_API_KEY` |
-| `VITE_UNISWAP_API_KEY` | Same key as above, exposed to browser | Same as `UNISWAP_API_KEY` |
-| `VITE_DYNAMIC_ENVIRONMENT_ID` | Same as above, exposed to browser | Same as `DYNAMIC_ENVIRONMENT_ID` |
-| `VITE_WALLETCONNECT_PROJECT_ID` | Same as above, exposed to browser | Same as `WALLETCONNECT_PROJECT_ID` |
+| `UNISWAP_API_KEY` | Same key as above, exposed to browser | Same as `UNISWAP_API_KEY` |
+| `DYNAMIC_ENVIRONMENT_ID` | Same as above, exposed to browser | Same as `DYNAMIC_ENVIRONMENT_ID` |
+| `WALLETCONNECT_PROJECT_ID` | Same as above, exposed to browser | Same as `WALLETCONNECT_PROJECT_ID` |
 
 ---
 

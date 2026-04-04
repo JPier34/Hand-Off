@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { parseEther, parseEventLogs } from 'viem'
+import { parseEther, parseUnits, parseEventLogs } from 'viem'
 import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
 import { hashUnlockCode } from '@/lib/code-gen'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
-import { TOKENS } from '@/lib/tokens'
+import { TOKENS, getTokenByAddress } from '@/lib/tokens'
 import type { Address } from '@/lib/types'
 import type { Abi } from 'viem'
 
@@ -147,7 +147,8 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
       })
     } else {
       // ERC20 escrow: step 1 = approve, step 2 = fund (chained via useEffect)
-      const tokenAmount = parseEther(amount) // TODO: use parseUnits(amount, decimals) for non-18 tokens
+      const tokenInfo = getTokenByAddress(payoutToken)
+      const tokenAmount = parseUnits(amount, tokenInfo.decimals)
       console.log('[useEscrowWrite] ERC20 path, approving', payoutToken, 'amount:', tokenAmount.toString())
       setPendingFund({ codeHash, buyerEns, amount: tokenAmount })
       approveWrite.writeContract({

@@ -3,7 +3,7 @@
 // and Vercel rewrite in production.
 
 const API_BASE = '/api/uniswap'
-const API_KEY = import.meta.env.VITE_UNISWAP_API_KEY ?? ''
+const API_KEY = import.meta.env.UNISWAP_API_KEY ?? ''
 
 const HEADERS: HeadersInit = {
   'Content-Type': 'application/json',
@@ -14,20 +14,20 @@ const HEADERS: HeadersInit = {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface QuoteRequest {
-  swapper:         string
-  tokenIn:         string
-  tokenOut:        string
-  tokenInChainId:  string
+  swapper: string
+  tokenIn: string
+  tokenOut: string
+  tokenInChainId: string
   tokenOutChainId: string
-  amount:          string
-  type:            'EXACT_INPUT' | 'EXACT_OUTPUT'
+  amount: string
+  type: 'EXACT_INPUT' | 'EXACT_OUTPUT'
   slippageTolerance?: number
 }
 
 export interface ClassicQuoteResponse {
   routing: 'CLASSIC' | 'WRAP' | 'UNWRAP'
   quote: {
-    input:  { token: string; amount: string }
+    input: { token: string; amount: string }
     output: { token: string; amount: string }
     slippage: number
     gasFee: string
@@ -62,11 +62,11 @@ export interface UniswapXQuoteResponse {
 export type QuoteResponse = ClassicQuoteResponse | UniswapXQuoteResponse
 
 export interface SwapTransaction {
-  to:       string
-  from:     string
-  data:     string
-  value:    string
-  chainId:  number
+  to: string
+  from: string
+  data: string
+  value: string
+  chainId: number
   gasLimit?: string
 }
 
