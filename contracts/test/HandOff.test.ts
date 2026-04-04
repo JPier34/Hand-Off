@@ -19,8 +19,10 @@ async function baseFixture() {
     seller.address, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
     1n, await rep.getAddress(), ethers.ZeroAddress, "seller.eth",
     ethers.ZeroAddress, // ALLOWED_ROUTER — address(0) disables swap
+    ethers.ZeroAddress, // _sellerPayoutAddress — defaults to seller
   ])) as HandOff;
-  // HandOff self-registers with the reputation registry in its constructor — no manual call needed.
+  // Register the escrow with the reputation registry (deployer is AUTHORIZED_DEPLOYER in unit tests).
+  await rep.connect(deployer).registerHandOff(await h.getAddress());
   return { h, rep, deployer, seller, buyer, other };
 }
 
@@ -33,8 +35,9 @@ async function tokenFixture() {
     seller.address, await token.getAddress(), ONE_ETH, EXPIRY_WINDOW,
     2n, await rep.getAddress(), ethers.ZeroAddress, "",
     ethers.ZeroAddress, // ALLOWED_ROUTER
+    ethers.ZeroAddress, // _sellerPayoutAddress
   ])) as HandOff;
-  // HandOff self-registers with the reputation registry in its constructor — no manual call needed.
+  await rep.connect(deployer).registerHandOff(await h.getAddress());
   return { h, rep, token, deployer, seller, buyer, other };
 }
 
@@ -106,7 +109,7 @@ describe("HandOff", function () {
       const factory = await ethers.getContractFactory("HandOff");
       await expect(
         factory.deploy(seller.address, ethers.ZeroAddress, 0n, EXPIRY_WINDOW,
-          1n, ethers.ZeroAddress, ethers.ZeroAddress, "", ethers.ZeroAddress)
+          1n, ethers.ZeroAddress, ethers.ZeroAddress, "", ethers.ZeroAddress, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(factory, "AmountZero");
     });
 
@@ -116,7 +119,7 @@ describe("HandOff", function () {
       const factory = await ethers.getContractFactory("HandOff");
       await expect(
         factory.deploy(seller.address, ethers.ZeroAddress, ONE_ETH, 1n,
-          1n, ethers.ZeroAddress, ethers.ZeroAddress, "", ethers.ZeroAddress)
+          1n, ethers.ZeroAddress, ethers.ZeroAddress, "", ethers.ZeroAddress, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(factory, "WindowTooShort");
     });
 
@@ -124,7 +127,7 @@ describe("HandOff", function () {
       const factory = await ethers.getContractFactory("HandOff");
       await expect(
         factory.deploy(ethers.ZeroAddress, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
-          1n, ethers.ZeroAddress, ethers.ZeroAddress, "", ethers.ZeroAddress)
+          1n, ethers.ZeroAddress, ethers.ZeroAddress, "", ethers.ZeroAddress, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(factory, "InvalidSeller");
     });
 
@@ -135,6 +138,7 @@ describe("HandOff", function () {
       const h = (await ethers.deployContract("HandOff", [
         seller.address, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
         1n, await rep.getAddress(), ethers.ZeroAddress, "", router,
+        ethers.ZeroAddress, // _sellerPayoutAddress
       ])) as HandOff;
       expect(await h.ALLOWED_ROUTER()).to.equal(router);
     });
@@ -324,6 +328,7 @@ describe("HandOff", function () {
         seller.address, await payoutTok.getAddress(), ONE_ETH, EXPIRY_WINDOW,
         10n, await rep.getAddress(), ethers.ZeroAddress, "",
         await router.getAddress(), // ALLOWED_ROUTER
+        ethers.ZeroAddress, // _sellerPayoutAddress
       ])) as HandOff;
       // HandOff self-registers with rep in its constructor — no manual call needed.
       await inputTok.mint(buyer.address, TWO_ETH);
@@ -414,6 +419,7 @@ describe("HandOff", function () {
         seller.address, await tok.getAddress(), ONE_ETH, EXPIRY_WINDOW,
         99n, await rep.getAddress(), ethers.ZeroAddress, "",
         ethers.ZeroAddress, // no router
+        ethers.ZeroAddress, // _sellerPayoutAddress
       ])) as HandOff;
       await expect(
         noSwapH.connect(buyer).fundWithSwap(
@@ -513,7 +519,8 @@ describe("HandOff", function () {
       const h   = (await ethers.deployContract("HandOff", [
         seller.address, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
         99n, await rep.getAddress(), await bad.getAddress(), "",
-        ethers.ZeroAddress,
+        ethers.ZeroAddress, // ALLOWED_ROUTER
+        ethers.ZeroAddress, // _sellerPayoutAddress
       ])) as HandOff;
       // HandOff self-registers with rep in its constructor — no manual call needed.
       await h.connect(buyer).fund(VALID_HASH, "", { value: ONE_ETH });
@@ -610,7 +617,8 @@ describe("HandOff", function () {
       const h   = (await ethers.deployContract("HandOff", [
         sel.address, ethers.ZeroAddress, ONE_ETH, SHORT_WINDOW,
         3n, await rep.getAddress(), ethers.ZeroAddress, "",
-        ethers.ZeroAddress,
+        ethers.ZeroAddress, // ALLOWED_ROUTER
+        ethers.ZeroAddress, // _sellerPayoutAddress
       ])) as HandOff;
       // HandOff self-registers with rep in its constructor — no manual call needed.
       await h.connect(buy).fund(VALID_HASH, "", { value: ONE_ETH });
@@ -627,7 +635,8 @@ describe("HandOff", function () {
       const h   = (await ethers.deployContract("HandOff", [
         await mal.getAddress(), ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
         7n, await rep.getAddress(), ethers.ZeroAddress, "",
-        ethers.ZeroAddress,
+        ethers.ZeroAddress, // ALLOWED_ROUTER
+        ethers.ZeroAddress, // _sellerPayoutAddress
       ])) as HandOff;
       // HandOff self-registers with rep in its constructor — no manual call needed.
       await mal.setTarget(await h.getAddress(), VALID_HASH);
@@ -655,7 +664,8 @@ describe("HandOff", function () {
       const h = (await ethers.deployContract("HandOff", [
         seller.address, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
         8n, ethers.ZeroAddress, ethers.ZeroAddress, "",
-        ethers.ZeroAddress,
+        ethers.ZeroAddress, // ALLOWED_ROUTER
+        ethers.ZeroAddress, // _sellerPayoutAddress
       ])) as HandOff;
       await h.connect(buyer).fund(VALID_HASH, "", { value: ONE_ETH });
       await expect(h.connect(seller).unlock(VALID_HASH)).to.emit(h, "HandOffCompleted");

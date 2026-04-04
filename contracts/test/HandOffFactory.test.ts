@@ -93,7 +93,7 @@ describe("HandOffFactory", function () {
       const { factory, rep, seller } = await loadFixture(deployFixture);
 
       const tx = await factory.connect(seller).createHandOff(
-        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, "seller.eth"
+        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, "seller.eth", ethers.ZeroAddress
       );
       const receipt = await tx.wait();
 
@@ -116,7 +116,7 @@ describe("HandOffFactory", function () {
       const { factory, seller } = await loadFixture(deployFixture);
 
       const tx = factory.connect(seller).createHandOff(
-        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, ""
+        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, "", ethers.ZeroAddress
       );
       await expect(tx).to.emit(factory, "HandOffCreated");
     });
@@ -125,7 +125,7 @@ describe("HandOffFactory", function () {
       const { factory, seller } = await loadFixture(deployFixture);
 
       const tx = await factory.connect(seller).createHandOff(
-        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, "seller.eth"
+        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, "seller.eth", ethers.ZeroAddress
       );
       const receipt = await tx.wait();
       const iface   = factory.interface;
@@ -142,7 +142,7 @@ describe("HandOffFactory", function () {
       const { factory, seller } = await loadFixture(deployFixture);
 
       const tx = await factory.connect(seller).createHandOff(
-        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, ""
+        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, "", ethers.ZeroAddress
       );
       const receipt = await tx.wait();
       const iface   = factory.interface;
@@ -159,10 +159,10 @@ describe("HandOffFactory", function () {
       const { factory, seller, other } = await loadFixture(deployFixture);
 
       const tx1 = await factory.connect(seller).createHandOff(
-        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, ""
+        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, "", ethers.ZeroAddress
       );
       const tx2 = await factory.connect(other).createHandOff(
-        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, ""
+        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, "", ethers.ZeroAddress
       );
 
       const iface = factory.interface;
@@ -186,7 +186,7 @@ describe("HandOffFactory", function () {
       const { factory, seller, buyer } = await loadFixture(deployFixture);
 
       const tx = await factory.connect(seller).createHandOff(
-        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, ""
+        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, "", ethers.ZeroAddress
       );
       const receipt = await tx.wait();
       const iface   = factory.interface;

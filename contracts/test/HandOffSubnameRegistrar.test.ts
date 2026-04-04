@@ -313,8 +313,9 @@ describe("HandOffSubnameRegistrar", function () {
         seller.address, ethers.ZeroAddress, ethers.parseEther("0.1"), 86_400n,
         99n, await rep.getAddress(), await registrar.getAddress(), "",
         ethers.ZeroAddress, // no swap router
+        ethers.ZeroAddress, // _sellerPayoutAddress
       ]);
-      // HandOff self-registers with both rep and registrar in its constructor — no manual calls needed.
+      // Register with reputation (deployer is AUTHORIZED_DEPLOYER in unit tests).
       const code = ethers.keccak256(ethers.toUtf8Bytes("test"));
       await h.connect(buyer).fund(code, "", { value: ethers.parseEther("0.1") });
 
