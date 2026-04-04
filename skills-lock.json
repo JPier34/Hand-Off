@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "swap-integration": {
+      "source": "Uniswap/uniswap-ai",
+      "sourceType": "github",
+      "computedHash": "24f7b392393d49d65e9d92932ed9f99388a45f120c130b5ff1d70dd0c40e8680"
+    },
+    "swap-planner": {
+      "source": "Uniswap/uniswap-ai",
+      "sourceType": "github",
+      "computedHash": "677eb6e3c6d77fa07c43fa61225319287df198d3765cf526ecf475e4df033771"
+    },
+    "viem-integration": {
+      "source": "Uniswap/uniswap-ai",
+      "sourceType": "github",
+      "computedHash": "a85bccc1cc620e6b157941d877aa55133954340bb97e9c90244af89840f3269b"
+    }
+  }
+}
