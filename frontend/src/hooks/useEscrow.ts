@@ -1,23 +1,35 @@
 import { useState, useEffect } from 'react'
 import { useReadContract } from 'wagmi'
+import { isAddress } from 'viem'
 import { REPUTATION_ABI, REPUTATION_ADDRESS, HANDOFF_ABI } from '@/lib/constants'
 import type { Address, DealDetails } from '@/lib/types'
 import { EscrowStatus } from '@/lib/types'
 import { MOCK_MODE, getMockDeal } from '@/lib/mock'
 
-// ─── Real hook (two-step: dealId → escrow address → dealInfo) ────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function useRealDealDetails(dealId: bigint) {
-  // Step 1: Resolve dealId → escrow address via Reputation registry
+/** Parse a URL param as either an escrow address or a numeric dealId */
+export function parseDealParam(param: string | undefined): { dealId?: bigint; escrowAddress?: Address } {
+  if (!param) return {}
+  if (isAddress(param)) return { escrowAddress: param as Address }
+  const n = Number(param)
+  if (Number.isInteger(n) && n > 0) return { dealId: BigInt(n) }
+  return {}
+}
+
+// ─── Real hook (supports both dealId and direct escrow address) ──────────────
+
+function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Address | undefined) {
+  // Step 1: Resolve dealId → escrow address via Reputation registry (skip if we already have address)
   const addressResult = useReadContract({
     address: REPUTATION_ADDRESS,
     abi: REPUTATION_ABI,
     functionName: 'getEscrowFromDealId',
-    args: [dealId],
-    query: { enabled: !MOCK_MODE },
+    args: dealId ? [dealId] : undefined,
+    query: { enabled: !MOCK_MODE && !!dealId && !directEscrowAddress },
   })
 
-  const escrowAddress = addressResult.data as Address | undefined
+  const escrowAddress = directEscrowAddress ?? (addressResult.data as Address | undefined)
 
   // Step 2: Read dealInfo() from the per-deal escrow contract
   const infoResult = useReadContract({
@@ -61,7 +73,7 @@ function useRealDealDetails(dealId: bigint) {
       }
     : undefined
 
-  const isLoading = addressResult.isLoading || infoResult.isLoading || tokenResult.isLoading
+  const isLoading = (!!dealId && !directEscrowAddress && addressResult.isLoading) || infoResult.isLoading || tokenResult.isLoading
   const isError = addressResult.isError || infoResult.isError
 
   return { details, isLoading, isError, escrowAddress }
@@ -69,7 +81,7 @@ function useRealDealDetails(dealId: bigint) {
 
 // ─── Mock hook ─────────────────────────────────────────────────────────────────
 
-function useMockDealDetails(dealId: bigint) {
+function useMockDealDetails(dealId: bigint | undefined) {
   const [, tick] = useState(0)
 
   useEffect(() => {
@@ -78,7 +90,7 @@ function useMockDealDetails(dealId: bigint) {
   }, [])
 
   return {
-    details:       getMockDeal(dealId),
+    details:       dealId ? getMockDeal(dealId) : undefined,
     isLoading:     false,
     isError:       false,
     error:         null,
@@ -88,8 +100,8 @@ function useMockDealDetails(dealId: bigint) {
 
 // ─── Public export ─────────────────────────────────────────────────────────────
 
-export function useDealDetails(dealId: bigint) {
-  const real = useRealDealDetails(dealId)
+export function useDealDetails(dealId: bigint | undefined, escrowAddress?: Address) {
+  const real = useRealDealDetails(dealId, escrowAddress)
   const mock = useMockDealDetails(dealId)
   return MOCK_MODE ? mock : real
 }

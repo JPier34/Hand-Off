@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { CountdownTimer } from '@/components/escrow/CountdownTimer'
-import { useDealDetails } from '@/hooks/useEscrow'
+import { useDealDetails, parseDealParam } from '@/hooks/useEscrow'
 import { useDepositFunds, useClaimRefund } from '@/hooks/useEscrowWrite'
 import { useQuote, useSwapAndDeposit } from '@/hooks/useTokenSwap'
 import { generateUnlockCode, hashUnlockCode } from '@/lib/code-gen'
@@ -24,10 +24,10 @@ const PROTOCOL_FEE_BPS  = 10n   // 0.1%
 const EST_GAS           = 800_000_000_000_000n // ~0.0008 ETH placeholder
 const DEFAULT_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
-function isValidDealId(param: string | undefined): param is string {
+function isValidDealParam(param: string | undefined): param is string {
   if (!param) return false
-  const n = Number(param)
-  return Number.isInteger(n) && n > 0
+  const { dealId, escrowAddress } = parseDealParam(param)
+  return !!dealId || !!escrowAddress
 }
 
 function FeeRow({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
@@ -303,8 +303,10 @@ export default function BuyerPay() {
   const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
   const [showIntro, setShowIntro] = useState(true)
 
+  const { dealId, escrowAddress: directAddress } = parseDealParam(dealIdParam)
+
   // ─── Guard ──────────────────────────────────────────────────────────────────
-  if (!isValidDealId(dealIdParam)) {
+  if (!isValidDealParam(dealIdParam)) {
     return (
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
@@ -316,18 +318,18 @@ export default function BuyerPay() {
     )
   }
 
-  const dealId = BigInt(dealIdParam)
   const canAct = isConnected
 
   // ─── Hooks (always called, rules of hooks) ─────────────────────────────────
-  const { details, isLoading, isError, escrowAddress }                     = useDealDetails(dealId)
-  const { deposit, isPending, isConfirming, isSuccess, isError: txError } = useDepositFunds(dealId, escrowAddress)
-  const refund = useClaimRefund(dealId, escrowAddress)
+  const { details, isLoading, isError, escrowAddress }                     = useDealDetails(dealId, directAddress)
+  const mockDealId = dealId ?? 0n
+  const { deposit, isPending, isConfirming, isSuccess, isError: txError } = useDepositFunds(mockDealId, escrowAddress)
+  const refund = useClaimRefund(mockDealId, escrowAddress)
 
   const amountWei = details?.amount ?? 0n
   const usdValue  = useUsdValue(amountWei, details?.payoutToken ?? null)
   const { quotedIn, quoteResponse, isLoading: quoteLoading, error: quoteError } = useQuote(selectedToken, amountWei)
-  const swap = useSwapAndDeposit(dealId, selectedToken, escrowAddress, quoteResponse)
+  const swap = useSwapAndDeposit(mockDealId, selectedToken, escrowAddress, quoteResponse)
 
   const { reputation } = useReputation(details?.seller as `0x${string}` | undefined)
   const isSwapPath = selectedToken !== 'ETH'
@@ -661,7 +663,7 @@ export default function BuyerPay() {
             {/* Mock debug: simulate expiry — poll picks up the change within 500ms */}
             {MOCK_MODE && details.status === EscrowStatus.FUNDED && !isExpired && (
               <button
-                onClick={() => mockExpire(dealId)}
+                onClick={() => mockExpire(mockDealId)}
                 className="w-full text-xs text-hoff-text-tertiary hover:text-amber-400 transition-colors py-1 text-center"
               >
                 [Mock] Simulate expiry

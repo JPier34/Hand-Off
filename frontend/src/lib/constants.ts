@@ -2,21 +2,27 @@ import type { Abi } from 'viem'
 import HandOffAbi from '@/contracts/HandOff.abi.json'
 import HandOffReputationAbi from '@/contracts/HandOffReputation.abi.json'
 import HandOffSubnameAbi from '@/contracts/HandOffSubnameRegistrar.abi.json'
+import { CONTRACT_ADDRESSES } from '@/contracts/addresses'
+import { CHAIN_IDS } from '@/lib/chains'
 
 // ─── ABIs ─────────────────────────────────────────────────────────────────────
 export const HANDOFF_ABI = HandOffAbi as unknown as Abi
 export const REPUTATION_ABI = HandOffReputationAbi as unknown as Abi
 export const SUBNAME_ABI = HandOffSubnameAbi as unknown as Abi
 
-// ─── Contract addresses (from .env) ──────────────────────────────────────────
+// ─── Contract addresses ──────────────────────────────────────────────────────
+// Priority: .env override > addresses.ts > zero address fallback
+const baseAddrs = CONTRACT_ADDRESSES[CHAIN_IDS.BASE_SEPOLIA]
+const ethAddrs  = CONTRACT_ADDRESSES[CHAIN_IDS.ETH_SEPOLIA]
+
 // Reputation registry on Base Sepolia — maps dealId → escrow address
 export const REPUTATION_ADDRESS = (
-  import.meta.env.VITE_REPUTATION_ADDRESS ?? '0x0000000000000000000000000000000000000000'
+  import.meta.env.VITE_REPUTATION_ADDRESS || baseAddrs?.reputationRegistry || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
 // ENS subname registrar on Ethereum Sepolia
 export const SUBNAME_ADDRESS = (
-  import.meta.env.VITE_SUBNAME_ADDRESS ?? '0x0000000000000000000000000000000000000000'
+  import.meta.env.VITE_SUBNAME_ADDRESS || ethAddrs?.subnameRegistrar || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
 // Uniswap Universal Router on Base Sepolia (for fundWithSwap)

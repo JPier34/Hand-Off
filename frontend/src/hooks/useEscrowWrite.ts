@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { parseEther } from 'viem'
-import { HANDOFF_ABI, REPUTATION_ABI, REPUTATION_ADDRESS } from '@/lib/constants'
+import { useWriteContract, useWaitForTransactionReceipt, useDeployContract, useAccount } from 'wagmi'
+import { parseEther, parseUnits } from 'viem'
+import { HANDOFF_ABI, REPUTATION_ABI, REPUTATION_ADDRESS, SUBNAME_ADDRESS, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
 import { hashUnlockCode } from '@/lib/code-gen'
+import { HANDOFF_BYTECODE } from '@/contracts/HandOff.bytecode'
+import { TOKENS } from '@/lib/tokens'
 import type { Address } from '@/lib/types'
 
 // ─── Mock TX state helpers ─────────────────────────────────────────────────────
@@ -40,25 +42,89 @@ function useMockTx(onConfirmed: () => void) {
 // ─── Real hooks (per-deal contract calls) ─────────────────────────────────────
 
 function useRealCreateDeal() {
-  // CREATE2 deployment — needs bytecode from teammate
-  // For now: placeholder that registers via reputation contract
-  const { writeContract, data: hash, isPending, isError, error } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({ hash })
+  const { address: sellerAddress } = useAccount()
 
-  function create(_amount: string, _description: string, _timeoutHours: number) {
-    // TODO: Deploy HandOff.sol via CREATE2, then call registerHandOff
-    // For now this is a no-op — needs contract bytecode
+  // Step 1: Deploy HandOff.sol
+  const deploy = useDeployContract()
+  const deployReceipt = useWaitForTransactionReceipt({ hash: deploy.data })
+
+  // Step 2: Register with Reputation registry → get dealId
+  const register = useWriteContract()
+  const registerReceipt = useWaitForTransactionReceipt({ hash: register.data })
+
+  // Track which step we're on
+  const [step, setStep] = useState<'idle' | 'deploying' | 'registering' | 'done'>('idle')
+  const [escrowAddress, setEscrowAddress] = useState<Address | undefined>()
+  const [dealId, setDealId] = useState<bigint | undefined>()
+
+  // When deploy succeeds → call registerHandOff
+  if (deployReceipt.isSuccess && deployReceipt.data?.contractAddress && step === 'deploying') {
+    const addr = deployReceipt.data.contractAddress as Address
+    setEscrowAddress(addr)
+    setStep('registering')
+    register.writeContract({
+      address: REPUTATION_ADDRESS,
+      abi: REPUTATION_ABI,
+      functionName: 'registerHandOff',
+      args: [addr],
+    })
   }
 
-  let newDealId: bigint | undefined
-  if (receipt) {
+  // When registration succeeds → parse dealId from return value / logs
+  if (registerReceipt.isSuccess && step === 'registering') {
+    setStep('done')
+    // registerHandOff emits HandOffRegistered(escrow, dealId)
+    // Parse dealId from the first log's last topic
     try {
-      // registerHandOff returns dealId
-      // Parse from receipt logs when wired
-    } catch { /* */ }
+      const log = registerReceipt.data?.logs?.[0]
+      if (log && log.topics[2]) {
+        setDealId(BigInt(log.topics[2]))
+      }
+    } catch { /* fallback: use escrow address */ }
   }
 
-  return { create, isPending, isConfirming, isSuccess, isError, error, newDealId }
+  function create(amount: string, _description: string, timeoutHours: number, payoutTokenKey = 'ETH') {
+    if (!sellerAddress) return
+
+    const token = TOKENS[payoutTokenKey]
+    const payoutToken: Address = token?.address ?? '0x0000000000000000000000000000000000000000'
+    const parsedAmount = token?.address
+      ? parseUnits(amount, token.decimals)
+      : parseEther(amount)
+    const expirationWindow = BigInt(timeoutHours * 3600)
+
+    setStep('deploying')
+    setEscrowAddress(undefined)
+    setDealId(undefined)
+
+    deploy.deployContract({
+      abi: HANDOFF_ABI,
+      bytecode: HANDOFF_BYTECODE,
+      args: [
+        sellerAddress,              // _seller
+        payoutToken,                // _payoutToken (address(0) = ETH)
+        parsedAmount,               // _amount
+        expirationWindow,           // _expirationWindow (seconds)
+        0n,                         // _dealId (assigned by registry)
+        REPUTATION_ADDRESS,         // _reputationRegistry
+        SUBNAME_ADDRESS,            // _subnameRegistrar
+        '',                         // _sellerEns
+        UNIVERSAL_ROUTER_ADDRESS,   // _allowedRouter
+      ],
+    })
+  }
+
+  const isPending    = deploy.isPending || register.isPending
+  const isConfirming = deployReceipt.isLoading || registerReceipt.isLoading
+  const isSuccess    = step === 'done' || (deployReceipt.isSuccess && registerReceipt.isSuccess)
+  const isError      = deploy.isError || register.isError
+  const error        = deploy.error || register.error
+
+  // Use dealId for URL if available, otherwise fall back to escrow address
+  const newDealId = dealId
+  const newEscrowAddress = escrowAddress
+
+  return { create, isPending, isConfirming, isSuccess, isError, error, newDealId, newEscrowAddress }
 }
 
 // Fund: call fund(codeHash, buyerEns) on the escrow contract directly
@@ -180,8 +246,12 @@ function useRealSubmitReview(escrowAddress?: Address) {
 
 function useMockCreateDeal() {
   const { trigger, ...state } = useMockTx(() => {})
-  function create(_amount: string, _description: string, _timeoutHours: number) { trigger() }
-  return { create, ...state, newDealId: state.isSuccess ? MOCK_DEAL_ID : undefined }
+  function create(_amount: string, _description: string, _timeoutHours: number, _payoutTokenKey?: string) { trigger() }
+  const newDealId = state.isSuccess ? MOCK_DEAL_ID : undefined
+  const newEscrowAddress: Address | undefined = state.isSuccess
+    ? `0x${MOCK_DEAL_ID.toString(16).padStart(40, '0')}` as Address
+    : undefined
+  return { create, ...state, newDealId, newEscrowAddress }
 }
 
 function useMockDepositFunds(dealId: bigint) {

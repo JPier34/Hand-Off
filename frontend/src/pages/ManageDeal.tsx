@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { CountdownTimer } from '@/components/escrow/CountdownTimer'
-import { useDealDetails } from '@/hooks/useEscrow'
+import { useDealDetails, parseDealParam } from '@/hooks/useEscrow'
 import { useReleaseEscrow, useCancelDeal, useEditDeal } from '@/hooks/useEscrowWrite'
 import { EscrowStatus } from '@/lib/types'
 import { MOCK_MODE } from '@/lib/mock'
@@ -18,10 +18,10 @@ import { EnsName } from '@/components/EnsName'
 import { useReputation } from '@/hooks/useReputation'
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
-function isValidDealId(param: string | undefined): param is string {
+function isValidDealParam(param: string | undefined): param is string {
   if (!param) return false
-  const n = Number(param)
-  return Number.isInteger(n) && n > 0
+  const { dealId, escrowAddress } = parseDealParam(param)
+  return !!dealId || !!escrowAddress
 }
 
 
@@ -528,7 +528,9 @@ export default function ManageDeal() {
   const [editAmount, setEditAmount] = useState('')
   const [editDescription, setEditDescription] = useState('')
 
-  if (!isValidDealId(dealIdParam)) {
+  const { dealId, escrowAddress: directAddress } = parseDealParam(dealIdParam)
+
+  if (!isValidDealParam(dealIdParam)) {
     return (
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
@@ -540,12 +542,12 @@ export default function ManageDeal() {
     )
   }
 
-  const dealId = BigInt(dealIdParam)
+  const mockDealId = dealId ?? 0n
 
-  const { details, isLoading, isError, escrowAddress }                              = useDealDetails(dealId)
-  const { release, isPending, isConfirming, isSuccess, isError: releaseError }     = useReleaseEscrow(dealId, escrowAddress)
-  const cancelDeal = useCancelDeal(dealId, escrowAddress)
-  const editDeal   = useEditDeal(dealId, escrowAddress)
+  const { details, isLoading, isError, escrowAddress }                              = useDealDetails(dealId, directAddress)
+  const { release, isPending, isConfirming, isSuccess, isError: releaseError }     = useReleaseEscrow(mockDealId, escrowAddress)
+  const cancelDeal = useCancelDeal(mockDealId, escrowAddress)
+  const editDeal   = useEditDeal(mockDealId, escrowAddress)
 
   // Token display helpers
   const sym = details ? payoutSymbol(details.payoutToken) : 'ETH'

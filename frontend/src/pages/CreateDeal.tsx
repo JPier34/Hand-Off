@@ -66,7 +66,7 @@ export default function CreateDeal() {
   const [touched, setTouched] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const { create, isPending, isConfirming, isSuccess, isError, error, newDealId } =
+  const { create, isPending, isConfirming, isSuccess, isError, error, newDealId, newEscrowAddress } =
     useCreateDeal()
 
   const errors = validate(amount)
@@ -77,13 +77,15 @@ export default function CreateDeal() {
   const tokenAddr = TOKENS[payoutToken]?.address ?? null
   const usdValue = useUsdValue(parsedAmount, tokenAddr)
 
+  // Prefer dealId for clean URLs, fall back to escrow address
+  const dealParam = newDealId ? String(newDealId) : newEscrowAddress
   const shareableLink =
-    newDealId !== undefined ? `${window.location.origin}/pay/${newDealId}` : null
+    dealParam ? `${window.location.origin}/pay/${dealParam}` : null
 
   function handleCreate() {
     setTouched(true)
     if (hasErrors) return
-    create(amount, description, timeoutHours)
+    create(amount, description, timeoutHours, payoutToken)
   }
 
   function handleShare() {
@@ -158,7 +160,7 @@ export default function CreateDeal() {
           {/* Go to deal */}
           <Button
             fullWidth
-            onClick={() => navigate(`/deal/${newDealId}`)}
+            onClick={() => navigate(`/deal/${dealParam}`)}
           >
             Go to my deal →
           </Button>
