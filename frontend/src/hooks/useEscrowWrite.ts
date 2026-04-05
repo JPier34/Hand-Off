@@ -216,6 +216,10 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
   // HandOff.unlock() already calls mintDealReceipt() directly (same-chain, gas: 500k).
   // The frontend fallback only fires when SubnameMintFailed is in the receipt — meaning
   // the on-chain call reverted and we need to retry from the wallet.
+  //
+  // NOTE: registerAndMint() has onlyDeployer access control. The mint succeeds when the
+  // connected wallet is the AUTHORIZED_DEPLOYER. For other wallets the call reverts
+  // silently — unlock() completion is NEVER blocked (entire block is try/catch).
   useEffect(() => {
     if (!isSuccess || !receipt || SUBNAME_ADDRESS === '0x0000000000000000000000000000000000000000') return
 
@@ -245,7 +249,6 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
       }
 
       console.log('[useReleaseEscrow] On-chain ENS mint failed — retrying from wallet for dealId:', args.dealId.toString())
-
       if (typeof window !== 'undefined' && (window as unknown as { ethereum?: unknown }).ethereum) {
         const ethProvider = (window as unknown as { ethereum: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum
         const walletClient = createWalletClient({ chain: sepolia, transport: custom(ethProvider) })
@@ -257,12 +260,13 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
           await walletClient.writeContract({
             address:      SUBNAME_ADDRESS,
             abi:          SUBNAME_ABI,
-            functionName: 'mintDealReceipt',
+            functionName: 'registerAndMint',
             args:         [args.dealId, args.escrow, args.buyer, args.seller, args.amount, args.timestamp],
             account:      accs[0],
             chain:        sepolia,
             gas:          300_000n, // explicit cap — prevents MetaMask gas estimation overflow
           })
+          console.log(`[useReleaseEscrow] ENS subname minted: deal-${args.dealId}.hand-off.eth`)
         }).catch((err: unknown) => {
           console.warn('[useReleaseEscrow] ENS subname mint fallback failed (non-blocking):', err)
         })
