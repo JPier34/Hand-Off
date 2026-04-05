@@ -212,23 +212,40 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
     })
   }
 
-  // UC-16: after unlock confirms, parse SubnameMintRequested and call ETH Sepolia registrar
+  // UC-16: after unlock confirms, trigger ENS subname mint ONLY if on-chain call failed.
+  // HandOff.unlock() already calls mintDealReceipt() directly (same-chain, gas: 500k).
+  // The frontend fallback only fires when SubnameMintFailed is in the receipt — meaning
+  // the on-chain call reverted and we need to retry from the wallet.
   useEffect(() => {
     if (!isSuccess || !receipt || SUBNAME_ADDRESS === '0x0000000000000000000000000000000000000000') return
 
     try {
-      const logs = parseEventLogs({
+      // Check if on-chain mint failed — SubnameMintFailed is emitted only on revert
+      const failedLogs = parseEventLogs({
+        abi:       HANDOFF_ABI as Abi,
+        logs:      receipt.logs,
+        eventName: 'SubnameMintFailed',
+      })
+      if (failedLogs.length === 0) {
+        // On-chain mint succeeded — nothing to do
+        console.log('[useReleaseEscrow] ENS subname minted on-chain — skipping frontend fallback')
+        return
+      }
+
+      // On-chain mint failed — parse SubnameMintRequested for args and retry from wallet
+      const requestedLogs = parseEventLogs({
         abi:       HANDOFF_ABI as Abi,
         logs:      receipt.logs,
         eventName: 'SubnameMintRequested',
       })
-      if (logs.length === 0) return
+      if (requestedLogs.length === 0) return
 
-      const args = logs[0].args as {
+      const args = requestedLogs[0].args as {
         dealId: bigint; escrow: Address; buyer: Address; seller: Address; amount: bigint; timestamp: bigint
       }
 
-      // Trigger mint on ETH Sepolia — requires window.ethereum (MetaMask / Dynamic injected provider)
+      console.log('[useReleaseEscrow] On-chain ENS mint failed — retrying from wallet for dealId:', args.dealId.toString())
+
       if (typeof window !== 'undefined' && (window as unknown as { ethereum?: unknown }).ethereum) {
         const ethProvider = (window as unknown as { ethereum: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum
         const walletClient = createWalletClient({ chain: sepolia, transport: custom(ethProvider) })
@@ -244,13 +261,14 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
             args:         [args.dealId, args.escrow, args.buyer, args.seller, args.amount, args.timestamp],
             account:      accs[0],
             chain:        sepolia,
+            gas:          300_000n, // explicit cap — prevents MetaMask gas estimation overflow
           })
         }).catch((err: unknown) => {
-          console.warn('[useReleaseEscrow] ENS subname mint failed (non-blocking):', err)
+          console.warn('[useReleaseEscrow] ENS subname mint fallback failed (non-blocking):', err)
         })
       }
     } catch (err) {
-      console.warn('[useReleaseEscrow] Failed to parse SubnameMintRequested (non-blocking):', err)
+      console.warn('[useReleaseEscrow] Failed to parse ENS mint events (non-blocking):', err)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuccess])
