@@ -1,12 +1,19 @@
 import { useState, useCallback } from 'react'
 import { getWalletAccounts, switchActiveNetwork } from '@dynamic-labs-sdk/client'
 import { createWalletClientForWalletAccount } from '@dynamic-labs-sdk/evm/viem'
-import { encodeFunctionData, createPublicClient, http } from 'viem'
+import {
+  encodeFunctionData,
+  createPublicClient,
+  createWalletClient,
+  http,
+  custom,
+} from 'viem'
 import { sepolia } from 'viem/chains'
 
 import type { Abi, Address } from 'viem'
 
 const ETH_SEPOLIA_RPC = 'https://ethereum-sepolia-rpc.publicnode.com'
+const ETH_SEPOLIA_ID = String(sepolia.id) // "11155111"
 
 interface WriteContractParams {
   address: Address
@@ -30,17 +37,19 @@ const IDLE: WriteState = {
   error: null,
 }
 
-const ETH_SEPOLIA_ID = String(sepolia.id) // "11155111"
+type EIP1193Provider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
+}
 
 /**
- * Drop-in replacement for wagmi's useWriteContract that uses
- * Dynamic SDK's wallet provider.
+ * Drop-in replacement for wagmi's useWriteContract.
  *
- * Uses Dynamic's createWalletClientForWalletAccount to get a viem
- * WalletClient for the ACTUAL connected wallet (MetaMask, Rainbow, etc),
- * not window.ethereum which may be a different extension.
+ * MetaMask path: uses window.ethereum directly and reads the currently
+ * active account via eth_requestAccounts. This avoids the 4100 Unauthorized
+ * error caused by Dynamic's stored address diverging from MetaMask's selected
+ * account (validateAndNormalizeKeyholder rejects mismatched `from`).
  *
- * Switches to Ethereum Sepolia via Dynamic's switchActiveNetwork if needed.
+ * Non-MetaMask path: falls back to Dynamic's createWalletClientForWalletAccount.
  */
 export function useDynamicWriteContract() {
   const [state, setState] = useState<WriteState>(IDLE)
@@ -59,67 +68,59 @@ export function useDynamicWriteContract() {
       const accounts = getWalletAccounts()
       if (!accounts || accounts.length === 0) throw new Error('No wallet connected')
 
-      // Prefer MetaMask over Rainbow — Rainbow's inpage.js has a broken
-      // chrome.runtime.sendMessage that prevents transactions from working.
+      // Prefer MetaMask over Rainbow — Rainbow's inpage.js breaks chrome.runtime.sendMessage
       const walletAccount = accounts.find(a => a.walletProviderKey?.includes('metamask'))
         ?? accounts.find(a => !a.walletProviderKey?.includes('rainbow'))
         ?? accounts[0]
 
-      console.log('[useDynamicWrite] Wallet:', walletAccount.address, 'provider:', walletAccount.walletProviderKey, '(from', accounts.length, 'accounts)')
-
-      // Switch to Ethereum Sepolia if needed — uses Dynamic SDK which routes to the CORRECT wallet
-      try {
-        await switchActiveNetwork({ walletAccount, networkId: ETH_SEPOLIA_ID })
-        console.log('[useDynamicWrite] Network switched to Ethereum Sepolia')
-      } catch (e) {
-        // May throw if already on correct chain or if network needs to be added
-        console.log('[useDynamicWrite] switchActiveNetwork result:', (e as Error)?.message ?? 'ok')
-      }
+      console.log('[useDynamicWrite] Selected wallet:', walletAccount.address, '/', walletAccount.walletProviderKey)
 
       const data = encodeFunctionData({
         abi: params.abi,
         functionName: params.functionName,
         args: params.args ?? [],
       })
-
       const value = params.value ?? 0n
 
-      // Use Dynamic's WalletClient — routes to the correct wallet extension
-      console.log('[useDynamicWrite] Creating WalletClient for', walletAccount.walletProviderKey)
-      let walletClient
-      try {
-        walletClient = await createWalletClientForWalletAccount({ walletAccount })
-      } catch (e) {
-        const msg = (e as Error)?.message ?? ''
-        if (msg.includes('No network data')) {
-          throw new Error(
-            'Ethereum Sepolia not configured in Dynamic dashboard. ' +
-            'Go to app.dynamic.xyz → Chains & Networks → enable Ethereum Sepolia (11155111).'
-          )
-        }
-        throw e
-      }
+      // ── Build wallet client & resolve active `from` address ────────────────
+      // For MetaMask: bypass Dynamic's routing — use window.ethereum directly so
+      // MetaMask's validateAndNormalizeKeyholder sees the currently selected account.
+      const isMetaMask = !!walletAccount.walletProviderKey?.includes('metamask')
+      const rawEthereum = (typeof window !== 'undefined')
+        ? (window as unknown as { ethereum?: EIP1193Provider }).ethereum
+        : undefined
 
-      // Switch chain via the wallet client's own provider (MetaMask, not window.ethereum)
-      try {
-        const currentChainHex = await walletClient.request({ method: 'eth_chainId' }) as string
-        const currentChainId = parseInt(currentChainHex, 16)
-        if (currentChainId !== sepolia.id) {
-          console.log('[useDynamicWrite] Wallet on chain', currentChainId, '→ switching to Ethereum Sepolia via WalletClient')
+      let fromAddress: `0x${string}` = walletAccount.address as `0x${string}`
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let walletClientAny: any
+
+      if (isMetaMask && rawEthereum) {
+        // ── MetaMask direct path ──────────────────────────────────────────────
+        // eth_requestAccounts returns MetaMask's currently selected account and
+        // satisfies the connection check required before eth_sendTransaction.
+        const mmAccounts = await rawEthereum.request({ method: 'eth_requestAccounts' }) as string[]
+        fromAddress = (mmAccounts[0] ?? walletAccount.address) as `0x${string}`
+        console.log('[useDynamicWrite] MetaMask active account:', fromAddress)
+
+        // Switch to Ethereum Sepolia directly via window.ethereum
+        const chainHex = await rawEthereum.request({ method: 'eth_chainId' }) as string
+        if (parseInt(chainHex, 16) !== sepolia.id) {
+          console.log('[useDynamicWrite] Switching chain via window.ethereum...')
           try {
-            await walletClient.request({
+            await rawEthereum.request({
               method: 'wallet_switchEthereumChain',
               params: [{ chainId: `0x${sepolia.id.toString(16)}` }],
             })
+            await new Promise(r => setTimeout(r, 1000))
           } catch (switchErr: unknown) {
             if ((switchErr as { code?: number })?.code === 4902) {
-              await walletClient.request({
+              await rawEthereum.request({
                 method: 'wallet_addEthereumChain',
                 params: [{
                   chainId: `0x${sepolia.id.toString(16)}`,
                   chainName: 'Ethereum Sepolia',
                   nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                  rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'],
+                  rpcUrls: [ETH_SEPOLIA_RPC],
                   blockExplorerUrls: ['https://sepolia.etherscan.io'],
                 }],
               })
@@ -127,37 +128,115 @@ export function useDynamicWriteContract() {
               throw switchErr
             }
           }
-          console.log('[useDynamicWrite] Chain switched, waiting for wallet to settle...')
-          await new Promise(r => setTimeout(r, 1000))
         }
-      } catch (e) {
-        console.warn('[useDynamicWrite] Chain switch attempt:', e)
+
+        walletClientAny = createWalletClient({
+          account: fromAddress,
+          chain: sepolia,
+          transport: custom(rawEthereum),
+        })
+      } else {
+        // ── Non-MetaMask path (embedded wallet, Rainbow, etc.) ──────────────���─
+        console.log('[useDynamicWrite] Creating WalletClient via Dynamic for', walletAccount.walletProviderKey)
+
+        // Switch to Ethereum Sepolia via Dynamic SDK
+        try {
+          await switchActiveNetwork({ walletAccount, networkId: ETH_SEPOLIA_ID })
+          console.log('[useDynamicWrite] Network switched to Ethereum Sepolia')
+        } catch (e) {
+          console.log('[useDynamicWrite] switchActiveNetwork:', (e as Error)?.message ?? 'ok')
+        }
+
+        let dynamicClient: Awaited<ReturnType<typeof createWalletClientForWalletAccount>>
+        try {
+          dynamicClient = await createWalletClientForWalletAccount({ walletAccount })
+        } catch (e) {
+          const msg = (e as Error)?.message ?? ''
+          if (msg.includes('No network data')) {
+            throw new Error(
+              'Ethereum Sepolia not configured in Dynamic dashboard. ' +
+              'Go to app.dynamic.xyz → Chains & Networks → enable Ethereum Sepolia (11155111).'
+            )
+          }
+          throw e
+        }
+
+        // Switch chain via Dynamic's wallet client
+        try {
+          const chainHex = await dynamicClient.request({ method: 'eth_chainId' }) as string
+          if (parseInt(chainHex, 16) !== sepolia.id) {
+            try {
+              await dynamicClient.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: `0x${sepolia.id.toString(16)}` }],
+              })
+              await new Promise(r => setTimeout(r, 1000))
+            } catch (switchErr: unknown) {
+              if ((switchErr as { code?: number })?.code === 4902) {
+                await dynamicClient.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: `0x${sepolia.id.toString(16)}`,
+                    chainName: 'Ethereum Sepolia',
+                    nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                    rpcUrls: [ETH_SEPOLIA_RPC],
+                    blockExplorerUrls: ['https://sepolia.etherscan.io'],
+                  }],
+                })
+              } else {
+                throw switchErr
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[useDynamicWrite] Chain switch via Dynamic:', e)
+        }
+
+        walletClientAny = dynamicClient
       }
 
-      // Estimate gas via a public RPC — prevents viem auto-estimating 21M which MetaMask caps at 16.7M
+      // ── Pre-flight simulation ───────────────────────────────────────────���─
+      // simulateContract decodes custom errors (WrongState, NotParticipant, …)
+      // and throws BEFORE we send — no gas wasted on doomed transactions.
+      const publicClient = createPublicClient({
+        chain: sepolia,
+        transport: http(ETH_SEPOLIA_RPC),
+      })
+      try {
+        await publicClient.simulateContract({
+          address: params.address,
+          abi: params.abi,
+          functionName: params.functionName,
+          args: (params.args ?? []) as never[],
+          account: fromAddress,
+          value: value ?? 0n,
+        })
+        console.log('[useDynamicWrite] Simulation passed ✓')
+      } catch (simErr) {
+        console.error('[useDynamicWrite] Simulation failed (tx would revert):', simErr)
+        throw simErr
+      }
+
+      // ── Gas estimation ────────────────────────────────────────────────────
+      // +20% buffer, capped at 5M — well below MetaMask's 16.7M hard cap.
       let gasLimit: bigint
       try {
-        const publicClient = createPublicClient({
-          chain: sepolia,
-          transport: http(ETH_SEPOLIA_RPC),
-        })
         const estimated = await publicClient.estimateGas({
-          account: walletAccount.address as `0x${string}`,
+          account: fromAddress,
           to: params.address,
           data,
           value: value ?? 0n,
         })
-        // +20% buffer, hard-capped at 5M (well below MetaMask's 16.7M cap)
         gasLimit = estimated * 120n / 100n
         if (gasLimit > 5_000_000n) gasLimit = 5_000_000n
         console.log('[useDynamicWrite] Gas estimate:', estimated.toString(), '→ using:', gasLimit.toString())
       } catch (e) {
-        gasLimit = 1_000_000n // safe fallback
-        console.warn('[useDynamicWrite] Gas estimation failed, using fallback 1M:', e)
+        gasLimit = 1_000_000n
+        console.warn('[useDynamicWrite] estimateGas failed after passing simulation, using 1M fallback:', e)
       }
 
-      // Send tx without chain assertion — we already switched above
-      const hash = await walletClient.sendTransaction({
+      // ── Send transaction ──────────────────────────────────────────────────
+      const hash = await walletClientAny.sendTransaction({
         to: params.address,
         data,
         value,
