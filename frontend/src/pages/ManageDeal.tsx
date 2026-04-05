@@ -547,7 +547,7 @@ export default function ManageDeal() {
   const { address: wagmiAddress } = useAccount()
   const { walletAddress: dynamicAddress } = useDynamicAuth()
   const [showCodeEntry, setShowCodeEntry] = useState(false)
-  const [showIntro, setShowIntro] = useState(true)
+  const [showIntro] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [editAmount, setEditAmount] = useState('')
