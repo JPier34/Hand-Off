@@ -17,6 +17,7 @@ import { payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
 import { useReputation } from '@/hooks/useReputation'
+import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 function isValidDealParam(param: string | undefined): param is string {
@@ -536,7 +537,8 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, o
 export default function ManageDeal() {
   const { dealId: dealIdParam } = useParams<{ dealId: string }>()
   const navigate = useNavigate()
-  const { address } = useAccount()
+  const { address: wagmiAddress } = useAccount()
+  const { walletAddress: dynamicAddress } = useDynamicAuth()
   const [showCodeEntry, setShowCodeEntry] = useState(false)
   const [showIntro, setShowIntro] = useState(true)
   const [showEdit, setShowEdit] = useState(false)
@@ -574,8 +576,11 @@ export default function ManageDeal() {
   const usdRaw = useUsdValue(details?.amount ?? 0n, details?.payoutToken ?? null)
   const usdLabel = usdRaw ? `≈ $${usdRaw} USD` : ''
 
-  // In mock mode there's no connected wallet — treat the user as the seller
-  const isSeller = MOCK_MODE || !!(address && details && address.toLowerCase() === details.seller.toLowerCase())
+  // In mock mode there's no connected wallet — treat the user as the seller.
+  // Use Dynamic's walletAddress (always up-to-date) with wagmi as fallback —
+  // wagmi's address can be undefined when connected via Dynamic SDK.
+  const connectedAddress = dynamicAddress ?? wagmiAddress
+  const isSeller = MOCK_MODE || !!(connectedAddress && details && connectedAddress.toLowerCase() === details.seller.toLowerCase())
 
   // ─── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
