@@ -27,8 +27,7 @@ async function fetchEthPrice(): Promise<number> {
 
 // Stablecoin addresses (Eth Sepolia) — assumed $1
 const STABLECOIN_ADDRS = new Set([
-  '0x036cbd53842c5426634e7929541ec2318f3dcf7e', // USDC
-  '0x7683022d84f726a96c4a6611cd31dbf5409c0ac9', // DAI
+  '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238', // USDC (Eth Sepolia)
 ])
 
 function isStablecoin(addr: Address | null): boolean {
@@ -37,7 +36,7 @@ function isStablecoin(addr: Address | null): boolean {
 }
 
 // WETH = same price as ETH
-const WETH_ADDR = '0x4200000000000000000000000000000000000006'
+const WETH_ADDR = '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14' // Eth Sepolia
 function isWeth(addr: Address | null): boolean {
   return !!addr && addr.toLowerCase() === WETH_ADDR.toLowerCase()
 }
@@ -55,19 +54,18 @@ export function useUsdValue(amount: bigint, payoutToken: Address | null): string
     fetchEthPrice().then(setEthPrice)
   }, [])
 
-  if (ethPrice === null) return null
-
   const decimals = payoutDecimals(payoutToken)
   const parsed = parseFloat(formatUnits(amount, decimals))
 
-  if (!payoutToken || isWeth(payoutToken)) {
-    // ETH or WETH
-    return (parsed * ethPrice).toFixed(2)
+  if (isStablecoin(payoutToken)) {
+    // USDC = $1 per unit, no API needed
+    return parsed.toFixed(2)
   }
 
-  if (isStablecoin(payoutToken)) {
-    // $1 per unit
-    return parsed.toFixed(2)
+  if (!payoutToken || isWeth(payoutToken)) {
+    // ETH or WETH
+    if (ethPrice === null) return null
+    return (parsed * ethPrice).toFixed(2)
   }
 
   // Unknown token — no price

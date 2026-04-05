@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { parseEther } from 'viem'
+import { parseEther, parseUnits } from 'viem'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import { useNavigate } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
@@ -55,7 +55,8 @@ export default function CreateDeal() {
   const hasErrors = Object.keys(errors).length > 0
 
   // USD estimate for the entered amount
-  const parsedAmount = (() => { try { return amount ? parseEther(amount as `${number}`) : 0n } catch { return 0n } })()
+  const tokenDecimals = TOKENS[payoutToken]?.decimals ?? 18
+  const parsedAmount = (() => { try { return amount ? parseUnits(amount as `${number}`, tokenDecimals) : 0n } catch { return 0n } })()
   const tokenAddr = TOKENS[payoutToken]?.address ?? null
   const usdValue = useUsdValue(parsedAmount, tokenAddr)
 
@@ -208,7 +209,7 @@ export default function CreateDeal() {
                     type="text"
                     inputMode="decimal"
                     value={amount}
-                    onChange={e => setAmount(e.target.value)}
+                    onChange={e => { if (/^\d*\.?\d*$/.test(e.target.value)) setAmount(e.target.value) }}
                     placeholder="0.00"
                     className="w-full text-4xl font-semibold bg-transparent text-hoff-text-primary placeholder:text-hoff-text-tertiary/40 focus:outline-none"
                   />
