@@ -203,8 +203,8 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, descri
           </div>
           <a
             href={MOCK_MODE
-              ? `https://sepolia.basescan.org/address/${seller}`
-              : `https://sepolia.basescan.org/address/${seller}`}
+              ? `https://sepolia.etherscan.io/address/${seller}`
+              : `https://sepolia.etherscan.io/address/${seller}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-hoff-text-tertiary hover:text-hoff-text-secondary transition-colors shrink-0"
@@ -417,7 +417,7 @@ interface CompletedProps {
 function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, onSubmitReview }: CompletedProps) {
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
-  const etherscanBase = 'https://sepolia.basescan.org/tx/'
+  const etherscanBase = 'https://sepolia.etherscan.io/tx/'
   const etherscanHref = MOCK_MODE
     ? `${etherscanBase}0x0000000000000000000000000000000000000000000000000000000000000000`
     : etherscanBase

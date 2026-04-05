@@ -177,7 +177,7 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
-  const etherscanBase = 'https://sepolia.basescan.org/tx/'
+  const etherscanBase = 'https://sepolia.etherscan.io/tx/'
   const etherscanHref = MOCK_MODE
     ? `${etherscanBase}0x0000000000000000000000000000000000000000000000000000000000000000`
     : etherscanBase
