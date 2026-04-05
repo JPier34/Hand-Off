@@ -596,10 +596,16 @@ export default function BuyerPay() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs text-hoff-text-tertiary mb-0.5">Creator</p>
-                  <EnsName
-                    address={details.seller as `0x${string}`}
-                    className="text-sm text-hoff-text-primary font-mono truncate block"
-                  />
+                  {/* Forward ENS: seller's ENS name as stored on-chain at deal creation */}
+                  {details.sellerEns ? (
+                    <p className="text-sm text-hoff-text-primary font-medium truncate">{details.sellerEns}</p>
+                  ) : (
+                    /* Reverse ENS: resolve address → name via ENS registry */
+                    <EnsName
+                      address={details.seller as `0x${string}`}
+                      className="text-sm text-hoff-text-primary font-mono truncate block"
+                    />
+                  )}
                 </div>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
