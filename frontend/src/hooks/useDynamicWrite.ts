@@ -134,13 +134,35 @@ export function useDynamicWriteContract() {
         console.warn('[useDynamicWrite] Chain switch attempt:', e)
       }
 
-      // Estimate gas via a public RPC — prevents viem auto-estimating 21M which MetaMask caps at 16.7M
+      // ── Pre-flight simulation ────────────────────────────────────────────────
+      // simulateContract decodes custom errors (WrongState, NotParticipant, …)
+      // and throws BEFORE we send, so users see a clear message instead of a
+      // failed on-chain transaction that still costs gas.
+      const publicClient = createPublicClient({
+        chain: sepolia,
+        transport: http(ETH_SEPOLIA_RPC),
+      })
+      try {
+        await publicClient.simulateContract({
+          address: params.address,
+          abi: params.abi,
+          functionName: params.functionName,
+          args: (params.args ?? []) as never[],
+          account: walletAccount.address as `0x${string}`,
+          value: value ?? 0n,
+        })
+        console.log('[useDynamicWrite] Simulation passed ✓')
+      } catch (simErr) {
+        // Transaction WILL revert — throw decoded error immediately (no gas wasted)
+        console.error('[useDynamicWrite] Simulation failed (tx would revert):', simErr)
+        throw simErr
+      }
+
+      // ── Gas estimation ───────────────────────────────────────────────────────
+      // Simulation already confirmed the tx will succeed; now just get the limit.
+      // Prevents viem auto-estimating 21M which MetaMask hard-caps at 16.7M.
       let gasLimit: bigint
       try {
-        const publicClient = createPublicClient({
-          chain: sepolia,
-          transport: http(ETH_SEPOLIA_RPC),
-        })
         const estimated = await publicClient.estimateGas({
           account: walletAccount.address as `0x${string}`,
           to: params.address,
@@ -152,8 +174,9 @@ export function useDynamicWriteContract() {
         if (gasLimit > 5_000_000n) gasLimit = 5_000_000n
         console.log('[useDynamicWrite] Gas estimate:', estimated.toString(), '→ using:', gasLimit.toString())
       } catch (e) {
-        gasLimit = 1_000_000n // safe fallback
-        console.warn('[useDynamicWrite] Gas estimation failed, using fallback 1M:', e)
+        // Simulation passed but estimateGas failed for some other reason — safe fallback
+        gasLimit = 1_000_000n
+        console.warn('[useDynamicWrite] estimateGas failed after passing simulation, using 1M fallback:', e)
       }
 
       // Send tx without chain assertion — we already switched above
