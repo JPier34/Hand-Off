@@ -109,6 +109,7 @@ interface ViewEscrowProps {
   amount: bigint
   expiresAt: bigint
   seller: string
+  sellerEns: string   // forward ENS: stored on-chain at deal creation
   status: EscrowStatus
   description: string
   sym: string
@@ -117,7 +118,7 @@ interface ViewEscrowProps {
   onUnlock: () => void
 }
 
-function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, description, sym, fmt, usdLabel, onUnlock }: ViewEscrowProps) {
+function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, sellerEns, status, description, sym, fmt, usdLabel, onUnlock }: ViewEscrowProps) {
   const navigate = useNavigate()
   const { reputation } = useReputation(seller as `0x${string}`)
   const payLink = `${window.location.origin}/pay/${dealIdParam}`
@@ -196,10 +197,16 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, descri
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs text-hoff-text-tertiary mb-0.5">Creator</p>
-            <EnsName
-              address={seller as `0x${string}`}
-              className="text-sm text-hoff-text-primary font-mono truncate block"
-            />
+            {/* Forward ENS: seller's ENS name as stored on-chain at deal creation */}
+            {sellerEns ? (
+              <p className="text-sm text-hoff-text-primary font-medium truncate">{sellerEns}</p>
+            ) : (
+              /* Reverse ENS: resolve address → name via ENS registry */
+              <EnsName
+                address={seller as `0x${string}`}
+                className="text-sm text-hoff-text-primary font-mono truncate block"
+              />
+            )}
           </div>
           <a
             href={MOCK_MODE
@@ -942,6 +949,7 @@ export default function ManageDeal() {
         amount={details.amount}
         expiresAt={details.expiresAt}
         seller={details.seller}
+        sellerEns={details.sellerEns ?? ''}
         status={details.status}
         description={details.description}
         sym={sym}

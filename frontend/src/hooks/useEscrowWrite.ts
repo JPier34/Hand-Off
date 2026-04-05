@@ -212,7 +212,22 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
     })
   }
 
-  // UC-16: after unlock confirms, parse SubnameMintRequested and call ETH Sepolia registrar
+  // UC-16: after unlock() confirms on ETH Sepolia, parse SubnameMintRequested and mint
+  // deal-{id}.hand-off.eth on the SubnameRegistrar.
+  //
+  // Cross-chain minting path:
+  //   1. HandOff.unlock() emits SubnameMintRequested (always, regardless of SUBNAME_REGISTRAR)
+  //   2. Frontend parses the event from the receipt
+  //   3. Frontend calls SubnameRegistrar.registerAndMint() on ETH Sepolia via injected provider
+  //
+  // NOTE: registerAndMint() has onlyDeployer access control on the SubnameRegistrar contract.
+  // The mint succeeds when the connected wallet is the AUTHORIZED_DEPLOYER
+  // (0xe7f04a0aa40048b887b7a2baf9ede505ab4cf7dd). For other wallets the call reverts
+  // silently — unlock() completion is NEVER blocked (entire block is try/catch).
+  //
+  // Expected result on success: deal-{id}.hand-off.eth resolves to the escrow contract
+  // address and carries text records (buyer, seller, amount, timestamp) verifiable at
+  // https://sepolia.app.ens.domains
   useEffect(() => {
     if (!isSuccess || !receipt || SUBNAME_ADDRESS === '0x0000000000000000000000000000000000000000') return
 
@@ -228,7 +243,10 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
         dealId: bigint; escrow: Address; buyer: Address; seller: Address; amount: bigint; timestamp: bigint
       }
 
-      // Trigger mint on ETH Sepolia — requires window.ethereum (MetaMask / Dynamic injected provider)
+      // Call registerAndMint() — the deployer-accessible function for the cross-chain path.
+      // mintDealReceipt() requires onlyRegisteredEscrow (msg.sender must be the escrow contract),
+      // which is impossible from the browser. registerAndMint() has onlyDeployer and is the
+      // correct entrypoint for this frontend-driven flow.
       if (typeof window !== 'undefined' && (window as unknown as { ethereum?: unknown }).ethereum) {
         const ethProvider = (window as unknown as { ethereum: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum
         const walletClient = createWalletClient({ chain: sepolia, transport: custom(ethProvider) })
@@ -240,11 +258,12 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
           await walletClient.writeContract({
             address:      SUBNAME_ADDRESS,
             abi:          SUBNAME_ABI,
-            functionName: 'mintDealReceipt',
+            functionName: 'registerAndMint',
             args:         [args.dealId, args.escrow, args.buyer, args.seller, args.amount, args.timestamp],
             account:      accs[0],
             chain:        sepolia,
           })
+          console.log(`[useReleaseEscrow] ENS subname minted: deal-${args.dealId}.hand-off.eth`)
         }).catch((err: unknown) => {
           console.warn('[useReleaseEscrow] ENS subname mint failed (non-blocking):', err)
         })
