@@ -179,6 +179,16 @@ export function useDynamicWriteContract() {
         console.warn('[useDynamicWrite] estimateGas failed after passing simulation, using 1M fallback:', e)
       }
 
+      // Ensure the account is authorised — MetaMask returns 4100 (Unauthorized)
+      // if eth_sendTransaction is called before eth_requestAccounts has been invoked
+      // in this session, even when the wallet is visually "connected".
+      try {
+        await walletClient.request({ method: 'eth_requestAccounts' })
+        console.log('[useDynamicWrite] Account authorised ✓')
+      } catch (authErr) {
+        console.warn('[useDynamicWrite] eth_requestAccounts failed (may be fine):', (authErr as Error)?.message)
+      }
+
       // Send tx without chain assertion — we already switched above
       const hash = await walletClient.sendTransaction({
         to: params.address,
