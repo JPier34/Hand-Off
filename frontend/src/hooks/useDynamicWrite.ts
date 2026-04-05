@@ -1,9 +1,12 @@
 import { useState, useCallback } from 'react'
 import { getWalletAccounts, switchActiveNetwork } from '@dynamic-labs-sdk/client'
 import { createWalletClientForWalletAccount } from '@dynamic-labs-sdk/evm/viem'
-import { encodeFunctionData } from 'viem'
+import { encodeFunctionData, createPublicClient, http } from 'viem'
 import { sepolia } from 'viem/chains'
+
 import type { Abi, Address } from 'viem'
+
+const ETH_SEPOLIA_RPC = 'https://ethereum-sepolia-rpc.publicnode.com'
 
 interface WriteContractParams {
   address: Address
@@ -131,11 +134,34 @@ export function useDynamicWriteContract() {
         console.warn('[useDynamicWrite] Chain switch attempt:', e)
       }
 
+      // Estimate gas via a public RPC — prevents viem auto-estimating 21M which MetaMask caps at 16.7M
+      let gasLimit: bigint
+      try {
+        const publicClient = createPublicClient({
+          chain: sepolia,
+          transport: http(ETH_SEPOLIA_RPC),
+        })
+        const estimated = await publicClient.estimateGas({
+          account: walletAccount.address as `0x${string}`,
+          to: params.address,
+          data,
+          value: value ?? 0n,
+        })
+        // +20% buffer, hard-capped at 5M (well below MetaMask's 16.7M cap)
+        gasLimit = estimated * 120n / 100n
+        if (gasLimit > 5_000_000n) gasLimit = 5_000_000n
+        console.log('[useDynamicWrite] Gas estimate:', estimated.toString(), '→ using:', gasLimit.toString())
+      } catch (e) {
+        gasLimit = 1_000_000n // safe fallback
+        console.warn('[useDynamicWrite] Gas estimation failed, using fallback 1M:', e)
+      }
+
       // Send tx without chain assertion — we already switched above
       const hash = await walletClient.sendTransaction({
         to: params.address,
         data,
         value,
+        gas: gasLimit,
         chain: null,
       })
 
