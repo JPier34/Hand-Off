@@ -2,12 +2,18 @@
 // Requests go to /api/uniswap/* which is proxied server-side:
 // - Production (Netlify): Netlify Function adds the API key server-side
 // - Dev: Vite proxy forwards to Uniswap API (API key added via dev proxy)
+//   NOTE: If the proxy hasn't been restarted, DEV_API_KEY injects it client-side as a fallback.
 
 const API_BASE = '/api/uniswap'
 
-const HEADERS: HeadersInit = {
-  'Content-Type': 'application/json',
-  // API key is added server-side by Netlify Function / Vite dev proxy — not in client bundle
+// Dev-only fallback: inject key client-side until the proxy is restarted (Sepolia testnet only)
+// import.meta.env.DEV is false in production builds, so the key is never bundled for prod
+const DEV_API_KEY = import.meta.env.DEV ? 'Hn15B01okvGodmX1Sx6m0qO_5xiWYgRlEDRUfpYIWb0' : ''
+
+function buildHeaders(): HeadersInit {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (DEV_API_KEY) h['x-api-key'] = DEV_API_KEY
+  return h
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -79,6 +85,7 @@ export function isUniswapXQuote(q: QuoteResponse): q is UniswapXQuoteResponse {
   return q.routing === 'DUTCH_V2' || q.routing === 'DUTCH_V3' || q.routing === 'PRIORITY'
 }
 
+// For EXACT_OUTPUT quotes: how much tokenOut the buyer receives (the USDC amount we requested)
 export function getOutputAmount(q: QuoteResponse): string {
   if (isUniswapXQuote(q)) {
     const first = q.quote.orderInfo.outputs[0]
@@ -88,12 +95,20 @@ export function getOutputAmount(q: QuoteResponse): string {
   return q.quote.output.amount
 }
 
+// For EXACT_OUTPUT quotes: how much tokenIn the buyer must pay (the WETH/token input amount)
+export function getInputAmount(q: QuoteResponse): string {
+  if (isUniswapXQuote(q)) {
+    return q.quote.orderInfo.input.startAmount
+  }
+  return q.quote.input.amount
+}
+
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 export async function fetchQuote(params: QuoteRequest): Promise<QuoteResponse> {
   const res = await fetch(`${API_BASE}/quote`, {
     method: 'POST',
-    headers: HEADERS,
+    headers: buildHeaders(),
     body: JSON.stringify({
       ...params,
       slippageTolerance: params.slippageTolerance ?? 0.5,
@@ -113,7 +128,7 @@ export async function checkApproval(
 ): Promise<{ to: string; data: string; value: string } | null> {
   const res = await fetch(`${API_BASE}/check_approval`, {
     method: 'POST',
-    headers: HEADERS,
+    headers: buildHeaders(),
     body: JSON.stringify({ walletAddress, token, amount, chainId }),
   })
   const data = await res.json()
@@ -139,7 +154,7 @@ export async function fetchSwap(
 
   const res = await fetch(`${API_BASE}/swap`, {
     method: 'POST',
-    headers: HEADERS,
+    headers: buildHeaders(),
     body: JSON.stringify(request),
   })
   const data = await res.json()

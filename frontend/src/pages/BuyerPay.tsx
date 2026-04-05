@@ -347,11 +347,11 @@ export default function BuyerPay() {
 
   const amountWei = details?.amount ?? 0n
   const usdValue  = useUsdValue(amountWei, details?.payoutToken ?? null)
-  const { quotedIn, quoteResponse, isLoading: quoteLoading, error: quoteError } = useQuote(selectedToken, amountWei)
+  const { quotedIn, quoteResponse, isLoading: quoteLoading, error: quoteError } = useQuote(selectedToken, amountWei, details?.payoutToken ?? null)
   const swap = useSwapAndDeposit(mockDealId, selectedToken, escrowAddress, quoteResponse)
 
   const { reputation } = useReputation(details?.seller as `0x${string}` | undefined)
-  const isSwapPath = selectedToken !== 'ETH'
+  const isSwapPath = (TOKENS[selectedToken]?.address?.toLowerCase() ?? null) !== (details?.payoutToken?.toLowerCase() ?? null)
 
   // Restore saved unlock code from localStorage when a FUNDED escrow is revisited after page refresh
   useEffect(() => {
@@ -390,7 +390,7 @@ export default function BuyerPay() {
       console.log('[BuyerPay] Taking SWAP path')
       swap.swapAndDeposit(codeHash)
     } else {
-      const amountStr = formatEther(details.amount)
+      const amountStr = formatUnits(details.amount, dec)
       console.log('[BuyerPay] Taking DIRECT deposit path, amount:', amountStr, 'escrowAddress:', escrowAddress, 'payoutToken:', details.payoutToken)
       deposit(amountStr, codeHash, '', details.payoutToken)
     }
@@ -439,7 +439,7 @@ export default function BuyerPay() {
 
   // ─── Fee calc ───────────────────────────────────────────────────────────────
   const protocolFee = details ? (details.amount * PROTOCOL_FEE_BPS) / 10_000n : 0n
-  const total       = details ? details.amount + protocolFee + EST_GAS : 0n
+  const total       = details ? details.amount + protocolFee : 0n
 
   // ─── TX state helpers ───────────────────────────────────────────────────────
   const anyPending    = isSwapPath ? (swap.isApprovePending || swap.isSwapPending) : isPending
@@ -454,7 +454,10 @@ export default function BuyerPay() {
     if (!canAct) return 'Connect Wallet To Continue'
     if (isSwapPath && quotedIn !== undefined) {
       const token = TOKENS[selectedToken]
-      return `Pay ${formatUnits(quotedIn, token.decimals)} ${token.symbol}`
+      const full = formatUnits(quotedIn, token.decimals)
+      const n = parseFloat(full)
+      const display = n === 0 ? full : n.toPrecision(6).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+      return `Pay ${display} ${token.symbol}`
     }
     return 'Fund Escrow'
   }
@@ -541,7 +544,11 @@ export default function BuyerPay() {
                   )}
                   {!quoteLoading && !quoteError && quotedIn !== undefined && (() => {
                     const payToken = TOKENS[selectedToken]
-                    const payFmt = (v: bigint) => formatUnits(v, payToken.decimals)
+                    const payFmt = (v: bigint) => {
+                      const full = formatUnits(v, payToken.decimals)
+                      const n = parseFloat(full)
+                      return n === 0 ? full : n.toPrecision(6).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+                    }
                     const paySym = payToken.symbol
                     return (
                       <>
@@ -595,7 +602,10 @@ export default function BuyerPay() {
                   {details.seller.slice(2, 4).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-hoff-text-tertiary mb-0.5">Creator</p>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <p className="text-xs text-hoff-text-tertiary">Creator</p>
+                    <span className="text-[9px] font-semibold text-hoff-accent bg-hoff-accent/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">ENS</span>
+                  </div>
                   {/* Forward ENS: seller's ENS name as stored on-chain at deal creation */}
                   {details.sellerEns ? (
                     <p className="text-sm text-hoff-text-primary font-medium truncate">{details.sellerEns}</p>

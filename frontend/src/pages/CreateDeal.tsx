@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { parseEther, parseUnits } from 'viem'
+import { useState, useEffect } from 'react'
+import { parseUnits, isAddress, createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import { useNavigate } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
@@ -16,7 +17,7 @@ function validate(amount: string, description: string) {
     errors.amount = 'Required'
   } else {
     try {
-      const parsed = parseEther(amount as `${number}`)
+      const parsed = parseUnits(amount as `${number}`, 18)
       if (parsed <= 0n) errors.amount = 'Must be greater than 0'
     } catch {
       errors.amount = 'Enter a valid number (e.g. 0.05)'
@@ -42,6 +43,22 @@ export default function CreateDeal() {
   const canAct = isAuthenticated
 
   const [amount, setAmount] = useState('')
+  const [recipient, setRecipient] = useState('')
+  const isEnsInput = recipient.endsWith('.eth')
+  const [resolvedAddress, setResolvedAddress] = useState<string | null>(null)
+  const [ensLoading, setEnsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!isEnsInput || recipient.length <= 4) { setResolvedAddress(null); return }
+    let cancelled = false
+    setEnsLoading(true)
+    const client = createPublicClient({ chain: mainnet, transport: http('https://ethereum-rpc.publicnode.com') })
+    client.getEnsAddress({ name: recipient }).then((addr) => {
+      if (!cancelled) { setResolvedAddress(addr); setEnsLoading(false) }
+    }).catch(() => { if (!cancelled) { setResolvedAddress(null); setEnsLoading(false) } })
+    return () => { cancelled = true }
+  }, [recipient, isEnsInput])
+
   const [description, setDescription] = useState('')
   const [payoutToken, setPayoutToken] = useState<TokenKey>('ETH')
   const [timeoutHours, setTimeoutHours] = useState(168)
@@ -54,7 +71,7 @@ export default function CreateDeal() {
   const errors = validate(amount, description)
   const hasErrors = Object.keys(errors).length > 0
 
-  // USD estimate for the entered amount
+  // USD estimate for the entered amount — use token-specific decimals
   const tokenDecimals = TOKENS[payoutToken]?.decimals ?? 18
   const parsedAmount = (() => { try { return amount ? parseUnits(amount as `${number}`, tokenDecimals) : 0n } catch { return 0n } })()
   const tokenAddr = TOKENS[payoutToken]?.address ?? null
@@ -71,7 +88,13 @@ export default function CreateDeal() {
   function handleCreate() {
     setTouched(true)
     if (hasErrors) return
-    create(amount, description, timeoutHours, payoutToken)
+    const sellerEns = isEnsInput && resolvedAddress ? recipient : ''
+    const payoutAddress = (
+      (isEnsInput && resolvedAddress) ? resolvedAddress
+        : isAddress(recipient) ? recipient
+        : '0x0000000000000000000000000000000000000000'
+    ) as `0x${string}`
+    create(amount, description, timeoutHours, payoutToken, sellerEns, payoutAddress)
   }
 
   function handleShare() {
@@ -249,6 +272,33 @@ export default function CreateDeal() {
               />
               {touched && errors.description && (
                 <p className="text-xs text-red-400 mt-1">{errors.description}</p>
+              )}
+            </div>
+
+            {/* ENS Name */}
+            <div className="bg-hoff-surface rounded-2xl p-5">
+              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-1">
+                Your ENS Name <span className="normal-case font-normal">(Optional)</span>
+              </p>
+              <p className="text-xs text-hoff-text-tertiary mb-3">
+                Enter your ENS name to display it on the payment page.
+              </p>
+              <input
+                type="text"
+                value={recipient}
+                onChange={e => setRecipient(e.target.value)}
+                placeholder="yourname.eth"
+                className="w-full bg-transparent text-hoff-text-primary text-sm placeholder:text-hoff-text-tertiary focus:outline-none"
+              />
+              {isEnsInput && ensLoading && <p className="text-xs text-hoff-text-tertiary mt-2">Resolving…</p>}
+              {isEnsInput && !ensLoading && resolvedAddress && (
+                <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  Verified: {resolvedAddress.slice(0, 6)}...{resolvedAddress.slice(-4)}
+                </p>
+              )}
+              {isEnsInput && !ensLoading && !resolvedAddress && recipient.length > 4 && (
+                <p className="text-xs text-red-400 mt-2">Could not resolve ENS name</p>
               )}
             </div>
 

@@ -4,7 +4,7 @@ import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
 import { TOKENS, WETH_ADDRESS, type TokenKey } from '@/lib/tokens'
-import { fetchQuote, getOutputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
+import { fetchQuote, getInputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
 import { HANDOFF_ABI, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
 import type { Address } from '@/lib/types'
 
@@ -68,7 +68,7 @@ function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
 
 // ─── Real: useQuote ───────────────────────────────────────────────────────────
 
-function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
+function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutTokenAddress: Address | null): QuoteResult {
   const { address } = useAccount()
   const [isLoading, setIsLoading] = useState(false)
   const [quotedIn, setQuotedIn]   = useState<bigint | undefined>(undefined)
@@ -80,6 +80,7 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
     if (!token || tokenKey === 'ETH' || !address || amountOutWei <= 0n) {
       setQuotedIn(undefined)
       setQuoteResponse(null)
+      setError(null)
       return
     }
 
@@ -90,11 +91,13 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
     const tokenIn = token.address
     if (!tokenIn) return
 
-    // EXACT_OUTPUT: we know how much ETH the escrow needs, get the USDC cost
+    // EXACT_OUTPUT: buyer pays tokenIn, receives payoutToken for the escrow
+    // For ETH escrows, target WETH (WETH9 = ETH on Uniswap)
+    const tokenOut = payoutTokenAddress ?? WETH_ADDRESS
     fetchQuote({
       swapper:         address,
       tokenIn:         tokenIn,
-      tokenOut:        WETH_ADDRESS,       // seller wants ETH → swap to WETH
+      tokenOut,
       tokenInChainId:  '11155111',         // Eth Sepolia
       tokenOutChainId: '11155111',
       amount:          amountOutWei.toString(),
@@ -103,7 +106,7 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
     })
       .then(resp => {
         if (cancelled) return
-        const outputAmt = getOutputAmount(resp)
+        const outputAmt = getInputAmount(resp)
         setQuotedIn(BigInt(outputAmt))
         setQuoteResponse(resp)
         setIsLoading(false)
@@ -115,7 +118,7 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
       })
 
     return () => { cancelled = true }
-  }, [tokenKey, amountOutWei, address])
+  }, [tokenKey, amountOutWei, address, payoutTokenAddress])
 
   return { quotedIn, quoteResponse, isLoading, error }
 }
@@ -188,7 +191,7 @@ function useRealSwapAndDeposit(
     try {
       setState({ ...IDLE_SWAP, isApprovePending: true })
 
-      const inputAmount = getOutputAmount(quoteResponse) // for EXACT_OUTPUT, this is the input amount
+      const inputAmount = getInputAmount(quoteResponse) // tokenIn amount buyer must pay
       const approval = await checkApproval(address, token.address, inputAmount, 11155111)
 
       if (approval) {
@@ -236,7 +239,7 @@ function useRealSwapAndDeposit(
     if (!approveReceipt.isSuccess || swapWrite.data || !quoteResponse || !pendingCodeHashRef.current) return
     const token = TOKENS[_tokenKey]
     if (!token?.address) return
-    const inputAmount = getOutputAmount(quoteResponse)
+    const inputAmount = getInputAmount(quoteResponse)
     const codeHash = pendingCodeHashRef.current
     pendingCodeHashRef.current = null
     setState(prev => ({ ...prev, isApproveSuccess: true, isSwapPending: true }))
@@ -261,8 +264,8 @@ function useRealSwapAndDeposit(
 
 // ─── Public exports ───────────────────────────────────────────────────────────
 
-export function useQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
-  const real = useRealQuote(tokenKey, amountOutWei)
+export function useQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutTokenAddress: Address | null = null): QuoteResult {
+  const real = useRealQuote(tokenKey, amountOutWei, payoutTokenAddress)
   const mock = useMockQuote(tokenKey, amountOutWei)
   return MOCK_MODE ? mock : real
 }

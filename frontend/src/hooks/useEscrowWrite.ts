@@ -71,7 +71,7 @@ function useRealCreateDeal() {
       address: FACTORY_ADDRESS,
       abi: FACTORY_ABI,
       functionName: 'createHandOff',
-      args: [payoutToken, parseEther(amount), expirationWindow, sellerEns, sellerPayoutAddress],
+      args: [payoutToken, parseUnits(amount, token?.decimals ?? 18), expirationWindow, sellerEns, sellerPayoutAddress],
     })
   }
 

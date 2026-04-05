@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "tailwindcss";
 import autoprefixer from "autoprefixer";
@@ -7,46 +7,52 @@ import path from "path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export default defineConfig({
-  plugins: [react()],
-  base: "/",
-  // Expose these env var prefixes to client via import.meta.env
-  // NOTE: UNISWAP_API_KEY is NOT here — it stays server-side (Netlify Function)
-  envPrefix: ["VITE_", "DYNAMIC_", "CHAIN_", "MOCK", "REPUTATION_", "FACTORY_", "SUBNAME_", "UNIVERSAL_"],
-  css: {
-    postcss: {
-      plugins: [tailwindcss, autoprefixer],
+export default defineConfig(({ mode }) => {
+  // loadEnv with prefix '' loads ALL .env vars (not just VITE_-prefixed ones)
+  // so UNISWAP_API_KEY is available server-side without leaking to the browser bundle
+  const env = loadEnv(mode, process.cwd(), '');
+
+  return {
+    plugins: [react()],
+    base: "/",
+    // Expose these env var prefixes to client via import.meta.env
+    // NOTE: UNISWAP_API_KEY is NOT here — it stays server-side (Netlify Function)
+    envPrefix: ["VITE_", "DYNAMIC_", "CHAIN_", "MOCK", "REPUTATION_", "FACTORY_", "SUBNAME_", "UNIVERSAL_"],
+    css: {
+      postcss: {
+        plugins: [tailwindcss, autoprefixer],
+      },
     },
-  },
-  resolve: { alias: { "@": path.resolve(__dirname, "src") } },
-  build: {
-    outDir: "dist",
-    sourcemap: true,
-    rollupOptions: {
-      output: {
-        manualChunks: (id) => {
-          if (id.includes('node_modules/react') || id.includes('react-router-dom')) return 'vendor'
-          if (id.includes('wagmi') || id.includes('viem') || id.includes('@tanstack')) return 'web3'
-          return undefined
+    resolve: { alias: { "@": path.resolve(__dirname, "src") } },
+    build: {
+      outDir: "dist",
+      sourcemap: true,
+      rollupOptions: {
+        output: {
+          manualChunks: (id) => {
+            if (id.includes('node_modules/react') || id.includes('react-router-dom')) return 'vendor'
+            if (id.includes('wagmi') || id.includes('viem') || id.includes('@tanstack')) return 'web3'
+            return undefined
+          },
         },
       },
     },
-  },
-  server: {
-    port: 5173,
-    proxy: {
-      '/api/uniswap': {
-        target: 'https://trade-api.gateway.uniswap.org/v1',
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api\/uniswap/, ''),
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq) => {
-            const key = process.env.UNISWAP_API_KEY ?? ''
-            if (key) proxyReq.setHeader('x-api-key', key)
-            proxyReq.setHeader('x-universal-router-version', '2.0')
-          })
+    server: {
+      port: 5173,
+      proxy: {
+        '/api/uniswap': {
+          target: 'https://trade-api.gateway.uniswap.org/v1',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api\/uniswap/, ''),
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq) => {
+              const key = env.UNISWAP_API_KEY ?? ''
+              if (key) proxyReq.setHeader('x-api-key', key)
+              proxyReq.setHeader('x-universal-router-version', '2.0')
+            })
+          },
         },
       },
     },
-  },
+  };
 });

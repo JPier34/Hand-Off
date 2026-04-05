@@ -197,7 +197,10 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, sellerEns, sta
             {seller.slice(2, 4).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-hoff-text-tertiary mb-0.5">Creator</p>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <p className="text-xs text-hoff-text-tertiary">Creator</p>
+              <span className="text-[9px] font-semibold text-hoff-accent bg-hoff-accent/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">ENS</span>
+            </div>
             {/* Forward ENS: seller's ENS name as stored on-chain at deal creation */}
             {sellerEns ? (
               <p className="text-sm text-hoff-text-primary font-medium truncate">{sellerEns}</p>
@@ -414,6 +417,7 @@ function ClaimFundsView({
 
 interface CompletedProps {
   dealIdParam: string
+  dealId?: bigint
   amount: bigint
   description: string
   sym: string
@@ -422,7 +426,7 @@ interface CompletedProps {
   onSubmitReview?: (isPositive: boolean) => void
 }
 
-function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, onSubmitReview }: CompletedProps) {
+function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usdLabel, onSubmitReview }: CompletedProps) {
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
   const etherscanBase = 'https://sepolia.etherscan.io/tx/'
@@ -484,6 +488,33 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, o
         </svg>
         View on Etherscan
       </a>
+
+      {/* ENS Receipt — minted on-chain via HandOffSubnameRegistrar */}
+      {dealId !== undefined && (
+        <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2EBF7A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            </svg>
+            <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">ENS Receipt</p>
+          </div>
+          <p className="text-sm font-mono text-hoff-accent break-all">
+            deal-{String(dealId)}.hand-off.eth
+          </p>
+          <p className="text-xs text-hoff-text-tertiary">
+            Minted on-chain as a permanent record of this transaction
+          </p>
+          <a
+            href={`https://app.ens.domains/deal-${String(dealId)}.hand-off.eth`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-hoff-text-tertiary hover:text-hoff-accent transition-colors"
+          >
+            View on ENS
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </a>
+        </div>
+      )}
 
       {/* Review */}
       {!submitted ? (
@@ -547,7 +578,7 @@ export default function ManageDeal() {
   const { address: wagmiAddress } = useAccount()
   const { walletAddress: dynamicAddress } = useDynamicAuth()
   const [showCodeEntry, setShowCodeEntry] = useState(false)
-  const [showIntro] = useState(false)
+  const [showIntro, setShowIntro] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [editAmount, setEditAmount] = useState('')
@@ -626,6 +657,7 @@ export default function ManageDeal() {
       <Layout>
         <CompletedView
           dealIdParam={dealIdParam}
+          dealId={dealId ?? undefined}
           amount={details.amount}
           description={details.description}
           sym={sym}
