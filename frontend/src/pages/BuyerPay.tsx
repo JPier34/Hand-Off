@@ -170,10 +170,12 @@ interface CompletedViewProps {
   code: string
   description: string
   dealIdParam: string
+  status?: EscrowStatus
   onSubmitReview: (vote: 'positive' | 'negative') => void
 }
 
-function CompletedView({ code, description, dealIdParam, onSubmitReview }: CompletedViewProps) {
+function CompletedView({ code, description, dealIdParam, status, onSubmitReview }: CompletedViewProps) {
+  const isCompleted = status === EscrowStatus.COMPLETED
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
@@ -245,7 +247,15 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
         View on Etherscan
       </a>
 
-      {!submitted ? (
+      {/* Review section — only available once seller completes the handoff (COMPLETED state) */}
+      {!isCompleted && (
+        <div className="bg-hoff-elevated rounded-xl px-4 py-3 text-center space-y-1">
+          <p className="text-xs text-hoff-text-tertiary">Waiting for seller to complete the handoff…</p>
+          <p className="text-xs text-hoff-text-tertiary/60">You can leave a review once funds are released</p>
+        </div>
+      )}
+
+      {isCompleted && !submitted ? (
         <div className="space-y-3">
           <p className="text-sm text-hoff-text-tertiary text-center">Leave a Review – How did it go?</p>
           <div className="grid grid-cols-2 gap-3">
@@ -284,11 +294,11 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
             Submit
           </button>
         </div>
-      ) : (
+      ) : isCompleted ? (
         <div className="bg-hoff-accent/10 border border-hoff-accent/30 rounded-xl px-4 py-3 text-center">
           <p className="text-sm text-hoff-accent font-medium">Thanks for your review!</p>
         </div>
-      )}
+      ) : null}
     </main>
   )
 }
@@ -394,6 +404,7 @@ export default function BuyerPay() {
           code={unlockCode}
           description={details?.description ?? ''}
           dealIdParam={dealIdParam}
+          status={details?.status}
           onSubmitReview={(vote) => {
             reviewHook.submitReview(vote === 'positive')
             if (MOCK_MODE) setTimeout(() => navigate('/'), 800)
