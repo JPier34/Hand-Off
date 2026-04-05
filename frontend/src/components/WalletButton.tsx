@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   getWalletAccounts,
   getBalance,
@@ -36,6 +37,7 @@ interface NetworkOption {
 }
 
 export function WalletButton() {
+  const navigate = useNavigate()
   const { isAuthenticated, walletAddress, login, disconnect } = useDynamicAuth()
   const [open, setOpen] = useState(false)
   const [panel, setPanel] = useState<Panel>('main')
@@ -284,6 +286,7 @@ export function WalletButton() {
               <div className="py-1">
                 <MenuItem label={copied ? 'Copied!' : 'Copy address'} detail={short} onClick={handleCopy} icon={<CopyIcon />} />
                 <MenuItem label="Profile" onClick={() => setPanel('profile')} icon={<UserIcon />} />
+                <MenuItem label="History" onClick={() => { setOpen(false); navigate('/history') }} icon={<ClockIcon />} />
                 <MenuItem label="Settings" onClick={() => setPanel('settings')} icon={<GearIcon />} />
               </div>
 
@@ -613,6 +616,14 @@ function KeyIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+    </svg>
+  )
+}
+
+function ClockIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
     </svg>
   )
 }
