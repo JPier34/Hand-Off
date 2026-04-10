@@ -9,6 +9,8 @@ import './index.css'
 import App from './App.tsx'
 import { dynamicWagmiConnector } from '@/lib/dynamic-wagmi-connector'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
+import { MOCK_MODE, resetMock, setMockDeal } from '@/lib/mock'
+import { TOKENS } from '@/lib/tokens'
 
 const dynamicConnector = dynamicWagmiConnector()
 
@@ -53,3 +55,16 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+if (MOCK_MODE && typeof window !== 'undefined') {
+  const api = {
+    setDeal: (dealId: number, updates: Parameters<typeof setMockDeal>[1]) => {
+      setMockDeal(BigInt(dealId), updates)
+    },
+    reset: (dealId?: number) => {
+      resetMock(dealId !== undefined ? BigInt(dealId) : undefined)
+    },
+    TOKENS,
+  }
+  ;(window as unknown as { __handoffMock?: typeof api }).__handoffMock = api
+}

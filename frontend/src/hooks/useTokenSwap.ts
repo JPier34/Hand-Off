@@ -7,6 +7,7 @@ import { TOKENS, type TokenKey } from '@/lib/tokens'
 import { fetchQuote, getOutputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
 import { HANDOFF_ABI, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
 import type { Address } from '@/lib/types'
+import { buildExactOutputQuoteRequest } from '@/lib/swapQuoteLogic'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -76,8 +77,14 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Add
   const [error, setError]         = useState<string | null>(null)
 
   useEffect(() => {
-    const token = TOKENS[tokenKey]
-    if (!token || tokenKey === 'ETH' || !address || amountOutWei <= 0n || !payoutToken) {
+    const quoteRequest = buildExactOutputQuoteRequest({
+      swapper: address,
+      tokenKey,
+      amountOutWei,
+      payoutToken,
+    })
+
+    if (!quoteRequest) {
       setQuotedIn(undefined)
       setQuoteResponse(null)
       return
@@ -87,20 +94,7 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Add
     setIsLoading(true)
     setError(null)
 
-    const tokenIn = token.address
-    if (!tokenIn) return
-
-    // EXACT_OUTPUT: we know how much the escrow needs, get the input token cost
-    fetchQuote({
-      swapper:         address,
-      tokenIn:         tokenIn,
-      tokenOut:        payoutToken,
-      tokenInChainId:  '11155111',         // Eth Sepolia
-      tokenOutChainId: '11155111',
-      amount:          amountOutWei.toString(),
-      type:            'EXACT_OUTPUT',
-      slippageTolerance: 0.5,
-    })
+    fetchQuote(quoteRequest)
       .then(resp => {
         if (cancelled) return
         const outputAmt = getOutputAmount(resp)

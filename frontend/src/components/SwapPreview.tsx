@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { formatUnits } from 'viem'
 import { useUniswapQuote } from '@/hooks/useUniswapQuote'
 import { TOKENS, type TokenKey } from '@/lib/tokens'
+import type { Address } from '@/lib/types'
 import { Spinner } from '@/components/ui/Spinner'
 
 interface SwapPreviewProps {
@@ -9,6 +10,8 @@ interface SwapPreviewProps {
   inputTokenKey: TokenKey
   /** Amount the deal requires, in wei of the payout token */
   amountOutWei: bigint
+  /** Payout token address (null = native ETH) */
+  payoutToken?: Address | null
   /** Current slippage tolerance in percent (default 0.5) */
   slippage?: number
   onSlippageChange?: (s: number) => void
@@ -24,12 +27,13 @@ const SLIPPAGE_OPTIONS = [0.1, 0.5, 1.0]
 export function SwapPreview({
   inputTokenKey,
   amountOutWei,
+  payoutToken = null,
   slippage = 0.5,
   onSlippageChange,
 }: SwapPreviewProps) {
   const [showSlippage, setShowSlippage] = useState(false)
 
-  const { quotedIn, isLoading, error } = useUniswapQuote(inputTokenKey, amountOutWei)
+  const { quotedIn, isLoading, error } = useUniswapQuote(inputTokenKey, amountOutWei, payoutToken)
 
   const inputToken = TOKENS[inputTokenKey]
 

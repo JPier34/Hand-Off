@@ -97,6 +97,19 @@ export function mockEditDeal(dealId: bigint, amount: bigint, description: string
   s.description = description
 }
 
+export function setMockDeal(dealId: bigint, updates: Partial<DealDetails>) {
+  const s = getDealState(Number(dealId))
+  if (updates.seller !== undefined) s.seller = updates.seller
+  if (updates.buyer !== undefined) s.buyer = updates.buyer
+  if (updates.amount !== undefined) s.amount = updates.amount
+  if (updates.status !== undefined) s.status = updates.status
+  if (updates.expiresAt !== undefined) s.expiresAt = updates.expiresAt
+  if (updates.description !== undefined) s.description = updates.description
+  if (updates.sellerEns !== undefined) s.sellerEns = updates.sellerEns
+  if (updates.buyerEns !== undefined) s.buyerEns = updates.buyerEns
+  if ('payoutToken' in updates) s.payoutToken = updates.payoutToken ?? null
+}
+
 export function resetMock(dealId?: bigint) {
   _deals.delete(Number(dealId ?? 1n))
 }

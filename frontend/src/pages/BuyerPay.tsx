@@ -20,6 +20,8 @@ import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
 import { DealReceiptBadge } from '@/components/DealReceiptBadge'
 import { useReputation } from '@/hooks/useReputation'
+import { MOCK_MODE } from '@/lib/mock'
+import { getAutoSelectedTokenKey, shouldShowTokenSelector, shouldUseSwapPath } from '@/lib/buyerPayLogic'
 
 const PROTOCOL_FEE_BPS  = 10n   // 0.1%
 const EST_GAS           = 800_000_000_000_000n // ~0.0008 ETH placeholder
@@ -327,7 +329,7 @@ export default function BuyerPay() {
     )
   }
 
-  const canAct = isConnected
+  const canAct = isConnected || MOCK_MODE
 
   // ─── Hooks (always called, rules of hooks) ─────────────────────────────────
   const { details, isLoading, isError, escrowAddress }                     = useDealDetails(dealId, directAddress)
@@ -346,9 +348,7 @@ export default function BuyerPay() {
   const swap = useSwapAndDeposit(dealIdOrZero, selectedToken, escrowAddress, quoteResponse)
 
   const { reputation } = useReputation(details?.seller as `0x${string}` | undefined)
-  const payoutTokenAddr = details?.payoutToken ?? null
-  const selectedTokenAddr = TOKENS[selectedToken]?.address ?? null
-  const isSwapPath = !!details && selectedToken !== 'ETH' && selectedTokenAddr !== payoutTokenAddr
+  const isSwapPath = !!details && shouldUseSwapPath(selectedToken, details.payoutToken ?? null)
 
   // Restore saved unlock code from localStorage when a FUNDED escrow is revisited after page refresh
   useEffect(() => {
@@ -362,12 +362,7 @@ export default function BuyerPay() {
   // Auto-select payout token when details load (unless user already picked a token)
   useEffect(() => {
     if (!details || !isAutoSelected) return
-    const payoutAddr = details.payoutToken ?? null
-    const matchedKey = TOKEN_KEYS.find(key => {
-      const addr = TOKENS[key].address ?? null
-      return (addr ?? '').toLowerCase() === (payoutAddr ?? '').toLowerCase()
-    })
-    setSelectedToken(matchedKey ?? 'ETH')
+    setSelectedToken(getAutoSelectedTokenKey(details.payoutToken ?? null))
   }, [details?.payoutToken, isAutoSelected])
 
   // Determine overall success from either direct deposit or swap path
@@ -521,7 +516,7 @@ export default function BuyerPay() {
                 {details.status === EscrowStatus.CREATED && (
                   <div className="flex flex-col items-end gap-0.5 shrink-0">
                     <span className="text-[10px] text-hoff-text-tertiary uppercase tracking-wider">Pay with</span>
-                    {details.payoutToken !== null && (
+                    {shouldShowTokenSelector(details.payoutToken) && (
                       <TokenSelector
                         selected={selectedToken}
                         onChange={(key) => {
