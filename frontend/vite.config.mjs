@@ -1,24 +1,21 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "tailwindcss";
-import autoprefixer from "autoprefixer";
-import { fileURLToPath } from "url";
-import path from "path";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from 'tailwindcss'
+import autoprefixer from 'autoprefixer'
+import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
-  base: "/",
-  envPrefix: "VITE_",
+  base: '/',
+  envPrefix: 'VITE_',
   css: {
     postcss: {
       plugins: [tailwindcss, autoprefixer],
     },
   },
-  resolve: { alias: { "@": path.resolve(__dirname, "src") } },
+  resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
   build: {
-    outDir: "dist",
+    outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
       output: {
@@ -36,8 +33,8 @@ export default defineConfig({
       '/api/uniswap': {
         target: 'https://trade-api.gateway.uniswap.org/v1',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/uniswap/, ''),
+        rewrite: (requestPath) => requestPath.replace(/^\/api\/uniswap/, ''),
       },
     },
   },
-});
+})

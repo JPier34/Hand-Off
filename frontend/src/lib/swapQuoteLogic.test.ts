@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { TOKENS } from '@/lib/tokens'
-import { buildExactOutputQuoteRequest } from '@/lib/swapQuoteLogic'
+import { TOKENS } from './tokens'
+import { buildExactOutputQuoteRequest } from './swapQuoteLogic'
 
 const SWAPPER = '0x1111111111111111111111111111111111111111' as const
 

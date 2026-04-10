@@ -7,6 +7,7 @@ import { hashUnlockCode } from '@/lib/code-gen'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { TOKENS, getTokenByAddress } from '@/lib/tokens'
+import { extractEnsMintFallbackArgs } from '@/lib/ensFallback'
 import type { Address } from '@/lib/types'
 import type { Abi } from 'viem'
 
@@ -220,28 +221,11 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
     if (!isSuccess || !receipt || SUBNAME_ADDRESS === '0x0000000000000000000000000000000000000000') return
 
     try {
-      // Check if on-chain mint failed — SubnameMintFailed is emitted only on revert
-      const failedLogs = parseEventLogs({
-        abi:       HANDOFF_ABI as Abi,
-        logs:      receipt.logs,
-        eventName: 'SubnameMintFailed',
-      })
-      if (failedLogs.length === 0) {
+      const args = extractEnsMintFallbackArgs(receipt.logs)
+      if (!args) {
         // On-chain mint succeeded — nothing to do
         console.log('[useReleaseEscrow] ENS subname minted on-chain — skipping frontend fallback')
         return
-      }
-
-      // On-chain mint failed — parse SubnameMintRequested for args and retry from wallet
-      const requestedLogs = parseEventLogs({
-        abi:       HANDOFF_ABI as Abi,
-        logs:      receipt.logs,
-        eventName: 'SubnameMintRequested',
-      })
-      if (requestedLogs.length === 0) return
-
-      const args = requestedLogs[0].args as {
-        dealId: bigint; escrow: Address; buyer: Address; seller: Address; amount: bigint; timestamp: bigint
       }
 
       console.log('[useReleaseEscrow] On-chain ENS mint failed — retrying from wallet for dealId:', args.dealId.toString())

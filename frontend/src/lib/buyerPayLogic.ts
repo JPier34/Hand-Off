@@ -1,5 +1,5 @@
-import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
-import type { Address } from '@/lib/types'
+import { TOKENS, TOKEN_KEYS, type TokenKey } from './tokens'
+import type { Address } from './types'
 
 export function getAutoSelectedTokenKey(payoutToken: Address | null): TokenKey {
   const matchedKey = TOKEN_KEYS.find(key => {

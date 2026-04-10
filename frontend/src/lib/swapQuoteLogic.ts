@@ -1,6 +1,6 @@
-import { TOKENS, type TokenKey } from '@/lib/tokens'
-import type { Address } from '@/lib/types'
-import type { QuoteRequest } from '@/lib/uniswap'
+import { TOKENS, type TokenKey } from './tokens'
+import type { Address } from './types'
+import type { QuoteRequest } from './uniswap'
 
 const SEPOLIA_CHAIN_ID = '11155111'
 

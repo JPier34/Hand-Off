@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { TOKENS } from '@/lib/tokens'
-import { getAutoSelectedTokenKey, shouldShowTokenSelector, shouldUseSwapPath } from '@/lib/buyerPayLogic'
+import { TOKENS } from './tokens'
+import { getAutoSelectedTokenKey, shouldShowTokenSelector, shouldUseSwapPath } from './buyerPayLogic'
 
 describe('buyerPayLogic', () => {
   it('defaults to ETH for native ETH escrows', () => {
