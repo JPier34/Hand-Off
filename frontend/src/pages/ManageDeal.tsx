@@ -11,11 +11,11 @@ import { useDealDetails, parseDealParam } from '@/hooks/useEscrow'
 import { useReleaseEscrow, useCancelDeal, useEditDeal, useSubmitReview } from '@/hooks/useEscrowWrite'
 import { parseContractError } from '@/lib/errors'
 import { EscrowStatus } from '@/lib/types'
-import { MOCK_MODE } from '@/lib/mock'
 import { IntroScreen } from '@/components/escrow/IntroScreen'
 import { payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
+import { DealReceiptBadge } from '@/components/DealReceiptBadge'
 import { useReputation } from '@/hooks/useReputation'
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -109,6 +109,7 @@ interface ViewEscrowProps {
   amount: bigint
   expiresAt: bigint
   seller: string
+  sellerEns: string
   status: EscrowStatus
   description: string
   sym: string
@@ -117,7 +118,7 @@ interface ViewEscrowProps {
   onUnlock: () => void
 }
 
-function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, description, sym, fmt, usdLabel, onUnlock }: ViewEscrowProps) {
+function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, sellerEns, status, description, sym, fmt, usdLabel, onUnlock }: ViewEscrowProps) {
   const navigate = useNavigate()
   const { reputation } = useReputation(seller as `0x${string}`)
   const payLink = `${window.location.origin}/pay/${dealIdParam}`
@@ -198,13 +199,12 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, status, descri
             <p className="text-xs text-hoff-text-tertiary mb-0.5">Creator</p>
             <EnsName
               address={seller as `0x${string}`}
+              hint={sellerEns || undefined}
               className="text-sm text-hoff-text-primary font-mono truncate block"
             />
           </div>
           <a
-            href={MOCK_MODE
-              ? `https://sepolia.basescan.org/address/${seller}`
-              : `https://sepolia.basescan.org/address/${seller}`}
+            href={`https://sepolia.etherscan.io/address/${seller}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-hoff-text-tertiary hover:text-hoff-text-secondary transition-colors shrink-0"
@@ -417,10 +417,7 @@ interface CompletedProps {
 function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, onSubmitReview }: CompletedProps) {
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
-  const etherscanBase = 'https://sepolia.basescan.org/tx/'
-  const etherscanHref = MOCK_MODE
-    ? `${etherscanBase}0x0000000000000000000000000000000000000000000000000000000000000000`
-    : etherscanBase
+  const etherscanHref = 'https://sepolia.etherscan.io/tx/'
 
   return (
     <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
@@ -461,6 +458,9 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, o
           <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
       </div>
+
+      {/* ENS Receipt Badge */}
+      <DealReceiptBadge dealIdParam={dealIdParam} />
 
       {/* Etherscan */}
       <a
@@ -559,12 +559,12 @@ export default function ManageDeal() {
     )
   }
 
-  const mockDealId = dealId ?? 0n
+  const dealIdOrZero = dealId ?? 0n
 
   const { details, isLoading, isError, escrowAddress }                              = useDealDetails(dealId, directAddress)
-  const { release, isPending, isConfirming, isSuccess, isError: releaseError, error: releaseErrorObj } = useReleaseEscrow(mockDealId, escrowAddress)
-  const cancelDeal = useCancelDeal(mockDealId, escrowAddress)
-  const editDeal   = useEditDeal(mockDealId, escrowAddress)
+  const { release, isPending, isConfirming, isSuccess, isError: releaseError, error: releaseErrorObj } = useReleaseEscrow(dealIdOrZero, escrowAddress)
+  const cancelDeal = useCancelDeal(dealIdOrZero, escrowAddress)
+  const editDeal   = useEditDeal(dealIdOrZero, escrowAddress)
   const reviewHook = useSubmitReview(escrowAddress)
 
   // Token display helpers
@@ -574,8 +574,7 @@ export default function ManageDeal() {
   const usdRaw = useUsdValue(details?.amount ?? 0n, details?.payoutToken ?? null)
   const usdLabel = usdRaw ? `≈ $${usdRaw} USD` : ''
 
-  // In mock mode there's no connected wallet — treat the user as the seller
-  const isSeller = MOCK_MODE || !!(address && details && address.toLowerCase() === details.seller.toLowerCase())
+  const isSeller = !!(address && details && address.toLowerCase() === details.seller.toLowerCase())
 
   // ─── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
@@ -942,6 +941,7 @@ export default function ManageDeal() {
         amount={details.amount}
         expiresAt={details.expiresAt}
         seller={details.seller}
+        sellerEns={details.sellerEns}
         status={details.status}
         description={details.description}
         sym={sym}

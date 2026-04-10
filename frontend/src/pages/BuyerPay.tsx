@@ -14,11 +14,11 @@ import { parseContractError } from '@/lib/errors'
 import { useQuote, useSwapAndDeposit } from '@/hooks/useTokenSwap'
 import { generateUnlockCode, hashUnlockCode } from '@/lib/code-gen'
 import { EscrowStatus } from '@/lib/types'
-import { MOCK_MODE, mockExpire } from '@/lib/mock'
 import { IntroScreen } from '@/components/escrow/IntroScreen'
 import { TOKENS, TOKEN_KEYS, type TokenKey, payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
+import { DealReceiptBadge } from '@/components/DealReceiptBadge'
 import { useReputation } from '@/hooks/useReputation'
 
 const PROTOCOL_FEE_BPS  = 10n   // 0.1%
@@ -177,10 +177,7 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
-  const etherscanBase = 'https://sepolia.basescan.org/tx/'
-  const etherscanHref = MOCK_MODE
-    ? `${etherscanBase}0x0000000000000000000000000000000000000000000000000000000000000000`
-    : etherscanBase
+  const etherscanHref = 'https://sepolia.etherscan.io/tx/'
 
   function handleSubmit() {
     if (!review) return
@@ -230,6 +227,9 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
           Only share this in person at the handoff
         </p>
       </div>
+
+      {/* ENS Receipt Badge */}
+      <DealReceiptBadge dealIdParam={dealIdParam} />
 
       <a
         href={etherscanHref}
@@ -330,15 +330,15 @@ export default function BuyerPay() {
 
   // ─── Hooks (always called, rules of hooks) ─────────────────────────────────
   const { details, isLoading, isError, escrowAddress }                     = useDealDetails(dealId, directAddress)
-  const mockDealId = dealId ?? 0n
-  const { deposit, isPending, isConfirming, isSuccess, isError: txError, error: txErrorObj } = useDepositFunds(mockDealId, escrowAddress)
-  const refund = useClaimRefund(mockDealId, escrowAddress)
+  const dealIdOrZero = dealId ?? 0n
+  const { deposit, isPending, isConfirming, isSuccess, isError: txError, error: txErrorObj } = useDepositFunds(dealIdOrZero, escrowAddress)
+  const refund = useClaimRefund(dealIdOrZero, escrowAddress)
   const reviewHook = useSubmitReview(escrowAddress)
 
   const amountWei = details?.amount ?? 0n
   const usdValue  = useUsdValue(amountWei, details?.payoutToken ?? null)
   const { quotedIn, quoteResponse, isLoading: quoteLoading, error: quoteError } = useQuote(selectedToken, amountWei)
-  const swap = useSwapAndDeposit(mockDealId, selectedToken, escrowAddress, quoteResponse)
+  const swap = useSwapAndDeposit(dealIdOrZero, selectedToken, escrowAddress, quoteResponse)
 
   const { reputation } = useReputation(details?.seller as `0x${string}` | undefined)
   const isSwapPath = selectedToken !== 'ETH'
@@ -396,7 +396,6 @@ export default function BuyerPay() {
           dealIdParam={dealIdParam}
           onSubmitReview={(vote) => {
             reviewHook.submitReview(vote === 'positive')
-            if (MOCK_MODE) setTimeout(() => navigate('/'), 800)
           }}
         />
       </Layout>
@@ -587,6 +586,7 @@ export default function BuyerPay() {
                   <p className="text-xs text-hoff-text-tertiary mb-0.5">Creator</p>
                   <EnsName
                     address={details.seller as `0x${string}`}
+                    hint={details.sellerEns || undefined}
                     className="text-sm text-hoff-text-primary font-mono truncate block"
                   />
                 </div>
@@ -704,16 +704,6 @@ export default function BuyerPay() {
                   </p>
                 </div>
               </div>
-            )}
-
-            {/* Mock debug: simulate expiry — poll picks up the change within 500ms */}
-            {MOCK_MODE && details.status === EscrowStatus.FUNDED && !isExpired && (
-              <button
-                onClick={() => mockExpire(mockDealId)}
-                className="w-full text-xs text-hoff-text-tertiary hover:text-amber-400 transition-colors py-1 text-center"
-              >
-                [Mock] Simulate expiry
-              </button>
             )}
 
             <p className="text-xs text-hoff-text-tertiary text-center pb-4">

@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react'
-import { parseEther, isAddress, createPublicClient, http } from 'viem'
+import { parseEther, isAddress } from 'viem'
+import type { Address } from 'viem'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
-import { mainnet } from 'viem/chains'
 import { useNavigate } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
-import { Spinner } from '@/components/ui/Spinner'
+import { EnsInput } from '@/components/EnsInput'
 import { useCreateDeal } from '@/hooks/useEscrowWrite'
-import { MOCK_MODE } from '@/lib/mock'
 import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 
@@ -41,28 +40,15 @@ export default function CreateDeal() {
 
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
-  const isEnsInput = recipient.endsWith('.eth')
-  const [resolvedAddress, setResolvedAddress] = useState<string | null>(null)
-  const [ensLoading, setEnsLoading] = useState(false)
+  const [resolvedAddress, setResolvedAddress] = useState<Address | null>(null)
   const [payoutAddressConfirmed, setPayoutAddressConfirmed] = useState(false)
 
+  const isEnsInput = recipient.endsWith('.eth')
+
+  // Reset confirmation when recipient changes
   useEffect(() => {
-    // Reset confirmation whenever the recipient or resolved address changes
     setPayoutAddressConfirmed(false)
-    if (!isEnsInput || recipient.length <= 4) {
-      setResolvedAddress(null)
-      return
-    }
-    let cancelled = false
-    setEnsLoading(true)
-    const client = createPublicClient({ chain: mainnet, transport: http('https://ethereum-rpc.publicnode.com') })
-    client.getEnsAddress({ name: recipient }).then((addr) => {
-      if (!cancelled) { setResolvedAddress(addr); setEnsLoading(false) }
-    }).catch(() => {
-      if (!cancelled) { setResolvedAddress(null); setEnsLoading(false) }
-    })
-    return () => { cancelled = true }
-  }, [recipient, isEnsInput])
+  }, [recipient])
   const [description, setDescription] = useState('')
   const [payoutToken, setPayoutToken] = useState<TokenKey>('ETH')
   const [timeoutHours, setTimeoutHours] = useState(168)
@@ -264,50 +250,32 @@ export default function CreateDeal() {
               </div>
             </div>
 
-            {/* ENS name (display only — payout goes to connected wallet) */}
-            <div className="bg-hoff-surface rounded-2xl p-5">
-              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-1">
-                Your ENS Name <span className="normal-case font-normal">(Optional)</span>
-              </p>
-              <p className="text-xs text-hoff-text-tertiary mb-3">
-                Funds are sent to your connected wallet. Enter your ENS name to display it on the payment page.
-              </p>
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={recipient}
-                  onChange={e => setRecipient(e.target.value)}
-                  placeholder="yourname.eth"
-                  className="flex-1 bg-transparent text-hoff-text-primary text-sm placeholder:text-hoff-text-tertiary focus:outline-none"
-                />
-              </div>
-              {isEnsInput && ensLoading && (
-                <p className="text-xs text-hoff-text-tertiary mt-2">Resolving…</p>
-              )}
-              {isEnsInput && !ensLoading && resolvedAddress && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-xs text-green-400 flex items-center gap-1">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                    Resolved to:
-                  </p>
-                  <p className="text-xs font-mono break-all text-hoff-text-primary bg-hoff-elevated rounded-lg px-3 py-2">
-                    {resolvedAddress}
-                  </p>
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={payoutAddressConfirmed}
-                      onChange={e => setPayoutAddressConfirmed(e.target.checked)}
-                      className="mt-0.5 accent-hoff-accent"
-                    />
-                    <span className="text-xs text-hoff-text-tertiary">
-                      I confirm this is the correct payout address. Funds sent to a wrong address are unrecoverable.
-                    </span>
-                  </label>
-                </div>
-              )}
-              {isEnsInput && !ensLoading && !resolvedAddress && recipient.length > 4 && (
-                <p className="text-xs text-red-400 mt-2">Could not resolve ENS name</p>
+            {/* Payout address / ENS name */}
+            <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
+              <EnsInput
+                value={recipient}
+                onChange={setRecipient}
+                onResolved={addr => {
+                  setResolvedAddress(addr)
+                  setPayoutAddressConfirmed(false)
+                }}
+                label="Payout Address (Optional)"
+                hint="Enter your ENS name or a different wallet to receive funds. Leave blank to use your connected wallet."
+                placeholder="yourname.eth or 0x..."
+              />
+              {/* Explicit confirmation required when an ENS name resolves to an address */}
+              {isEnsInput && resolvedAddress && (
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={payoutAddressConfirmed}
+                    onChange={e => setPayoutAddressConfirmed(e.target.checked)}
+                    className="mt-0.5 accent-hoff-accent"
+                  />
+                  <span className="text-xs text-hoff-text-tertiary">
+                    I confirm this is the correct payout address. Funds sent to a wrong address are unrecoverable.
+                  </span>
+                </label>
               )}
             </div>
 
