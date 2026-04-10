@@ -11,13 +11,13 @@ import { MOCK_MODE } from '@/lib/mock'
 import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 
-function validate(amount: string, description: string) {
+function validate(amount: string, description: string, decimals: number) {
   const errors: { amount?: string; description?: string } = {}
   if (!amount) {
     errors.amount = 'Required'
   } else {
     try {
-      const parsed = parseUnits(amount as `${number}`, 18)
+      const parsed = parseUnits(amount as `${number}`, decimals)
       if (parsed <= 0n) errors.amount = 'Must be greater than 0'
     } catch {
       errors.amount = 'Enter a valid number (e.g. 0.05)'
@@ -68,11 +68,11 @@ export default function CreateDeal() {
   const { create, isPending, isConfirming, isSuccess, isError, error, newDealId, newEscrowAddress } =
     useCreateDeal()
 
-  const errors = validate(amount, description)
-  const hasErrors = Object.keys(errors).length > 0
-
   // USD estimate for the entered amount — use token-specific decimals
   const tokenDecimals = TOKENS[payoutToken]?.decimals ?? 18
+
+  const errors = validate(amount, description, tokenDecimals)
+  const hasErrors = Object.keys(errors).length > 0
   const parsedAmount = (() => { try { return amount ? parseUnits(amount as `${number}`, tokenDecimals) : 0n } catch { return 0n } })()
   const tokenAddr = TOKENS[payoutToken]?.address ?? null
   const usdValue = useUsdValue(parsedAmount, tokenAddr)

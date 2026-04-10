@@ -3,7 +3,7 @@ import { useAccount } from 'wagmi'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
-import { TOKENS, WETH_ADDRESS, type TokenKey } from '@/lib/tokens'
+import { TOKENS, WETH_ADDRESS, type TokenKey, payoutDecimals } from '@/lib/tokens'
 import { fetchQuote, getInputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
 import { HANDOFF_ABI, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
 import type { Address } from '@/lib/types'
@@ -42,7 +42,7 @@ const IDLE_SWAP: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
 
 // ─── Mock: useQuote ───────────────────────────────────────────────────────────
 
-function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
+function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutTokenDecimals = 18): QuoteResult {
   const [isLoading, setIsLoading] = useState(false)
   const [quotedIn, setQuotedIn]   = useState<bigint | undefined>(undefined)
 
@@ -54,14 +54,17 @@ function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
     setQuotedIn(undefined)
     const id = setTimeout(() => {
       // mockRate is "smallest unit per 1 ETH (10^18 wei)"
-      // quotedIn = amountOutWei * mockRate / 10^18
-      const result = (amountOutWei * token.mockRate) / 10n ** 18n
+      // Normalize amountOutWei to 18-decimal base before applying mockRate
+      const normalized = payoutTokenDecimals === 18
+        ? amountOutWei
+        : amountOutWei * 10n ** BigInt(18 - payoutTokenDecimals)
+      const result = (normalized * token.mockRate) / 10n ** 18n
       setQuotedIn(result)
       setIsLoading(false)
     }, 400)
 
     return () => clearTimeout(id)
-  }, [tokenKey, amountOutWei])
+  }, [tokenKey, amountOutWei, payoutTokenDecimals])
 
   return { quotedIn, quoteResponse: null, isLoading, error: null }
 }
@@ -265,8 +268,9 @@ function useRealSwapAndDeposit(
 // ─── Public exports ───────────────────────────────────────────────────────────
 
 export function useQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutTokenAddress: Address | null = null): QuoteResult {
+  const payoutDec = payoutDecimals(payoutTokenAddress)
   const real = useRealQuote(tokenKey, amountOutWei, payoutTokenAddress)
-  const mock = useMockQuote(tokenKey, amountOutWei)
+  const mock = useMockQuote(tokenKey, amountOutWei, payoutDec)
   return MOCK_MODE ? mock : real
 }
 

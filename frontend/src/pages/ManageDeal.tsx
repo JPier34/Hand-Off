@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
-import { formatEther, formatUnits, parseEther } from 'viem'
+import { formatEther, formatUnits, parseEther, parseUnits } from 'viem'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
@@ -159,19 +159,15 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, sellerEns, sta
 
       {/* Amount card */}
       <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-            Amount Due
-          </p>
-          <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            {sym}
-          </span>
-        </div>
+        <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+          Amount
+        </p>
 
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
             {fmt(amount)}
           </span>
+          <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
           <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
 
@@ -352,18 +348,14 @@ function ClaimFundsView({
 
       {/* You will receive */}
       <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-            You Will Receive
-          </p>
-          <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            {sym}
-          </span>
-        </div>
+        <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+          You Will Receive
+        </p>
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
             {fmt(amount)}
           </span>
+          <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
           <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
       </div>
@@ -458,18 +450,14 @@ function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usd
 
       {/* Amount received */}
       <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-            You Will Receive
-          </p>
-          <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            {sym}
-          </span>
-        </div>
+        <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+          You Will Receive
+        </p>
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
             {fmt(amount)}
           </span>
+          <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
           <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
       </div>
@@ -755,7 +743,7 @@ export default function ManageDeal() {
     if (showEdit) {
       const amountValid = (() => {
         if (!editAmount) return false
-        try { return parseEther(editAmount as `${number}`) > 0n } catch { return false }
+        try { return parseUnits(editAmount as `${number}`, dec) > 0n } catch { return false }
       })()
 
       return (
@@ -834,7 +822,7 @@ export default function ManageDeal() {
                   if (!amountValid) return
                   const newExpiry = BigInt(Math.floor(Date.now() / 1000) + editExpirationHours * 3600)
                   editDeal.edit(
-                    parseEther(editAmount as `${number}`),
+                    parseUnits(editAmount as `${number}`, dec),
                     editDescription,
                     (details?.payoutToken ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
                     (details?.seller ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
@@ -876,13 +864,13 @@ export default function ManageDeal() {
           </div>
 
           <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">Amount</p>
-              <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">{sym}</span>
+            <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">Amount</p>
+            <div>
+              <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
+                {fmt(details.amount)}
+              </span>
+              <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
             </div>
-            <span className="text-5xl font-bold text-hoff-text-primary tabular-nums block">
-              {fmt(details.amount)}
-            </span>
             <div className="space-y-1.5 pt-1 border-t border-hoff-brand">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-hoff-text-tertiary">Expires in</span>
@@ -934,7 +922,7 @@ export default function ManageDeal() {
                 variant="ghost"
                 fullWidth
                 onClick={() => {
-                  setEditAmount(formatEther(details.amount))
+                  setEditAmount(formatUnits(details.amount, dec))
                   setEditDescription(details.description)
                   setEditExpirationHours(168)
                   setShowEdit(true)

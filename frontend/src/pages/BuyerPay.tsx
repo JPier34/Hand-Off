@@ -21,8 +21,6 @@ import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
 import { useReputation } from '@/hooks/useReputation'
 
-const PROTOCOL_FEE_BPS  = 10n   // 0.1%
-const EST_GAS           = 800_000_000_000_000n // ~0.0008 ETH placeholder
 const DEFAULT_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 function isValidDealParam(param: string | undefined): param is string {
@@ -95,11 +93,13 @@ interface SwapPreviewProps {
   tokenKey: TokenKey
   quotedIn: bigint | undefined
   amountOutWei: bigint
+  payoutSymbol: string
+  payoutDecimals: number
   isLoading: boolean
   error: string | null
 }
 
-function SwapPreview({ tokenKey, quotedIn, amountOutWei, isLoading, error }: SwapPreviewProps) {
+function SwapPreview({ tokenKey, quotedIn, amountOutWei, payoutSymbol: outSym, payoutDecimals: outDec, isLoading, error }: SwapPreviewProps) {
   if (tokenKey === 'ETH') return null
 
   const token = TOKENS[tokenKey]
@@ -139,7 +139,7 @@ function SwapPreview({ tokenKey, quotedIn, amountOutWei, isLoading, error }: Swa
             <div className="text-right">
               <p className="text-xs text-hoff-text-tertiary mb-0.5">Seller receives</p>
               <p className="text-lg font-bold text-hoff-text-primary">
-                {formatEther(amountOutWei)} ETH
+                {formatUnits(amountOutWei, outDec)} {outSym}
               </p>
             </div>
           </div>
@@ -150,14 +150,14 @@ function SwapPreview({ tokenKey, quotedIn, amountOutWei, isLoading, error }: Swa
           </div>
 
           <p className="text-xs text-hoff-text-tertiary">
-            Powered by Uniswap. Your {token.symbol} will be swapped to ETH and deposited into the escrow.
+            Powered by Uniswap. Your {token.symbol} will be swapped to {outSym} and deposited into the escrow.
           </p>
         </>
       )}
 
       {!isLoading && !error && quotedIn === undefined && (
         <p className="text-sm text-hoff-text-tertiary py-2">
-          No swap route available — try a different token or fund directly with ETH.
+          No swap route available — try a different token or fund directly with {outSym}.
         </p>
       )}
     </div>
@@ -346,12 +346,16 @@ export default function BuyerPay() {
   const reviewHook = useSubmitReview(escrowAddress)
 
   const amountWei = details?.amount ?? 0n
-  const usdValue  = useUsdValue(amountWei, details?.payoutToken ?? null)
+  const isSwapPath = (TOKENS[selectedToken]?.address?.toLowerCase() ?? null) !== (details?.payoutToken?.toLowerCase() ?? null)
+  const baseUsdValue = useUsdValue(amountWei, details?.payoutToken ?? null)
   const { quotedIn, quoteResponse, isLoading: quoteLoading, error: quoteError } = useQuote(selectedToken, amountWei, details?.payoutToken ?? null)
+  // When paying via swap, show USD based on what the user actually pays
+  const swapTokenAddr = TOKENS[selectedToken]?.address ?? null
+  const swapUsdValue  = useUsdValue(quotedIn ?? 0n, swapTokenAddr)
+  const usdValue = (isSwapPath && quotedIn !== undefined && swapUsdValue) ? swapUsdValue : baseUsdValue
   const swap = useSwapAndDeposit(mockDealId, selectedToken, escrowAddress, quoteResponse)
 
   const { reputation } = useReputation(details?.seller as `0x${string}` | undefined)
-  const isSwapPath = (TOKENS[selectedToken]?.address?.toLowerCase() ?? null) !== (details?.payoutToken?.toLowerCase() ?? null)
 
   // Restore saved unlock code from localStorage when a FUNDED escrow is revisited after page refresh
   useEffect(() => {
@@ -437,9 +441,7 @@ export default function BuyerPay() {
   const dec  = details ? payoutDecimals(details.payoutToken) : 18
   const fmt  = (v: bigint) => formatUnits(v, dec)
 
-  // ─── Fee calc ───────────────────────────────────────────────────────────────
-  const protocolFee = details ? (details.amount * PROTOCOL_FEE_BPS) / 10_000n : 0n
-  const total       = details ? details.amount + protocolFee : 0n
+  // ─── Fee calc (protocol fee is handled by the contract internally) ──────────
 
   // ─── TX state helpers ───────────────────────────────────────────────────────
   const anyPending    = isSwapPath ? (swap.isApprovePending || swap.isSwapPending) : isPending
@@ -458,6 +460,12 @@ export default function BuyerPay() {
       const n = parseFloat(full)
       const display = n === 0 ? full : n.toPrecision(6).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
       return `Pay ${display} ${token.symbol}`
+    }
+    if (!isSwapPath && details) {
+      const full = formatUnits(details.amount, dec)
+      const n = parseFloat(full)
+      const display = n === 0 ? full : n.toPrecision(6).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+      return `Pay ${display} ${sym}`
     }
     return 'Fund Escrow'
   }
@@ -552,18 +560,13 @@ export default function BuyerPay() {
                     const paySym = payToken.symbol
                     return (
                       <>
-                        <FeeRow label={`Escrow Amount (${sym})`} value={`${fmt(details.amount)} ${sym}`} />
-                        <FeeRow label={`You pay (${paySym})`} value={`${payFmt(quotedIn)} ${paySym}`} />
-                        <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
+                        <FeeRow label="Seller receives" value={`${fmt(details.amount)} ${sym}`} />
+                        <FeeRow label="Slippage tolerance" value="0.5%" />
                         <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
-                          <FeeRow label="Total" value={`≈ ${payFmt(quotedIn)} ${paySym} + gas`} highlight />
-                        </div>
-                        <div className="flex items-center justify-between pt-1.5 border-t border-hoff-brand">
-                          <span className="text-xs text-hoff-text-tertiary">Slippage</span>
-                          <span className="text-xs text-hoff-text-secondary">0.5%</span>
+                          <FeeRow label="You pay" value={`${payFmt(quotedIn)} ${paySym}`} highlight />
                         </div>
                         <p className="text-[10px] text-hoff-text-tertiary pt-1">
-                          Powered by Uniswap · {paySym} → {sym}
+                          Powered by Uniswap · {paySym} → {sym} · Gas fees are shown in your wallet
                         </p>
                       </>
                     )
@@ -576,12 +579,10 @@ export default function BuyerPay() {
                 </>
               ) : (
                 <>
-                  <FeeRow label="Escrow Amount" value={`${fmt(details.amount)} ${sym}`} />
-                  <FeeRow label="Protocol Fee (0.1%)" value={`${fmt(protocolFee)} ${sym}`} />
-                  <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
-                  <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
-                    <FeeRow label="Total" value={`${fmt(total)} ${sym} + gas`} highlight />
-                  </div>
+                  <FeeRow label="You pay" value={`${fmt(details.amount)} ${sym}`} highlight />
+                  <p className="text-[10px] text-hoff-text-tertiary pt-1">
+                    Gas fees are shown in your wallet
+                  </p>
                 </>
               )}
             </div>
