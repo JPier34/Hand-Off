@@ -60,7 +60,7 @@ const PRESETS: Record<number, MockDealState> = {
     expiresAt: BigInt(Math.floor(Date.now() / 1000) + 86400 * 4), // 4 days
     description: 'MacBook Air M2 – Vinted',
     sellerEns: '', buyerEns: '',
-    payoutToken: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
+    payoutToken: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address,
   },
   22: {
     seller: '0x14dC79964da2C08daa4968307C1AE8E82DACd0da' as Address,
@@ -70,7 +70,7 @@ const PRESETS: Record<number, MockDealState> = {
     expiresAt: BigInt(Math.floor(Date.now() / 1000) + 86400 * 3), // 3 days
     description: 'Rolex Submariner – Chrono24',
     sellerEns: '', buyerEns: '',
-    payoutToken: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
+    payoutToken: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address,
   },
   27: {
     seller: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc' as Address,
@@ -80,7 +80,7 @@ const PRESETS: Record<number, MockDealState> = {
     expiresAt: BigInt(Math.floor(Date.now() / 1000) - 259200),
     description: 'Canon EOS R6 – eBay Kleinanzeigen',
     sellerEns: '', buyerEns: '',
-    payoutToken: '0x7683022d84F726a96c4A6611cD31DBf5409C0Ac9' as Address,
+    payoutToken: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address,
   },
   25: {
     seller: MOCK_SELLER,
@@ -90,7 +90,7 @@ const PRESETS: Record<number, MockDealState> = {
     expiresAt: BigInt(Math.floor(Date.now() / 1000) - 432000),
     description: 'Herman Miller Aeron – Craigslist',
     sellerEns: '', buyerEns: '',
-    payoutToken: '0x4200000000000000000000000000000000000006' as Address,
+    payoutToken: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14' as Address,
   },
   31: {
     seller: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65' as Address,
@@ -100,7 +100,7 @@ const PRESETS: Record<number, MockDealState> = {
     expiresAt: BigInt(Math.floor(Date.now() / 1000) - 172800),
     description: 'AirPods Pro – Facebook Marketplace',
     sellerEns: '', buyerEns: '',
-    payoutToken: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
+    payoutToken: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address,
   },
   29: {
     seller: MOCK_SELLER,

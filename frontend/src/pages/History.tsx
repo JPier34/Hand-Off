@@ -65,7 +65,7 @@ const MOCK_HISTORY: HistoryEntry[] = [
       status: EscrowStatus.FUNDED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) + 86400),
       description: 'MacBook Air M2 – Vinted',
-      payoutToken: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address, // USDC
+      payoutToken: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address, // USDC
       sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 1 * 86400_000,
@@ -80,7 +80,7 @@ const MOCK_HISTORY: HistoryEntry[] = [
       status: EscrowStatus.EXPIRED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) - 172800),
       description: 'AirPods Pro – Facebook Marketplace',
-      payoutToken: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address, // USDC
+      payoutToken: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address, // USDC
       sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 10 * 86400_000,
@@ -110,7 +110,7 @@ const MOCK_HISTORY: HistoryEntry[] = [
       status: EscrowStatus.COMPLETED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) - 259200),
       description: 'Canon EOS R6 – eBay Kleinanzeigen',
-      payoutToken: '0x7683022d84F726a96c4A6611cD31DBf5409C0Ac9' as Address, // DAI
+      payoutToken: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address, // DAI
       sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 14 * 86400_000,
@@ -126,7 +126,7 @@ const MOCK_HISTORY: HistoryEntry[] = [
       status: EscrowStatus.COMPLETED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) - 432000),
       description: 'Herman Miller Aeron – Craigslist',
-      payoutToken: '0x4200000000000000000000000000000000000006' as Address, // WETH
+      payoutToken: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14' as Address, // WETH
       sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 20 * 86400_000,
@@ -142,7 +142,7 @@ const MOCK_HISTORY: HistoryEntry[] = [
       status: EscrowStatus.FUNDED,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) + 172800),
       description: 'Rolex Submariner – Chrono24',
-      payoutToken: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address, // USDC
+      payoutToken: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as Address, // USDC
       sellerEns: '', buyerEns: '',
     },
     date: Date.now() - 12 * 3600_000,

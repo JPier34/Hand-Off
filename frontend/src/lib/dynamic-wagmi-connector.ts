@@ -1,6 +1,6 @@
 import { createConnector } from 'wagmi'
 import { getWalletAccounts, onEvent } from '@dynamic-labs-sdk/client'
-import { baseSepolia } from 'wagmi/chains'
+import { sepolia } from 'wagmi/chains'
 import type { Address } from 'viem'
 
 /**
@@ -40,7 +40,7 @@ export function dynamicWagmiConnector() {
         if (!walletAccount) throw new Error('No Dynamic wallet connected')
 
         const addr = walletAccount.address as Address
-        const chainId = baseSepolia.id as number
+        const chainId = sepolia.id as number
 
         config.emitter.emit('connect', { accounts: [addr] as readonly Address[], chainId })
         return { accounts: [addr] as readonly Address[], chainId }
@@ -57,7 +57,7 @@ export function dynamicWagmiConnector() {
       },
 
       async getChainId() {
-        return baseSepolia.id
+        return sepolia.id
       },
 
       async getProvider() {

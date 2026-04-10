@@ -44,8 +44,11 @@ export default function CreateDeal() {
   const isEnsInput = recipient.endsWith('.eth')
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null)
   const [ensLoading, setEnsLoading] = useState(false)
+  const [payoutAddressConfirmed, setPayoutAddressConfirmed] = useState(false)
 
   useEffect(() => {
+    // Reset confirmation whenever the recipient or resolved address changes
+    setPayoutAddressConfirmed(false)
     if (!isEnsInput || recipient.length <= 4) {
       setResolvedAddress(null)
       return
@@ -282,10 +285,26 @@ export default function CreateDeal() {
                 <p className="text-xs text-hoff-text-tertiary mt-2">Resolving…</p>
               )}
               {isEnsInput && !ensLoading && resolvedAddress && (
-                <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  Verified: {resolvedAddress.slice(0, 6)}...{resolvedAddress.slice(-4)}
-                </p>
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs text-green-400 flex items-center gap-1">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    Resolved to:
+                  </p>
+                  <p className="text-xs font-mono break-all text-hoff-text-primary bg-hoff-elevated rounded-lg px-3 py-2">
+                    {resolvedAddress}
+                  </p>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={payoutAddressConfirmed}
+                      onChange={e => setPayoutAddressConfirmed(e.target.checked)}
+                      className="mt-0.5 accent-hoff-accent"
+                    />
+                    <span className="text-xs text-hoff-text-tertiary">
+                      I confirm this is the correct payout address. Funds sent to a wrong address are unrecoverable.
+                    </span>
+                  </label>
+                </div>
               )}
               {isEnsInput && !ensLoading && !resolvedAddress && recipient.length > 4 && (
                 <p className="text-xs text-red-400 mt-2">Could not resolve ENS name</p>
@@ -331,6 +350,7 @@ export default function CreateDeal() {
               fullWidth
               onClick={handleCreate}
               loading={isPending || isConfirming}
+              disabled={isEnsInput && !!resolvedAddress && !payoutAddressConfirmed}
               type="submit"
             >
               {isPending ? 'Confirm in wallet…' : isConfirming ? 'Deploying on-chain…' : 'Create HandOff'}

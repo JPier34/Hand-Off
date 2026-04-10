@@ -1,4 +1,5 @@
 [build]
+  base    = "frontend"
   command = "npm run build"
   publish = "dist"
 
@@ -7,3 +8,19 @@
   targetPort = 5173
   port = 8888
   autoLaunch = true
+
+# Branch deploys — ogni branch non-main ottiene il proprio URL di preview
+[context.branch-deploy]
+  command = "npm run build"
+  publish = "dist"
+
+# Context esplicito per test-jpier (le env var vengono impostate nel dashboard Netlify)
+[context.test-jpier]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from   = "/api/uniswap/*"
+  to     = "https://trade-api.gateway.uniswap.org/v1/:splat"
+  status = 200
+  force  = true

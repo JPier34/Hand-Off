@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { formatUnits } from 'viem'
 import type { Address } from '@/lib/types'
-import { payoutDecimals } from '@/lib/tokens'
+import { payoutDecimals, TOKENS, WETH_ADDRESS } from '@/lib/tokens'
 
 // CoinGecko free API — no key needed, 10-30 req/min
 const COINGECKO_URL = 'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd'
@@ -25,11 +25,10 @@ async function fetchEthPrice(): Promise<number> {
   }
 }
 
-// Stablecoin addresses (Base Sepolia) — assumed $1
+// Stablecoin addresses (Eth Sepolia) — assumed $1
 const STABLECOIN_ADDRS = new Set([
-  '0x036cbd53842c5426634e7929541ec2318f3dcf7e', // USDC
-  '0x7683022d84f726a96c4a6611cd31dbf5409c0ac9', // DAI
-])
+  TOKENS.USDC.address?.toLowerCase(), // USDC Eth Sepolia
+].filter(Boolean) as string[])
 
 function isStablecoin(addr: Address | null): boolean {
   if (!addr) return false
@@ -37,9 +36,8 @@ function isStablecoin(addr: Address | null): boolean {
 }
 
 // WETH = same price as ETH
-const WETH_ADDR = '0x4200000000000000000000000000000000000006'
 function isWeth(addr: Address | null): boolean {
-  return !!addr && addr.toLowerCase() === WETH_ADDR.toLowerCase()
+  return !!addr && addr.toLowerCase() === WETH_ADDRESS.toLowerCase()
 }
 
 /**
