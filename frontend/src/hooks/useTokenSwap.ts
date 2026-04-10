@@ -3,7 +3,7 @@ import { useAccount } from 'wagmi'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
-import { TOKENS, WETH_ADDRESS, type TokenKey } from '@/lib/tokens'
+import { TOKENS, type TokenKey } from '@/lib/tokens'
 import { fetchQuote, getOutputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
 import { HANDOFF_ABI, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
 import type { Address } from '@/lib/types'
@@ -42,13 +42,13 @@ const IDLE_SWAP: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
 
 // ─── Mock: useQuote ───────────────────────────────────────────────────────────
 
-function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
+function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null): QuoteResult {
   const [isLoading, setIsLoading] = useState(false)
   const [quotedIn, setQuotedIn]   = useState<bigint | undefined>(undefined)
 
   useEffect(() => {
     const token = TOKENS[tokenKey]
-    if (!token || tokenKey === 'ETH') { setQuotedIn(undefined); return }
+    if (!token || tokenKey === 'ETH' || !payoutToken) { setQuotedIn(undefined); return }
 
     setIsLoading(true)
     setQuotedIn(undefined)
@@ -61,14 +61,14 @@ function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
     }, 400)
 
     return () => clearTimeout(id)
-  }, [tokenKey, amountOutWei])
+  }, [tokenKey, amountOutWei, payoutToken])
 
   return { quotedIn, quoteResponse: null, isLoading, error: null }
 }
 
 // ─── Real: useQuote ───────────────────────────────────────────────────────────
 
-function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
+function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null): QuoteResult {
   const { address } = useAccount()
   const [isLoading, setIsLoading] = useState(false)
   const [quotedIn, setQuotedIn]   = useState<bigint | undefined>(undefined)
@@ -77,7 +77,7 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
 
   useEffect(() => {
     const token = TOKENS[tokenKey]
-    if (!token || tokenKey === 'ETH' || !address || amountOutWei <= 0n) {
+    if (!token || tokenKey === 'ETH' || !address || amountOutWei <= 0n || !payoutToken) {
       setQuotedIn(undefined)
       setQuoteResponse(null)
       return
@@ -90,11 +90,11 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
     const tokenIn = token.address
     if (!tokenIn) return
 
-    // EXACT_OUTPUT: we know how much ETH the escrow needs, get the USDC cost
+    // EXACT_OUTPUT: we know how much the escrow needs, get the input token cost
     fetchQuote({
       swapper:         address,
       tokenIn:         tokenIn,
-      tokenOut:        WETH_ADDRESS,       // seller wants ETH → swap to WETH
+      tokenOut:        payoutToken,
       tokenInChainId:  '11155111',         // Eth Sepolia
       tokenOutChainId: '11155111',
       amount:          amountOutWei.toString(),
@@ -115,7 +115,7 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
       })
 
     return () => { cancelled = true }
-  }, [tokenKey, amountOutWei, address])
+  }, [tokenKey, amountOutWei, address, payoutToken])
 
   return { quotedIn, quoteResponse, isLoading, error }
 }
@@ -261,9 +261,9 @@ function useRealSwapAndDeposit(
 
 // ─── Public exports ───────────────────────────────────────────────────────────
 
-export function useQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
-  const real = useRealQuote(tokenKey, amountOutWei)
-  const mock = useMockQuote(tokenKey, amountOutWei)
+export function useQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null): QuoteResult {
+  const real = useRealQuote(tokenKey, amountOutWei, payoutToken)
+  const mock = useMockQuote(tokenKey, amountOutWei, payoutToken)
   return MOCK_MODE ? mock : real
 }
 

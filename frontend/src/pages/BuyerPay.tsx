@@ -309,6 +309,7 @@ export default function BuyerPay() {
     }
   }
   const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
+  const [isAutoSelected, setIsAutoSelected] = useState(true)
   const [showIntro, setShowIntro] = useState(true)
 
   const { dealId, escrowAddress: directAddress } = parseDealParam(dealIdParam)
@@ -337,11 +338,17 @@ export default function BuyerPay() {
 
   const amountWei = details?.amount ?? 0n
   const usdValue  = useUsdValue(amountWei, details?.payoutToken ?? null)
-  const { quotedIn, quoteResponse, isLoading: quoteLoading, error: quoteError } = useQuote(selectedToken, amountWei)
+  const { quotedIn, quoteResponse, isLoading: quoteLoading, error: quoteError } = useQuote(
+    selectedToken,
+    amountWei,
+    details?.payoutToken ?? null,
+  )
   const swap = useSwapAndDeposit(dealIdOrZero, selectedToken, escrowAddress, quoteResponse)
 
   const { reputation } = useReputation(details?.seller as `0x${string}` | undefined)
-  const isSwapPath = selectedToken !== 'ETH'
+  const payoutTokenAddr = details?.payoutToken ?? null
+  const selectedTokenAddr = TOKENS[selectedToken]?.address ?? null
+  const isSwapPath = !!details && selectedToken !== 'ETH' && selectedTokenAddr !== payoutTokenAddr
 
   // Restore saved unlock code from localStorage when a FUNDED escrow is revisited after page refresh
   useEffect(() => {
@@ -351,6 +358,17 @@ export default function BuyerPay() {
       if (saved) setUnlockCodeState(saved)
     } catch { /* ignore */ }
   }, [escrowAddress, details?.status, unlockCode])
+
+  // Auto-select payout token when details load (unless user already picked a token)
+  useEffect(() => {
+    if (!details || !isAutoSelected) return
+    const payoutAddr = details.payoutToken ?? null
+    const matchedKey = TOKEN_KEYS.find(key => {
+      const addr = TOKENS[key].address ?? null
+      return (addr ?? '').toLowerCase() === (payoutAddr ?? '').toLowerCase()
+    })
+    setSelectedToken(matchedKey ?? 'ETH')
+  }, [details?.payoutToken, isAutoSelected])
 
   // Determine overall success from either direct deposit or swap path
   const fundingSuccess = isSwapPath ? swap.isSuccess : isSuccess
@@ -503,7 +521,15 @@ export default function BuyerPay() {
                 {details.status === EscrowStatus.CREATED && (
                   <div className="flex flex-col items-end gap-0.5 shrink-0">
                     <span className="text-[10px] text-hoff-text-tertiary uppercase tracking-wider">Pay with</span>
-                    <TokenSelector selected={selectedToken} onChange={setSelectedToken} />
+                    {details.payoutToken !== null && (
+                      <TokenSelector
+                        selected={selectedToken}
+                        onChange={(key) => {
+                          setSelectedToken(key)
+                          setIsAutoSelected(false)
+                        }}
+                      />
+                    )}
                   </div>
                 )}
               </div>
