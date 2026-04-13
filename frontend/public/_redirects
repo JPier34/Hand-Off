@@ -1,2 +1,2 @@
-/api/uniswap/*  https://trade-api.gateway.uniswap.org/v1/:splat  200
+/api/uniswap/*  /.netlify/functions/uniswap?path=:splat  200
 /*               /index.html                                     200

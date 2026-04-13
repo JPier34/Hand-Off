@@ -91,81 +91,6 @@ function TokenSelector({ selected, onChange }: TokenSelectorProps) {
   )
 }
 
-// ─── Swap preview card ────────────────────────────────────────────────────────
-
-interface SwapPreviewProps {
-  tokenKey: TokenKey
-  quotedIn: bigint | undefined
-  amountOutWei: bigint
-  isLoading: boolean
-  error: string | null
-}
-
-function SwapPreview({ tokenKey, quotedIn, amountOutWei, isLoading, error }: SwapPreviewProps) {
-  if (tokenKey === 'ETH') return null
-
-  const token = TOKENS[tokenKey]
-
-  return (
-    <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-      <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-        Swap Preview
-      </p>
-
-      {isLoading && (
-        <div className="flex items-center gap-2 py-2">
-          <Spinner size="sm" />
-          <span className="text-sm text-hoff-text-tertiary">Getting quote...</span>
-        </div>
-      )}
-
-      {error && (
-        <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
-          {error}
-        </div>
-      )}
-
-      {!isLoading && !error && quotedIn !== undefined && (
-        <>
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <p className="text-xs text-hoff-text-tertiary mb-0.5">You pay</p>
-              <p className="text-lg font-bold text-hoff-text-primary">
-                {formatUnits(quotedIn, token.decimals)} {token.symbol}
-              </p>
-            </div>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7B7B" strokeWidth="2" strokeLinecap="round">
-              <line x1="5" y1="12" x2="19" y2="12"/>
-              <polyline points="12 5 19 12 12 19"/>
-            </svg>
-            <div className="text-right">
-              <p className="text-xs text-hoff-text-tertiary mb-0.5">Seller receives</p>
-              <p className="text-lg font-bold text-hoff-text-primary">
-                {formatEther(amountOutWei)} ETH
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
-            <span className="text-xs text-hoff-text-tertiary">Slippage tolerance</span>
-            <span className="text-xs text-hoff-text-secondary">0.5%</span>
-          </div>
-
-          <p className="text-xs text-hoff-text-tertiary">
-            Powered by Uniswap. Your {token.symbol} will be swapped to ETH and deposited into the escrow.
-          </p>
-        </>
-      )}
-
-      {!isLoading && !error && quotedIn === undefined && (
-        <p className="text-sm text-hoff-text-tertiary py-2">
-          No swap route available — try a different token or fund directly with ETH.
-        </p>
-      )}
-    </div>
-  )
-}
-
 // ─── Completed screen ─────────────────────────────────────────────────────────
 
 interface CompletedViewProps {
@@ -312,6 +237,7 @@ export default function BuyerPay() {
   }
   const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
   const [isAutoSelected, setIsAutoSelected] = useState(true)
+  const [slippage, setSlippage] = useState(0.5)
   const [showIntro, setShowIntro] = useState(true)
 
   const { dealId, escrowAddress: directAddress } = parseDealParam(dealIdParam)
@@ -344,6 +270,7 @@ export default function BuyerPay() {
     selectedToken,
     amountWei,
     details?.payoutToken ?? null,
+    slippage,
   )
   const swap = useSwapAndDeposit(dealIdOrZero, selectedToken, escrowAddress, quoteResponse)
 
@@ -562,7 +489,21 @@ export default function BuyerPay() {
                         </div>
                         <div className="flex items-center justify-between pt-1.5 border-t border-hoff-brand">
                           <span className="text-xs text-hoff-text-tertiary">Slippage</span>
-                          <span className="text-xs text-hoff-text-secondary">0.5%</span>
+                          <div className="flex items-center gap-1">
+                            {[0.1, 0.5, 1.0].map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => setSlippage(opt)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                                  slippage === opt
+                                    ? 'bg-hoff-accent text-hoff-bg'
+                                    : 'bg-hoff-elevated text-hoff-text-tertiary hover:text-hoff-text-secondary'
+                                }`}
+                              >
+                                {opt}%
+                              </button>
+                            ))}
+                          </div>
                         </div>
                         <p className="text-[10px] text-hoff-text-tertiary pt-1">
                           Powered by Uniswap · {paySym} → {sym}

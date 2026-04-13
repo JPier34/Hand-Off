@@ -33,7 +33,7 @@ export function SwapPreview({
 }: SwapPreviewProps) {
   const [showSlippage, setShowSlippage] = useState(false)
 
-  const { quotedIn, isLoading, error } = useUniswapQuote(inputTokenKey, amountOutWei, payoutToken)
+  const { quotedIn, isLoading, error } = useUniswapQuote(inputTokenKey, amountOutWei, payoutToken, slippage)
 
   const inputToken = TOKENS[inputTokenKey]
 

@@ -9,6 +9,7 @@ interface BuildQuoteRequestParams {
   tokenKey: TokenKey
   amountOutWei: bigint
   payoutToken: Address | null
+  slippage?: number
 }
 
 export function buildExactOutputQuoteRequest({
@@ -16,6 +17,7 @@ export function buildExactOutputQuoteRequest({
   tokenKey,
   amountOutWei,
   payoutToken,
+  slippage = 0.5,
 }: BuildQuoteRequestParams): QuoteRequest | null {
   const token = TOKENS[tokenKey]
 
@@ -31,6 +33,6 @@ export function buildExactOutputQuoteRequest({
     tokenOutChainId: SEPOLIA_CHAIN_ID,
     amount: amountOutWei.toString(),
     type: 'EXACT_OUTPUT',
-    slippageTolerance: 0.5,
+    slippageTolerance: slippage,
   }
 }

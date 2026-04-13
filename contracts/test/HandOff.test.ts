@@ -1,7 +1,14 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import type { HandOff, HandOffReputation, MockERC20, MockSwapRouter, MockReentrantUnlocker } from "../typechain-types";
+import type {
+  HandOff,
+  HandOffReputation,
+  MockERC20,
+  MockReentrantSwapRouter,
+  MockReentrantUnlocker,
+  MockSwapRouter,
+} from "../typechain-types";
 
 const ONE_ETH       = ethers.parseEther("1.0");
 const HALF_ETH      = ethers.parseEther("0.5");
@@ -348,6 +355,45 @@ describe("HandOff", function () {
       ).to.emit(h, "HandOffFunded");
       expect(await h.getState()).to.equal(1);
       expect(await payoutTok.balanceOf(await h.getAddress())).to.be.gte(ONE_ETH);
+    });
+
+    it("blocks router reentrancy during swap and still lands in FUNDED", async function () {
+      const [deployer, buyer] = await ethers.getSigners();
+      const payoutTok = (await ethers.deployContract("MockERC20", ["PT", "PT", 18])) as MockERC20;
+      const inputTok  = (await ethers.deployContract("MockERC20", ["IT", "IT", 18])) as MockERC20;
+      const router    = (await ethers.deployContract("MockReentrantSwapRouter", [
+        await payoutTok.getAddress(), ONE_ETH,
+      ])) as MockReentrantSwapRouter;
+      const rep = (await ethers.deployContract("HandOffReputation", [deployer.address])) as HandOffReputation;
+      const h   = (await ethers.deployContract("HandOff", [
+        await router.getAddress(), await payoutTok.getAddress(), ONE_ETH, EXPIRY_WINDOW,
+        11n, await rep.getAddress(), ethers.ZeroAddress, "",
+        await router.getAddress(), // router is also seller for the reentrancy attempt
+        ethers.ZeroAddress, // _sellerPayoutAddress
+      ])) as HandOff;
+
+      await router.setTarget(await h.getAddress());
+      await inputTok.mint(buyer.address, TWO_ETH);
+      await inputTok.connect(buyer).approve(await h.getAddress(), TWO_ETH);
+
+      const iface = new ethers.Interface(["function swap(address,uint256)"]);
+      const swapData = iface.encodeFunctionData("swap", [await inputTok.getAddress(), ONE_ETH]);
+
+      await expect(
+        h.connect(buyer).fundWithSwap(
+          await router.getAddress(),
+          await inputTok.getAddress(),
+          ONE_ETH,
+          swapData,
+          VALID_HASH,
+          "buyer.eth",
+        )
+      ).to.emit(h, "HandOffFunded");
+
+      expect(await router.reentryAttempts()).to.equal(1n);
+      expect(await router.reentrySucceeded()).to.equal(false);
+      expect(await h.getState()).to.equal(1);
+      expect(await h.buyer()).to.equal(buyer.address);
     });
 
     it("reverts if swap call fails — SwapCallReverted", async function () {

@@ -43,7 +43,7 @@ const IDLE_SWAP: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
 
 // ─── Mock: useQuote ───────────────────────────────────────────────────────────
 
-function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null): QuoteResult {
+function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null, _slippage = 0.5): QuoteResult {
   const [isLoading, setIsLoading] = useState(false)
   const [quotedIn, setQuotedIn]   = useState<bigint | undefined>(undefined)
 
@@ -69,7 +69,7 @@ function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Add
 
 // ─── Real: useQuote ───────────────────────────────────────────────────────────
 
-function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null): QuoteResult {
+function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null, slippage = 0.5): QuoteResult {
   const { address } = useAccount()
   const [isLoading, setIsLoading] = useState(false)
   const [quotedIn, setQuotedIn]   = useState<bigint | undefined>(undefined)
@@ -82,6 +82,7 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Add
       tokenKey,
       amountOutWei,
       payoutToken,
+      slippage,
     })
 
     if (!quoteRequest) {
@@ -109,7 +110,7 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Add
       })
 
     return () => { cancelled = true }
-  }, [tokenKey, amountOutWei, address, payoutToken])
+  }, [tokenKey, amountOutWei, address, payoutToken, slippage])
 
   return { quotedIn, quoteResponse, isLoading, error }
 }
@@ -255,9 +256,9 @@ function useRealSwapAndDeposit(
 
 // ─── Public exports ───────────────────────────────────────────────────────────
 
-export function useQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null): QuoteResult {
-  const real = useRealQuote(tokenKey, amountOutWei, payoutToken)
-  const mock = useMockQuote(tokenKey, amountOutWei, payoutToken)
+export function useQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null, slippage = 0.5): QuoteResult {
+  const real = useRealQuote(tokenKey, amountOutWei, payoutToken, slippage)
+  const mock = useMockQuote(tokenKey, amountOutWei, payoutToken, slippage)
   return MOCK_MODE ? mock : real
 }
 

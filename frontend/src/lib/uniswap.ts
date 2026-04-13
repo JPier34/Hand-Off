@@ -3,11 +3,9 @@
 // and Vercel rewrite in production.
 
 const API_BASE = '/api/uniswap'
-const API_KEY = import.meta.env.VITE_UNISWAP_API_KEY ?? ''
 
 const HEADERS: HeadersInit = {
   'Content-Type': 'application/json',
-  'x-api-key': API_KEY,
   'x-universal-router-version': '2.0',
 }
 

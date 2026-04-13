@@ -1,11 +1,21 @@
 import { useState, useEffect } from 'react'
 import { createPublicClient, http, type TransactionReceipt } from 'viem'
 import { sepolia } from 'viem/chains'
+import { waitForReceipt } from './receiptPollerLogic'
+
+// Shared client — one instance reused across all receipt watchers in the session.
+const publicClient = createPublicClient({
+  chain: sepolia,
+  transport: http('https://ethereum-sepolia-rpc.publicnode.com'),
+})
 
 /**
- * Polls for a transaction receipt directly via the public RPC,
- * bypassing wagmi's transport which hangs when the Dynamic-wagmi
- * connector doesn't properly sync chain/account state.
+ * Waits for a transaction receipt using viem's client.waitForTransactionReceipt.
+ *
+ * Uses a dedicated public RPC client rather than wagmi's transport, which can
+ * hang when the Dynamic-wagmi connector doesn't fully sync chain/account state.
+ *
+ * Drop-in replacement for the previous manual polling loop.
  */
 export function useReceiptPoller(hash: `0x${string}` | undefined) {
   const [receipt, setReceipt] = useState<TransactionReceipt | undefined>()
@@ -22,44 +32,29 @@ export function useReceiptPoller(hash: `0x${string}` | undefined) {
     setIsSuccess(false)
     setIsError(false)
     setError(null)
+    setReceipt(undefined)
 
-    const client = createPublicClient({
-      chain: sepolia,
-      transport: http('https://ethereum-sepolia-rpc.publicnode.com'),
-    })
-
-    let attempts = 0
-    const maxAttempts = 120 // 2 minutes at 1s intervals
-
-    const poll = async () => {
-      while (!cancelled && attempts < maxAttempts) {
-        try {
-          const r = await client.getTransactionReceipt({ hash })
-          if (cancelled) return
-          console.log('[useReceiptPoller] Receipt found:', r.status, 'logs:', r.logs.length)
-          setReceipt(r)
-          setIsLoading(false)
-          if (r.status === 'success') {
-            setIsSuccess(true)
-          } else {
-            setIsError(true)
-            setError(new Error('Transaction reverted'))
-          }
-          return
-        } catch {
-          // Receipt not yet available — wait and retry
-          attempts++
-          await new Promise(resolve => setTimeout(resolve, 1000))
+    waitForReceipt(publicClient, hash)
+      .then((r: TransactionReceipt) => {
+        if (cancelled) return
+        console.log('[useReceiptPoller] Receipt:', r.status, 'logs:', r.logs.length)
+        setReceipt(r)
+        setIsLoading(false)
+        if (r.status === 'success') {
+          setIsSuccess(true)
+        } else {
+          setIsError(true)
+          setError(new Error('Transaction reverted'))
         }
-      }
-      if (!cancelled) {
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        console.error('[useReceiptPoller] Error:', err)
         setIsLoading(false)
         setIsError(true)
-        setError(new Error('Receipt polling timed out'))
-      }
-    }
+        setError(err instanceof Error ? err : new Error('Failed to get receipt'))
+      })
 
-    poll()
     return () => { cancelled = true }
   }, [hash])
 

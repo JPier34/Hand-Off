@@ -34,6 +34,14 @@ export default defineConfig({
         target: 'https://trade-api.gateway.uniswap.org/v1',
         changeOrigin: true,
         rewrite: (requestPath) => requestPath.replace(/^\/api\/uniswap/, ''),
+        headers: process.env.UNISWAP_API_KEY
+          ? {
+              'x-api-key': process.env.UNISWAP_API_KEY,
+              'x-universal-router-version': '2.0',
+            }
+          : {
+              'x-universal-router-version': '2.0',
+            },
       },
     },
   },

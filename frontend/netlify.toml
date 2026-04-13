@@ -3,6 +3,9 @@
   command = "npm run build"
   publish = "dist"
 
+[functions]
+  directory = "netlify/functions"
+
 [dev]
   command = "npm run dev"
   targetPort = 5173
@@ -21,6 +24,6 @@
 
 [[redirects]]
   from   = "/api/uniswap/*"
-  to     = "https://trade-api.gateway.uniswap.org/v1/:splat"
+  to     = "/.netlify/functions/uniswap?path=:splat"
   status = 200
   force  = true

@@ -50,4 +50,21 @@ test.describe('BuyerPay swap logic (mock e2e)', () => {
     await page.selectOption('select', 'WETH')
     await expect(page.getByText(/Powered by Uniswap.*WETH.*USDC/)).toBeVisible()
   })
+
+  test('swap path exposes configurable slippage controls in the UI', async ({ page }) => {
+    await openPayPage(page, 'WETH')
+
+    await page.selectOption('select', 'USDC')
+
+    const slippageRow = page.getByText('Slippage').locator('..')
+    await expect(slippageRow.getByRole('button', { name: '0.1%', exact: true })).toBeVisible()
+    await expect(slippageRow.getByRole('button', { name: '0.5%', exact: true })).toBeVisible()
+    await expect(slippageRow.getByRole('button', { name: '1%', exact: true })).toBeVisible()
+
+    await slippageRow.getByRole('button', { name: '1%', exact: true }).click()
+    await expect(slippageRow.getByRole('button', { name: '1%', exact: true })).toHaveClass(/bg-hoff-accent/)
+
+    await slippageRow.getByRole('button', { name: '0.1%', exact: true }).click()
+    await expect(slippageRow.getByRole('button', { name: '0.1%', exact: true })).toHaveClass(/bg-hoff-accent/)
+  })
 })

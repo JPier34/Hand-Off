@@ -256,6 +256,9 @@ contract HandOff is ReentrancyGuard {
     /// @notice Fund the escrow by atomically swapping an input token for the payout token.
     ///         Only works when ALLOWED_ROUTER is configured (non-zero) and payoutToken is an
     ///         ERC-20 (not ETH). The swap must yield at least `amount` of payoutToken.
+    /// @dev Performs an external router call before final state writes, so Slither will flag
+    ///      this path conservatively. Reentrancy is intentionally mitigated by `nonReentrant`
+    ///      on this function, and covered by a malicious-router regression test.
     /// @param _router      Must equal ALLOWED_ROUTER (enforced on-chain).
     /// @param _inputToken  Token the buyer is spending. Must differ from payoutToken.
     /// @param _inputAmount Amount of input token to pull from buyer.
