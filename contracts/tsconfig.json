@@ -16,10 +16,5 @@
     "ignition/**/*.ts",
     "test/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "artifacts",
-    "cache",
-    "typechain-types"
-  ]
+  "exclude": ["node_modules", "artifacts", "cache", "typechain-types"]
 }
