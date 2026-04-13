@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { parseEther, parseUnits, parseEventLogs, createPublicClient, createWalletClient, http, custom } from 'viem'
+import { parseEther, parseUnits, parseEventLogs, createWalletClient, custom } from 'viem'
 import { sepolia } from 'viem/chains'
 import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS, SUBNAME_ABI, SUBNAME_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'

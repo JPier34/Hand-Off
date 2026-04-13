@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useAccount } from 'wagmi'
 import { Layout } from '@/components/Layout'
 import { Card } from '@/components/ui/Card'
@@ -13,6 +14,7 @@ import { EscrowStatus } from '@/lib/types'
 
 export default function Landing() {
   const { address, isConnected } = useAccount()
+  const [demoExpiresAt] = useState(() => Date.now() + 3_600_000 * 23)
 
   return (
     <Layout>
@@ -53,7 +55,7 @@ export default function Landing() {
 
         <Card>
           <p className="text-xs text-hoff-text-tertiary mb-2">CountdownTimer</p>
-          <CountdownTimer expiresAt={Date.now() + 3_600_000 * 23} />
+          <CountdownTimer expiresAt={demoExpiresAt} />
         </Card>
 
         <Card className="flex items-center gap-4">

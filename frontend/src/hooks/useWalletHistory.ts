@@ -67,7 +67,7 @@ export function useWalletHistory(walletAddress: Address | undefined) {
 
   if (!isLoading && infoResults.data && termsResults.data) {
     for (let i = 0; i < escrowRoles.length; i++) {
-      const { escrow, role } = escrowRoles[i]
+      const { escrow: _escrow, role } = escrowRoles[i]
       const infoRaw  = infoResults.data[i]?.result  as [Address, Address, bigint, bigint, number, string, string] | undefined
       const termsRaw = termsResults.data[i]?.result as [bigint, Address, Address, bigint, bigint] | undefined
 

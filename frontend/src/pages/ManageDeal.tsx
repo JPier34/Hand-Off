@@ -547,18 +547,7 @@ export default function ManageDeal() {
 
   const { dealId, escrowAddress: directAddress } = parseDealParam(dealIdParam)
 
-  if (!isValidDealParam(dealIdParam)) {
-    return (
-      <Layout>
-        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
-          <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-red-400">Invalid deal link. Check the URL and try again.</p>
-          </div>
-        </main>
-      </Layout>
-    )
-  }
-
+  // ─── All hooks unconditionally — rules of hooks require no conditional calls ──
   const dealIdOrZero = dealId ?? 0n
 
   const { details, isLoading, isError, escrowAddress }                              = useDealDetails(dealId, directAddress)
@@ -575,6 +564,19 @@ export default function ManageDeal() {
   const usdLabel = usdRaw ? `≈ $${usdRaw} USD` : ''
 
   const isSeller = !!(address && details && address.toLowerCase() === details.seller.toLowerCase())
+
+  // ─── Guard (after all hooks) ───────────────────────────────────────────────
+  if (!isValidDealParam(dealIdParam)) {
+    return (
+      <Layout>
+        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
+          <div className="bg-hoff-surface rounded-2xl p-5">
+            <p className="text-sm text-red-400">Invalid deal link. Check the URL and try again.</p>
+          </div>
+        </main>
+      </Layout>
+    )
+  }
 
   // ─── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {

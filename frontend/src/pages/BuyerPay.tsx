@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import { formatEther, formatUnits } from 'viem'
@@ -23,8 +23,6 @@ import { useReputation } from '@/hooks/useReputation'
 import { MOCK_MODE } from '@/lib/mock'
 import { getAutoSelectedTokenKey, shouldShowTokenSelector, shouldUseSwapPath } from '@/lib/buyerPayLogic'
 
-const PROTOCOL_FEE_BPS  = 10n   // 0.1%
-const EST_GAS           = 800_000_000_000_000n // ~0.0008 ETH placeholder
 const DEFAULT_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 function isValidDealParam(param: string | undefined): param is string {
@@ -49,7 +47,13 @@ function FeeRow({ label, value, highlight = false }: { label: string; value: str
 // ─── Expiry progress bar ──────────────────────────────────────────────────────
 
 function ExpiryBar({ expiresAt, totalMs }: { expiresAt: number; totalMs: number }) {
-  const remaining = Math.max(0, expiresAt - Date.now())
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 10_000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const remaining = Math.max(0, expiresAt - now)
   const fraction = Math.min(1, remaining / totalMs)
   const color = fraction > 0.25 ? 'bg-hoff-accent' : fraction > 0 ? 'bg-amber-500' : 'bg-red-500'
 
@@ -224,17 +228,8 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
 
 export default function BuyerPay() {
   const { dealId: dealIdParam } = useParams<{ dealId: string }>()
-  const navigate = useNavigate()
   const { isConnected } = useAccount()
   const { login } = useDynamicAuth()
-  // Persist unlock code in localStorage keyed by escrow address so it survives page refresh
-  const [unlockCode, setUnlockCodeState] = useState<string | null>(null)
-  function setUnlockCode(code: string | null) {
-    setUnlockCodeState(code)
-    if (code && escrowAddress) {
-      try { localStorage.setItem(`handoff_code_${escrowAddress}`, code) } catch { /* quota */ }
-    }
-  }
   const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
   const [isAutoSelected, setIsAutoSelected] = useState(true)
   const [slippage, setSlippage] = useState(0.5)
@@ -242,7 +237,49 @@ export default function BuyerPay() {
 
   const { dealId, escrowAddress: directAddress } = parseDealParam(dealIdParam)
 
-  // ─── Guard ──────────────────────────────────────────────────────────────────
+  // ─── All hooks unconditionally — rules of hooks require no conditional calls ──
+  const { details, isLoading, isError, escrowAddress } = useDealDetails(dealId, directAddress)
+  const dealIdOrZero = dealId ?? 0n
+  const { deposit, isPending, isConfirming, isSuccess, isError: txError, error: txErrorObj } = useDepositFunds(dealIdOrZero, escrowAddress)
+  const refund    = useClaimRefund(dealIdOrZero, escrowAddress)
+  const reviewHook = useSubmitReview(escrowAddress)
+  const amountWei  = details?.amount ?? 0n
+  const usdValue   = useUsdValue(amountWei, details?.payoutToken ?? null)
+  const { quotedIn, quoteResponse, isLoading: quoteLoading, error: quoteError } = useQuote(
+    selectedToken,
+    amountWei,
+    details?.payoutToken ?? null,
+    slippage,
+  )
+  const swap = useSwapAndDeposit(dealIdOrZero, selectedToken, escrowAddress, quoteResponse)
+  const { reputation } = useReputation(details?.seller as `0x${string}` | undefined)
+
+  // Derive isSwapPath — must be after all hooks
+  const isSwapPath = !!details && shouldUseSwapPath(selectedToken, details.payoutToken ?? null)
+
+  // Persist unlock code keyed by escrow address so it survives page refresh
+  const [unlockCode, setUnlockCodeState] = useState<string | null>(null)
+  function setUnlockCode(code: string | null) {
+    setUnlockCodeState(code)
+    if (code && escrowAddress) {
+      try { localStorage.setItem(`handoff_code_${escrowAddress}`, code) } catch { /* quota */ }
+    }
+  }
+
+  useEffect(() => {
+    if (unlockCode || !escrowAddress || details?.status !== EscrowStatus.FUNDED) return
+    try {
+      const saved = localStorage.getItem(`handoff_code_${escrowAddress}`)
+      if (saved) setUnlockCodeState(saved)
+    } catch { /* ignore */ }
+  }, [escrowAddress, details?.status, unlockCode])
+
+  useEffect(() => {
+    if (!details || !isAutoSelected) return
+    setSelectedToken(getAutoSelectedTokenKey(details.payoutToken ?? null))
+  }, [details?.payoutToken, isAutoSelected, details])
+
+  // ─── Guard (after all hooks) ───────────────────────────────────────────────
   if (!isValidDealParam(dealIdParam)) {
     return (
       <Layout>
@@ -256,41 +293,6 @@ export default function BuyerPay() {
   }
 
   const canAct = isConnected || MOCK_MODE
-
-  // ─── Hooks (always called, rules of hooks) ─────────────────────────────────
-  const { details, isLoading, isError, escrowAddress }                     = useDealDetails(dealId, directAddress)
-  const dealIdOrZero = dealId ?? 0n
-  const { deposit, isPending, isConfirming, isSuccess, isError: txError, error: txErrorObj } = useDepositFunds(dealIdOrZero, escrowAddress)
-  const refund = useClaimRefund(dealIdOrZero, escrowAddress)
-  const reviewHook = useSubmitReview(escrowAddress)
-
-  const amountWei = details?.amount ?? 0n
-  const usdValue  = useUsdValue(amountWei, details?.payoutToken ?? null)
-  const { quotedIn, quoteResponse, isLoading: quoteLoading, error: quoteError } = useQuote(
-    selectedToken,
-    amountWei,
-    details?.payoutToken ?? null,
-    slippage,
-  )
-  const swap = useSwapAndDeposit(dealIdOrZero, selectedToken, escrowAddress, quoteResponse)
-
-  const { reputation } = useReputation(details?.seller as `0x${string}` | undefined)
-  const isSwapPath = !!details && shouldUseSwapPath(selectedToken, details.payoutToken ?? null)
-
-  // Restore saved unlock code from localStorage when a FUNDED escrow is revisited after page refresh
-  useEffect(() => {
-    if (unlockCode || !escrowAddress || details?.status !== EscrowStatus.FUNDED) return
-    try {
-      const saved = localStorage.getItem(`handoff_code_${escrowAddress}`)
-      if (saved) setUnlockCodeState(saved)
-    } catch { /* ignore */ }
-  }, [escrowAddress, details?.status, unlockCode])
-
-  // Auto-select payout token when details load (unless user already picked a token)
-  useEffect(() => {
-    if (!details || !isAutoSelected) return
-    setSelectedToken(getAutoSelectedTokenKey(details.payoutToken ?? null))
-  }, [details?.payoutToken, isAutoSelected])
 
   // Determine overall success from either direct deposit or swap path
   const fundingSuccess = isSwapPath ? swap.isSuccess : isSuccess
@@ -364,10 +366,6 @@ export default function BuyerPay() {
   const sym  = details ? payoutSymbol(details.payoutToken) : 'ETH'
   const dec  = details ? payoutDecimals(details.payoutToken) : 18
   const fmt  = (v: bigint) => formatUnits(v, dec)
-
-  // ─── Fee calc ───────────────────────────────────────────────────────────────
-  const protocolFee = details ? (details.amount * PROTOCOL_FEE_BPS) / 10_000n : 0n
-  const total       = details ? details.amount + protocolFee + EST_GAS : 0n
 
   // ─── TX state helpers ───────────────────────────────────────────────────────
   const anyPending    = isSwapPath ? (swap.isApprovePending || swap.isSwapPending) : isPending
@@ -483,7 +481,6 @@ export default function BuyerPay() {
                       <>
                         <FeeRow label={`Escrow Amount (${sym})`} value={`${fmt(details.amount)} ${sym}`} />
                         <FeeRow label={`You pay (${paySym})`} value={`${payFmt(quotedIn)} ${paySym}`} />
-                        <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
                         <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
                           <FeeRow label="Total" value={`≈ ${payFmt(quotedIn)} ${paySym} + gas`} highlight />
                         </div>
@@ -520,10 +517,8 @@ export default function BuyerPay() {
               ) : (
                 <>
                   <FeeRow label="Escrow Amount" value={`${fmt(details.amount)} ${sym}`} />
-                  <FeeRow label="Protocol Fee (0.1%)" value={`${fmt(protocolFee)} ${sym}`} />
-                  <FeeRow label="Est. Gas" value={`~${formatEther(EST_GAS)} ETH`} />
                   <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
-                    <FeeRow label="Total" value={`${fmt(total)} ${sym} + gas`} highlight />
+                    <FeeRow label="Total" value={`${fmt(details.amount)} ${sym} + gas`} highlight />
                   </div>
                 </>
               )}
