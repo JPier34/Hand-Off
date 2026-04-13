@@ -17,6 +17,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    chunkSizeWarningLimit: 1000, // web3 deps (wagmi+viem+Dynamic SDK) legitimately exceed 500kB
     rollupOptions: {
       output: {
         manualChunks: (id) => {
