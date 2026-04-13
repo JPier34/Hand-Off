@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { encodeAbiParameters, encodeEventTopics } from 'viem'
+import type { Abi } from 'viem'
 import HandOffAbi from '../contracts/HandOff.abi.json'
 import { extractEnsMintFallbackArgs } from './ensFallback'
 
-const HANDOFF_ABI = HandOffAbi as const
+const HANDOFF_ABI = HandOffAbi as unknown as Abi
 
 const DEAL_ID = 42n
 const ESCROW = '0x1111111111111111111111111111111111111111' as const
