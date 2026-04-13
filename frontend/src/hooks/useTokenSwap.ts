@@ -44,25 +44,32 @@ const IDLE_SWAP: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
 // ─── Mock: useQuote ───────────────────────────────────────────────────────────
 
 function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null, _slippage = 0.5): QuoteResult {
-  const [isLoading, setIsLoading] = useState(false)
-  const [quotedIn, setQuotedIn]   = useState<bigint | undefined>(undefined)
+  const [state, setState] = useState<{ requestKey: string | null; quotedIn: bigint | undefined }>({
+    requestKey: null,
+    quotedIn: undefined,
+  })
 
   useEffect(() => {
     const token = TOKENS[tokenKey]
-    if (!token || tokenKey === 'ETH' || !payoutToken) { setQuotedIn(undefined); return }
+    if (!token || tokenKey === 'ETH' || !payoutToken) return
 
-    setIsLoading(true)
-    setQuotedIn(undefined)
+    const requestKey = `${tokenKey}:${amountOutWei.toString()}:${payoutToken}`
+
     const id = setTimeout(() => {
       // mockRate is "smallest unit per 1 ETH (10^18 wei)"
       // quotedIn = amountOutWei * mockRate / 10^18
       const result = (amountOutWei * token.mockRate) / 10n ** 18n
-      setQuotedIn(result)
-      setIsLoading(false)
+      setState({ requestKey, quotedIn: result })
     }, 400)
 
     return () => clearTimeout(id)
   }, [tokenKey, amountOutWei, payoutToken])
+
+  const token = TOKENS[tokenKey]
+  const supported = !!token && tokenKey !== 'ETH' && !!payoutToken
+  const requestKey = supported ? `${tokenKey}:${amountOutWei.toString()}:${payoutToken}` : null
+  const isLoading = !!requestKey && state.requestKey !== requestKey
+  const quotedIn = state.requestKey === requestKey ? state.quotedIn : undefined
 
   return { quotedIn, quoteResponse: null, isLoading, error: null }
 }
@@ -71,10 +78,17 @@ function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Add
 
 function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null, slippage = 0.5): QuoteResult {
   const { address } = useAccount()
-  const [isLoading, setIsLoading] = useState(false)
-  const [quotedIn, setQuotedIn]   = useState<bigint | undefined>(undefined)
-  const [quoteResponse, setQuoteResponse] = useState<QuoteResponse | null>(null)
-  const [error, setError]         = useState<string | null>(null)
+  const [state, setState] = useState<{
+    requestKey: string | null
+    quotedIn: bigint | undefined
+    quoteResponse: QuoteResponse | null
+    error: string | null
+  }>({
+    requestKey: null,
+    quotedIn: undefined,
+    quoteResponse: null,
+    error: null,
+  })
 
   useEffect(() => {
     const quoteRequest = buildExactOutputQuoteRequest({
@@ -85,32 +99,47 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Add
       slippage,
     })
 
-    if (!quoteRequest) {
-      setQuotedIn(undefined)
-      setQuoteResponse(null)
-      return
-    }
+    if (!quoteRequest) return
 
     let cancelled = false
-    setIsLoading(true)
-    setError(null)
+    const requestKey = JSON.stringify(quoteRequest)
 
     fetchQuote(quoteRequest)
       .then(resp => {
         if (cancelled) return
         const outputAmt = getOutputAmount(resp)
-        setQuotedIn(BigInt(outputAmt))
-        setQuoteResponse(resp)
-        setIsLoading(false)
+        setState({
+          requestKey,
+          quotedIn: BigInt(outputAmt),
+          quoteResponse: resp,
+          error: null,
+        })
       })
       .catch(err => {
         if (cancelled) return
-        setError(err.message)
-        setIsLoading(false)
+        setState({
+          requestKey,
+          quotedIn: undefined,
+          quoteResponse: null,
+          error: err.message,
+        })
       })
 
     return () => { cancelled = true }
   }, [tokenKey, amountOutWei, address, payoutToken, slippage])
+
+  const quoteRequest = buildExactOutputQuoteRequest({
+    swapper: address,
+    tokenKey,
+    amountOutWei,
+    payoutToken,
+    slippage,
+  })
+  const requestKey = quoteRequest ? JSON.stringify(quoteRequest) : null
+  const isLoading = !!requestKey && state.requestKey !== requestKey
+  const quotedIn = state.requestKey === requestKey ? state.quotedIn : undefined
+  const quoteResponse = state.requestKey === requestKey ? state.quoteResponse : null
+  const error = state.requestKey === requestKey ? state.error : null
 
   return { quotedIn, quoteResponse, isLoading, error }
 }

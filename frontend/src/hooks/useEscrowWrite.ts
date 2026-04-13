@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { parseEther, parseUnits, parseEventLogs, createWalletClient, custom } from 'viem'
 import { sepolia } from 'viem/chains'
 import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS, SUBNAME_ABI, SUBNAME_ADDRESS } from '@/lib/constants'
@@ -129,7 +129,7 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
   const { isLoading: isConfirming, isSuccess } = useReceiptPoller(hash)
 
   // Store params for the chained fund() call after ERC20 approval
-  const [pendingFund, setPendingFund] = useState<{
+  const pendingFundRef = useRef<{
     codeHash: `0x${string}`; buyerEns: string; amount: bigint
   } | null>(null)
 
@@ -153,7 +153,7 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
       const decimals = getTokenByAddress(payoutToken).decimals
       const tokenAmount = parseUnits(amount, decimals)
       console.log('[useEscrowWrite] ERC20 path, approving', payoutToken, 'decimals:', decimals, 'amount:', tokenAmount.toString())
-      setPendingFund({ codeHash, buyerEns, amount: tokenAmount })
+      pendingFundRef.current = { codeHash, buyerEns, amount: tokenAmount }
       approveWrite.writeContract({
         address: payoutToken,
         abi: [{
@@ -169,6 +169,7 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
 
   // Chain: after ERC20 approval confirms, call fund() with value = 0
   useEffect(() => {
+    const pendingFund = pendingFundRef.current
     if (approveReceipt.isSuccess && pendingFund && escrowAddress && !hash) {
       console.log('[useEscrowWrite] ERC20 approval confirmed, calling fund() with value: 0')
       writeContract({
@@ -178,9 +179,9 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
         args: [pendingFund.codeHash, pendingFund.buyerEns],
         // No value — contract pulls tokens via safeTransferFrom
       })
-      setPendingFund(null)
+      pendingFundRef.current = null
     }
-  }, [approveReceipt.isSuccess, pendingFund, escrowAddress, hash, writeContract])
+  }, [approveReceipt.isSuccess, escrowAddress, hash, writeContract])
 
   const isApproving = approveWrite.isPending || (!!approveWrite.data && approveReceipt.isLoading)
 

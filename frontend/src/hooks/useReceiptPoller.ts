@@ -18,45 +18,63 @@ const publicClient = createPublicClient({
  * Drop-in replacement for the previous manual polling loop.
  */
 export function useReceiptPoller(hash: `0x${string}` | undefined) {
-  const [receipt, setReceipt] = useState<TransactionReceipt | undefined>()
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
-  const [isError, setIsError] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
+  const [state, setState] = useState<{
+    watchedHash?: `0x${string}`
+    receipt?: TransactionReceipt
+    isSuccess: boolean
+    isError: boolean
+    error: Error | null
+  }>({
+    watchedHash: undefined,
+    receipt: undefined,
+    isSuccess: false,
+    isError: false,
+    error: null,
+  })
 
   useEffect(() => {
     if (!hash) return
 
     let cancelled = false
-    setIsLoading(true)
-    setIsSuccess(false)
-    setIsError(false)
-    setError(null)
-    setReceipt(undefined)
 
     waitForReceipt(publicClient, hash)
       .then((r: TransactionReceipt) => {
         if (cancelled) return
         console.log('[useReceiptPoller] Receipt:', r.status, 'logs:', r.logs.length)
-        setReceipt(r)
-        setIsLoading(false)
-        if (r.status === 'success') {
-          setIsSuccess(true)
-        } else {
-          setIsError(true)
-          setError(new Error('Transaction reverted'))
-        }
+        setState({
+          watchedHash: hash,
+          receipt: r,
+          isSuccess: r.status === 'success',
+          isError: r.status !== 'success',
+          error: r.status === 'success' ? null : new Error('Transaction reverted'),
+        })
       })
       .catch((err: unknown) => {
         if (cancelled) return
         console.error('[useReceiptPoller] Error:', err)
-        setIsLoading(false)
-        setIsError(true)
-        setError(err instanceof Error ? err : new Error('Failed to get receipt'))
+        setState({
+          watchedHash: hash,
+          receipt: undefined,
+          isSuccess: false,
+          isError: true,
+          error: err instanceof Error ? err : new Error('Failed to get receipt'),
+        })
       })
 
     return () => { cancelled = true }
   }, [hash])
 
-  return { receipt, isLoading, isSuccess, isError, error }
+  const isLoading = !!hash && state.watchedHash !== hash
+
+  if (!hash) {
+    return { receipt: undefined, isLoading: false, isSuccess: false, isError: false, error: null }
+  }
+
+  return {
+    receipt: state.watchedHash === hash ? state.receipt : undefined,
+    isLoading,
+    isSuccess: state.watchedHash === hash ? state.isSuccess : false,
+    isError: state.watchedHash === hash ? state.isError : false,
+    error: state.watchedHash === hash ? state.error : null,
+  }
 }

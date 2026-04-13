@@ -1,12 +1,17 @@
 import { test, expect } from '@playwright/test'
 
 type TokenKey = 'ETH' | 'USDC' | 'WETH'
+type MockApi = {
+  reset: (dealId?: number) => void
+  setDeal: (dealId: number, updates: { payoutToken: string | null }) => void
+  TOKENS: Record<'USDC' | 'WETH', { address: string }>
+}
 
 async function openPayPage(page: import('@playwright/test').Page, payoutTokenKey: TokenKey) {
   await page.goto('/pay/1')
 
   await page.evaluate((key: TokenKey) => {
-    const api = (window as unknown as { __handoffMock?: any }).__handoffMock
+    const api = (window as unknown as { __handoffMock?: MockApi }).__handoffMock
     if (!api) throw new Error('Mock API missing')
     api.reset(1)
     const payoutToken = key === 'ETH' ? null : api.TOKENS[key].address
