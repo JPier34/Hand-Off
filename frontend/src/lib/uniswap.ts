@@ -1,6 +1,8 @@
+import { z } from 'zod'
+
 // Uniswap Trading API client
 // Uses CORS proxy in dev (/api/uniswap → trade-api.gateway.uniswap.org/v1)
-// and Vercel rewrite in production.
+// and Netlify rewrite/function in production.
 
 const API_BASE = '/api/uniswap'
 
@@ -9,70 +11,132 @@ const HEADERS: HeadersInit = {
   'x-universal-router-version': '2.0',
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+const addressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/)
+const hexSchema = z.string().regex(/^0x([a-fA-F0-9]{2})*$/)
+const numericStringSchema = z.string().regex(/^\d+$/)
+
+const apiErrorSchema = z.object({
+  detail: z.string().optional(),
+  message: z.string().optional(),
+}).passthrough()
+
+const classicQuoteResponseSchema = z.object({
+  routing: z.enum(['CLASSIC', 'WRAP', 'UNWRAP']),
+  quote: z.object({
+    input: z.object({
+      token: addressSchema,
+      amount: numericStringSchema,
+    }),
+    output: z.object({
+      token: addressSchema,
+      amount: numericStringSchema,
+    }),
+    slippage: z.number(),
+    gasFee: numericStringSchema,
+    gasFeeUSD: z.string(),
+    gasUseEstimate: numericStringSchema,
+  }),
+  permitData: z.record(z.unknown()).nullable(),
+})
+
+const uniswapXQuoteResponseSchema = z.object({
+  routing: z.enum(['DUTCH_V2', 'DUTCH_V3', 'PRIORITY']),
+  quote: z.object({
+    orderInfo: z.object({
+      outputs: z.array(z.object({
+        token: addressSchema,
+        startAmount: numericStringSchema,
+        endAmount: numericStringSchema,
+        recipient: addressSchema,
+      })).min(1),
+      input: z.object({
+        token: addressSchema,
+        startAmount: numericStringSchema,
+        endAmount: numericStringSchema,
+      }),
+      deadline: z.number(),
+      nonce: z.string(),
+    }),
+    encodedOrder: hexSchema,
+    orderHash: hexSchema,
+  }),
+  permitData: z.record(z.unknown()).nullable(),
+})
+
+const quoteResponseSchema = z.union([classicQuoteResponseSchema, uniswapXQuoteResponseSchema])
+
+const approvalTransactionSchema = z.object({
+  to: addressSchema,
+  data: hexSchema,
+  value: numericStringSchema,
+})
+
+const approvalResponseSchema = z.object({
+  approval: approvalTransactionSchema.nullish(),
+}).passthrough()
+
+const swapTransactionSchema = z.object({
+  to: addressSchema,
+  from: addressSchema,
+  data: hexSchema,
+  value: numericStringSchema,
+  chainId: z.number(),
+  gasLimit: numericStringSchema.optional(),
+})
+
+const swapResponseSchema = z.object({
+  swap: swapTransactionSchema,
+})
 
 export interface QuoteRequest {
-  swapper:         string
-  tokenIn:         string
-  tokenOut:        string
-  tokenInChainId:  string
+  swapper: string
+  tokenIn: string
+  tokenOut: string
+  tokenInChainId: string
   tokenOutChainId: string
-  amount:          string
-  type:            'EXACT_INPUT' | 'EXACT_OUTPUT'
+  amount: string
+  type: 'EXACT_INPUT' | 'EXACT_OUTPUT'
   slippageTolerance?: number
 }
 
-export interface ClassicQuoteResponse {
-  routing: 'CLASSIC' | 'WRAP' | 'UNWRAP'
-  quote: {
-    input:  { token: string; amount: string }
-    output: { token: string; amount: string }
-    slippage: number
-    gasFee: string
-    gasFeeUSD: string
-    gasUseEstimate: string
+export type ClassicQuoteResponse = z.infer<typeof classicQuoteResponseSchema>
+export type UniswapXQuoteResponse = z.infer<typeof uniswapXQuoteResponseSchema>
+export type QuoteResponse = z.infer<typeof quoteResponseSchema>
+export type SwapTransaction = z.infer<typeof swapTransactionSchema>
+export type SwapResponse = z.infer<typeof swapResponseSchema>
+
+function getApiErrorMessage(payload: unknown, fallback: string) {
+  const parsed = apiErrorSchema.safeParse(payload)
+  if (!parsed.success) return fallback
+  return parsed.data.detail || parsed.data.message || fallback
+}
+
+export function parseQuoteResponse(payload: unknown): QuoteResponse {
+  const parsed = quoteResponseSchema.safeParse(payload)
+  if (!parsed.success) {
+    throw new Error('Invalid quote response from Uniswap API')
   }
-  permitData: Record<string, unknown> | null
+  return parsed.data
 }
 
-interface DutchOrderOutput {
-  token: string
-  startAmount: string
-  endAmount: string
-  recipient: string
-}
-
-export interface UniswapXQuoteResponse {
-  routing: 'DUTCH_V2' | 'DUTCH_V3' | 'PRIORITY'
-  quote: {
-    orderInfo: {
-      outputs: DutchOrderOutput[]
-      input: { token: string; startAmount: string; endAmount: string }
-      deadline: number
-      nonce: string
-    }
-    encodedOrder: string
-    orderHash: string
+export function parseApprovalResponse(payload: unknown): { to: string; data: string; value: string } | null {
+  const parsed = approvalResponseSchema.safeParse(payload)
+  if (!parsed.success) {
+    throw new Error('Invalid approval response from Uniswap API')
   }
-  permitData: Record<string, unknown> | null
+  return parsed.data.approval ?? null
 }
 
-export type QuoteResponse = ClassicQuoteResponse | UniswapXQuoteResponse
-
-export interface SwapTransaction {
-  to:       string
-  from:     string
-  data:     string
-  value:    string
-  chainId:  number
-  gasLimit?: string
+export function parseSwapResponse(payload: unknown): SwapResponse {
+  const parsed = swapResponseSchema.safeParse(payload)
+  if (!parsed.success) {
+    throw new Error('Invalid swap response from Uniswap API')
+  }
+  if (!parsed.data.swap.data || parsed.data.swap.data === '0x') {
+    throw new Error('Empty swap data — quote may have expired. Please refresh.')
+  }
+  return parsed.data
 }
-
-export interface SwapResponse {
-  swap: SwapTransaction
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 export function isUniswapXQuote(q: QuoteResponse): q is UniswapXQuoteResponse {
   return q.routing === 'DUTCH_V2' || q.routing === 'DUTCH_V3' || q.routing === 'PRIORITY'
@@ -87,8 +151,6 @@ export function getOutputAmount(q: QuoteResponse): string {
   return q.quote.output.amount
 }
 
-// ─── API calls ────────────────────────────────────────────────────────────────
-
 export async function fetchQuote(params: QuoteRequest): Promise<QuoteResponse> {
   const res = await fetch(`${API_BASE}/quote`, {
     method: 'POST',
@@ -99,9 +161,10 @@ export async function fetchQuote(params: QuoteRequest): Promise<QuoteResponse> {
       routingPreference: 'BEST_PRICE',
     }),
   })
+
   const data = await res.json()
-  if (!res.ok) throw new Error(data.detail || 'Quote failed')
-  return data
+  if (!res.ok) throw new Error(getApiErrorMessage(data, 'Quote failed'))
+  return parseQuoteResponse(data)
 }
 
 export async function checkApproval(
@@ -115,9 +178,10 @@ export async function checkApproval(
     headers: HEADERS,
     body: JSON.stringify({ walletAddress, token, amount, chainId }),
   })
+
   const data = await res.json()
-  if (!res.ok) throw new Error(data.detail || 'Approval check failed')
-  return data.approval ?? null
+  if (!res.ok) throw new Error(getApiErrorMessage(data, 'Approval check failed'))
+  return parseApprovalResponse(data)
 }
 
 export async function fetchSwap(
@@ -129,11 +193,9 @@ export async function fetchSwap(
 
   if (isUniswapXQuote(quoteResponse)) {
     if (signature) request.signature = signature
-  } else {
-    if (signature && permitData && typeof permitData === 'object') {
-      request.signature = signature
-      request.permitData = permitData
-    }
+  } else if (signature && permitData && typeof permitData === 'object') {
+    request.signature = signature
+    request.permitData = permitData
   }
 
   const res = await fetch(`${API_BASE}/swap`, {
@@ -141,12 +203,8 @@ export async function fetchSwap(
     headers: HEADERS,
     body: JSON.stringify(request),
   })
+
   const data = await res.json()
-  if (!res.ok) throw new Error(data.detail || 'Swap failed')
-
-  if (!data.swap?.data || data.swap.data === '' || data.swap.data === '0x') {
-    throw new Error('Empty swap data — quote may have expired. Please refresh.')
-  }
-
-  return data
+  if (!res.ok) throw new Error(getApiErrorMessage(data, 'Swap failed'))
+  return parseSwapResponse(data)
 }

@@ -27,7 +27,8 @@ test.describe('BuyerPay swap logic (mock e2e)', () => {
     await openPayPage(page, 'ETH')
 
     await expect(page.locator('select')).toHaveCount(0)
-    await expect(page.getByText('Protocol Fee (0.1%)')).toBeVisible()
+    await expect(page.getByText('Protocol Fee (0.01%)')).toBeVisible()
+    await expect(page.getByText('Total').locator('..')).toContainText('0.10001 ETH + gas')
 
     await page.getByRole('button', { name: 'Fund Escrow' }).click()
     await expect(page.getByRole('heading', { name: 'HandOff Funded' })).toBeVisible()
@@ -49,7 +50,7 @@ test.describe('BuyerPay swap logic (mock e2e)', () => {
     await openPayPage(page, 'USDC')
 
     await expect(page.locator('select')).toHaveCount(1)
-    await expect(page.getByText('Protocol Fee (0.1%)')).toBeVisible()
+    await expect(page.getByText('Protocol Fee (0.01%)')).toBeVisible()
     await expect(page.getByText(/Powered by Uniswap/)).toHaveCount(0)
 
     await page.selectOption('select', 'WETH')

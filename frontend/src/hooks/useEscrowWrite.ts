@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { parseEther, parseUnits, parseEventLogs, createWalletClient, custom } from 'viem'
+import { parseEther, parseEventLogs, createWalletClient, custom } from 'viem'
 import { sepolia } from 'viem/chains'
 import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS, SUBNAME_ABI, SUBNAME_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
@@ -133,27 +133,25 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
     codeHash: `0x${string}`; buyerEns: string; amount: bigint
   } | null>(null)
 
-  function deposit(amount: string, codeHash: `0x${string}`, buyerEns = '', payoutToken?: Address | null) {
-    console.log('[useEscrowWrite] deposit called:', { amount, codeHash, buyerEns, escrowAddress, payoutToken })
+  function deposit(requiredFunding: bigint, codeHash: `0x${string}`, buyerEns = '', payoutToken?: Address | null) {
+    console.log('[useEscrowWrite] deposit called:', { requiredFunding: requiredFunding.toString(), codeHash, buyerEns, escrowAddress, payoutToken })
     if (!escrowAddress) { console.log('[useEscrowWrite] No escrowAddress, aborting deposit'); return }
 
     if (!payoutToken) {
       // ETH escrow: send native ETH as msg.value
-      const value = parseEther(amount)
-      console.log('[useEscrowWrite] ETH path, calling fund() with value:', value.toString())
+      console.log('[useEscrowWrite] ETH path, calling fund() with value:', requiredFunding.toString())
       writeContract({
         address: escrowAddress,
         abi: HANDOFF_ABI,
         functionName: 'fund',
         args: [codeHash, buyerEns],
-        value,
+        value: requiredFunding,
       })
     } else {
       // ERC20 escrow: step 1 = approve, step 2 = fund (chained via useEffect)
       const decimals = getTokenByAddress(payoutToken).decimals
-      const tokenAmount = parseUnits(amount, decimals)
-      console.log('[useEscrowWrite] ERC20 path, approving', payoutToken, 'decimals:', decimals, 'amount:', tokenAmount.toString())
-      pendingFundRef.current = { codeHash, buyerEns, amount: tokenAmount }
+      console.log('[useEscrowWrite] ERC20 path, approving', payoutToken, 'decimals:', decimals, 'amount:', requiredFunding.toString())
+      pendingFundRef.current = { codeHash, buyerEns, amount: requiredFunding }
       approveWrite.writeContract({
         address: payoutToken,
         abi: [{
@@ -162,7 +160,7 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
           outputs: [{ name: '', type: 'bool' }],
         }] as unknown as Abi,
         functionName: 'approve',
-        args: [escrowAddress, tokenAmount],
+        args: [escrowAddress, requiredFunding],
       })
     }
   }
@@ -352,7 +350,7 @@ function useMockCreateDeal() {
 
 function useMockDepositFunds(dealId: bigint) {
   const { trigger, ...state } = useMockTx(() => mockDeposit(dealId))
-  function deposit(_amount: string, _codeHash: `0x${string}`, _buyerEns = '', _payoutToken?: Address | null) { trigger() }
+  function deposit(_requiredFunding: bigint, _codeHash: `0x${string}`, _buyerEns = '', _payoutToken?: Address | null) { trigger() }
   return { deposit, ...state }
 }
 

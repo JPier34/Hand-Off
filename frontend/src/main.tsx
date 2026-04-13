@@ -3,19 +3,22 @@ import { createRoot } from 'react-dom/client'
 import { WagmiProvider, createConfig, http } from 'wagmi'
 import { sepolia, mainnet } from 'wagmi/chains'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import './lib/dynamic' // side-effect: creates Dynamic client + adds EVM extension
 import './index.css'
 import App from './App.tsx'
 import { dynamicWagmiConnector } from '@/lib/dynamic-wagmi-connector'
 import { DynamicWagmiSync } from '@/components/DynamicWagmiSync'
 import { MOCK_MODE, resetMock, setMockDeal } from '@/lib/mock'
 import { TOKENS } from '@/lib/tokens'
+import { DYNAMIC_ENABLED } from '@/lib/dynamic-config'
+import { initDynamic } from '@/lib/dynamic'
+
+initDynamic()
 
 const dynamicConnector = dynamicWagmiConnector()
 
 const wagmiConfig = createConfig({
   chains: [sepolia, mainnet],
-  connectors: [dynamicConnector],
+  connectors: DYNAMIC_ENABLED ? [dynamicConnector] : [],
   transports: {
     [sepolia.id]: http(),
     [mainnet.id]: http(),

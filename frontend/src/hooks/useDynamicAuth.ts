@@ -13,6 +13,7 @@ import {
   getChainsMissingWaasWalletAccounts,
   createWaasWalletAccounts,
 } from '@dynamic-labs-sdk/client/waas'
+import { DYNAMIC_ENABLED } from '@/lib/dynamic-config'
 
 export interface WalletProviderInfo {
   key: string
@@ -37,7 +38,7 @@ let _state: DynamicAuthState = {
   isAuthenticated: false,
   walletAddress: null,
   isLoading: false,
-  isClientReady: false,
+  isClientReady: !DYNAMIC_ENABLED,
   showAuthModal: false,
   walletProviders: [],
 }
@@ -47,36 +48,36 @@ function setState(partial: Partial<DynamicAuthState>) {
   _listeners.forEach(fn => fn())
 }
 
-// Listen for wallet changes
-onEvent({
-  event: 'walletAccountsChanged',
-  listener: ({ walletAccounts }: { walletAccounts: { address?: string }[] }) => {
-    const addr = walletAccounts?.[0]?.address ?? null
-    setState({ isAuthenticated: !!addr, walletAddress: addr })
-  },
-})
-
-// Wait for client to be ready, then check initial state + load providers
-waitForClientInitialized().then(() => {
-  const accounts = getWalletAccounts()
-  const addr = accounts?.[0]?.address ?? null
-  const providers = getAvailableWalletProvidersData()
-  const walletProviders: WalletProviderInfo[] = providers.map((p) => ({
-    key: p.key,
-    displayName: p.metadata.displayName,
-    icon: p.metadata.icon,
-    groupKey: p.groupKey,
-    chain: p.chain,
-  }))
-  setState({
-    isClientReady: true,
-    isAuthenticated: !!addr,
-    walletAddress: addr,
-    walletProviders,
+if (DYNAMIC_ENABLED) {
+  onEvent({
+    event: 'walletAccountsChanged',
+    listener: ({ walletAccounts }: { walletAccounts: { address?: string }[] }) => {
+      const addr = walletAccounts?.[0]?.address ?? null
+      setState({ isAuthenticated: !!addr, walletAddress: addr })
+    },
   })
-}).catch(() => {
-  setState({ isClientReady: true })
-})
+
+  waitForClientInitialized().then(() => {
+    const accounts = getWalletAccounts()
+    const addr = accounts?.[0]?.address ?? null
+    const providers = getAvailableWalletProvidersData()
+    const walletProviders: WalletProviderInfo[] = providers.map((p) => ({
+      key: p.key,
+      displayName: p.metadata.displayName,
+      icon: p.metadata.icon,
+      groupKey: p.groupKey,
+      chain: p.chain,
+    }))
+    setState({
+      isClientReady: true,
+      isAuthenticated: !!addr,
+      walletAddress: addr,
+      walletProviders,
+    })
+  }).catch(() => {
+    setState({ isClientReady: true })
+  })
+}
 
 export function useDynamicAuth() {
   const [, rerender] = useState(0)
@@ -88,6 +89,7 @@ export function useDynamicAuth() {
   }, [])
 
   const openAuthModal = useCallback(() => {
+    if (!DYNAMIC_ENABLED) return
     setState({ showAuthModal: true })
   }, [])
 
@@ -96,6 +98,7 @@ export function useDynamicAuth() {
   }, [])
 
   const loginWithEmail = useCallback(async (email: string) => {
+    if (!DYNAMIC_ENABLED) throw new Error('Dynamic is disabled in this environment')
     setState({ isLoading: true })
     try {
       const otpVerification = await sendEmailOTP({ email })
@@ -107,6 +110,7 @@ export function useDynamicAuth() {
   }, [])
 
   const verifyCode = useCallback(async (otpVerification: Parameters<typeof verifyOTP>[0]['otpVerification'], code: string) => {
+    if (!DYNAMIC_ENABLED) throw new Error('Dynamic is disabled in this environment')
     try {
       await verifyOTP({ otpVerification, verificationToken: code })
       // Create embedded wallet — call unconditionally per docs
@@ -123,6 +127,7 @@ export function useDynamicAuth() {
   }, [])
 
   const connectWithProvider = useCallback(async (walletProviderKey: string) => {
+    if (!DYNAMIC_ENABLED) throw new Error('Dynamic is disabled in this environment')
     setState({ isLoading: true })
     try {
       await connectAndVerifyWithWalletProvider({ walletProviderKey })
@@ -136,6 +141,10 @@ export function useDynamicAuth() {
   }, [])
 
   const disconnect = useCallback(async () => {
+    if (!DYNAMIC_ENABLED) {
+      setState({ isAuthenticated: false, walletAddress: null })
+      return
+    }
     await dynamicLogout()
     setState({ isAuthenticated: false, walletAddress: null })
   }, [])

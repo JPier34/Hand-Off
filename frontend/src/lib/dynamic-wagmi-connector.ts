@@ -2,6 +2,7 @@ import { createConnector } from 'wagmi'
 import { getWalletAccounts, onEvent } from '@dynamic-labs-sdk/client'
 import { sepolia } from 'wagmi/chains'
 import type { Address } from 'viem'
+import { DYNAMIC_ENABLED } from '@/lib/dynamic-config'
 
 /**
  * Custom wagmi connector that bridges Dynamic SDK wallet accounts to wagmi.
@@ -10,6 +11,24 @@ import type { Address } from 'viem'
  * Writes go through useDynamicWriteContract which uses Dynamic's viem client directly.
  */
 export function dynamicWagmiConnector() {
+  if (!DYNAMIC_ENABLED) {
+    return createConnector((() => ({
+      id: 'dynamic-disabled',
+      name: 'Dynamic Disabled',
+      type: 'dynamic' as const,
+      async setup() {},
+      async connect() { throw new Error('Dynamic is disabled in this environment') },
+      async disconnect() {},
+      async getAccounts() { return [] as readonly Address[] },
+      async getChainId() { return sepolia.id },
+      async getProvider() { return {} as unknown },
+      async isAuthorized() { return false },
+      onAccountsChanged() {},
+      onChainChanged() {},
+      onDisconnect() {},
+    })) as never)
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return createConnector(((config: any) => {
 

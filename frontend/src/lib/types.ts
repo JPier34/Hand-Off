@@ -14,6 +14,10 @@ export interface DealDetails {
   seller: Address
   buyer: Address
   amount: bigint
+  feeAmount: bigint
+  requiredFunding: bigint
+  feeRecipient: Address | null
+  protocolFeeBps: bigint
   status: EscrowStatus
   expiresAt: bigint
   description: string          // frontend-only, not on-chain

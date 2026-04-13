@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useConnect, useDisconnect } from 'wagmi'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
+import { DYNAMIC_ENABLED } from '@/lib/dynamic-config'
 
 /** Syncs Dynamic auth state → wagmi connection */
 export function DynamicWagmiSync() {
@@ -9,6 +10,8 @@ export function DynamicWagmiSync() {
   const { disconnect } = useDisconnect()
 
   useEffect(() => {
+    if (!DYNAMIC_ENABLED) return
+
     const connector = connectors.find(c => c.id === 'dynamic')
     if (!connector) return
 
@@ -18,6 +21,8 @@ export function DynamicWagmiSync() {
       disconnect()
     }
   }, [isAuthenticated, connect, connectors, disconnect])
+
+  if (!DYNAMIC_ENABLED) return null
 
   return null
 }

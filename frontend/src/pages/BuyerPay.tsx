@@ -22,6 +22,7 @@ import { DealReceiptBadge } from '@/components/DealReceiptBadge'
 import { useReputation } from '@/hooks/useReputation'
 import { MOCK_MODE } from '@/lib/mock'
 import { getAutoSelectedTokenKey, shouldShowTokenSelector, shouldUseSwapPath } from '@/lib/buyerPayLogic'
+import { formatFeePercent } from '@/lib/fee'
 
 const DEFAULT_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
@@ -244,10 +245,11 @@ export default function BuyerPay() {
   const refund    = useClaimRefund(dealIdOrZero, escrowAddress)
   const reviewHook = useSubmitReview(escrowAddress)
   const amountWei  = details?.amount ?? 0n
+  const requiredFundingWei = details?.requiredFunding ?? 0n
   const usdValue   = useUsdValue(amountWei, details?.payoutToken ?? null)
   const { quotedIn, quoteResponse, isLoading: quoteLoading, error: quoteError } = useQuote(
     selectedToken,
-    amountWei,
+    requiredFundingWei,
     details?.payoutToken ?? null,
     slippage,
   )
@@ -322,9 +324,8 @@ export default function BuyerPay() {
       console.log('[BuyerPay] Taking SWAP path')
       swap.swapAndDeposit(codeHash)
     } else {
-      const amountStr = formatEther(details.amount)
-      console.log('[BuyerPay] Taking DIRECT deposit path, amount:', amountStr, 'escrowAddress:', escrowAddress, 'payoutToken:', details.payoutToken)
-      deposit(amountStr, codeHash, '', details.payoutToken)
+      console.log('[BuyerPay] Taking DIRECT deposit path, requiredFunding:', details.requiredFunding.toString(), 'escrowAddress:', escrowAddress, 'payoutToken:', details.payoutToken)
+      deposit(details.requiredFunding, codeHash, '', details.payoutToken)
     }
   }
 
@@ -366,6 +367,7 @@ export default function BuyerPay() {
   const sym  = details ? payoutSymbol(details.payoutToken) : 'ETH'
   const dec  = details ? payoutDecimals(details.payoutToken) : 18
   const fmt  = (v: bigint) => formatUnits(v, dec)
+  const feePercentLabel = details ? formatFeePercent(details.protocolFeeBps) : '0.00%'
 
   // ─── TX state helpers ───────────────────────────────────────────────────────
   const anyPending    = isSwapPath ? (swap.isApprovePending || swap.isSwapPending) : isPending
@@ -480,6 +482,7 @@ export default function BuyerPay() {
                     return (
                       <>
                         <FeeRow label={`Escrow Amount (${sym})`} value={`${fmt(details.amount)} ${sym}`} />
+                        <FeeRow label={`Protocol Fee (${feePercentLabel})`} value={`${fmt(details.feeAmount)} ${sym}`} />
                         <FeeRow label={`You pay (${paySym})`} value={`${payFmt(quotedIn)} ${paySym}`} />
                         <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
                           <FeeRow label="Total" value={`≈ ${payFmt(quotedIn)} ${paySym} + gas`} highlight />
@@ -517,8 +520,9 @@ export default function BuyerPay() {
               ) : (
                 <>
                   <FeeRow label="Escrow Amount" value={`${fmt(details.amount)} ${sym}`} />
+                  <FeeRow label={`Protocol Fee (${feePercentLabel})`} value={`${fmt(details.feeAmount)} ${sym}`} />
                   <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
-                    <FeeRow label="Total" value={`${fmt(details.amount)} ${sym} + gas`} highlight />
+                    <FeeRow label="Total" value={`${fmt(details.requiredFunding)} ${sym} + gas`} highlight />
                   </div>
                 </>
               )}
@@ -623,10 +627,10 @@ export default function BuyerPay() {
                     onClick={() => refund.claimRefund()}
                     loading={refund.isPending || refund.isConfirming}
                   >
-                    {refund.isPending ? 'Confirm in wallet…' : refund.isConfirming ? 'Processing refund…' : `Claim Refund — ${fmt(details.amount)} ${sym}`}
+                    {refund.isPending ? 'Confirm in wallet…' : refund.isConfirming ? 'Processing refund…' : `Claim Refund — ${fmt(details.requiredFunding)} ${sym}`}
                   </Button>
                 ) : (
-                  <p className="text-xs text-hoff-accent text-center py-1">{fmt(details.amount)} {sym} returned to your wallet</p>
+                  <p className="text-xs text-hoff-accent text-center py-1">{fmt(details.requiredFunding)} {sym} returned to your wallet</p>
                 )}
               </div>
             )}

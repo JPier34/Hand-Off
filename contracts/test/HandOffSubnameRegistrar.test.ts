@@ -299,7 +299,7 @@ describe("HandOffSubnameRegistrar", function () {
   // ── Graceful failure (UC-16) ─────────────────────────────────────────────────
   describe("Graceful failure path (UC-16)", function () {
     it("HandOff.sol unlock() emits SubnameMintFailed not REVERTED when registrar reverts", async function () {
-      const [deployer, seller, buyer] = await ethers.getSigners();
+      const [deployer, seller, buyer, feeRecipient] = await ethers.getSigners();
       const badResolver = await ethers.deployContract("RevertingENSResolver");
       const mockReg     = await ethers.deployContract("MockENSRegistry") as MockENSRegistry;
       const registrar   = (await ethers.deployContract("HandOffSubnameRegistrar", [
@@ -313,11 +313,15 @@ describe("HandOffSubnameRegistrar", function () {
         seller.address, ethers.ZeroAddress, ethers.parseEther("0.1"), 86_400n,
         99n, await rep.getAddress(), await registrar.getAddress(), "",
         ethers.ZeroAddress, // no swap router
+        feeRecipient.address,
+        1n,
         ethers.ZeroAddress, // _sellerPayoutAddress
       ]);
       // Register with reputation (deployer is AUTHORIZED_DEPLOYER in unit tests).
       const code = ethers.keccak256(ethers.toUtf8Bytes("test"));
-      await h.connect(buyer).fund(code, "", { value: ethers.parseEther("0.1") });
+      await h.connect(buyer).fund(code, "", {
+        value: ethers.parseEther("0.1") + (ethers.parseEther("0.1") / 10_000n),
+      });
 
       // unlock() MUST succeed — completion is never blocked by minting failure
       await expect(h.connect(seller).unlock(code))

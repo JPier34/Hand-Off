@@ -28,15 +28,20 @@ interface IHandOffReputationReg {
 ///         HandOffReputation in a single transaction. This eliminates the manual
 ///         registerHandOff() step that blocked seller wallets in production.
 contract HandOffFactory {
+    uint256 internal constant MAX_PROTOCOL_FEE_BPS = 1000; // 10%
 
     // ── Custom errors ─────────────────────────────────────────────────────────
     error ZeroReputationRegistry();
+    error InvalidFeeRecipient();
+    error FeeBpsTooHigh(uint256 provided, uint256 maximum);
     error DealIdMismatch();
 
     // ── Immutables ────────────────────────────────────────────────────────────
     address public immutable REPUTATION_REGISTRY;
     address public immutable SUBNAME_REGISTRAR; // address(0) on cross-chain deployments
     address public immutable ALLOWED_ROUTER;    // address(0) disables swap path
+    address public immutable FEE_RECIPIENT;
+    uint256 public immutable PROTOCOL_FEE_BPS;
 
     // ── Events ────────────────────────────────────────────────────────────────
     event HandOffCreated(
@@ -49,15 +54,24 @@ contract HandOffFactory {
     /// @param _reputationRegistry HandOffReputation contract address (required).
     /// @param _subnameRegistrar   HandOffSubnameRegistrar address, or address(0) for cross-chain.
     /// @param _allowedRouter      Uniswap router for fundWithSwap, or address(0) to disable.
+    /// @param _feeRecipient       Safe multisig that receives protocol fees on completion.
+    /// @param _protocolFeeBps     Buyer-paid fee in basis points (1 = 0.01%).
     constructor(
         address _reputationRegistry,
         address _subnameRegistrar,
-        address _allowedRouter
+        address _allowedRouter,
+        address _feeRecipient,
+        uint256 _protocolFeeBps
     ) {
         if (_reputationRegistry == address(0)) revert ZeroReputationRegistry();
+        if (_feeRecipient == address(0)) revert InvalidFeeRecipient();
+        if (_protocolFeeBps > MAX_PROTOCOL_FEE_BPS)
+            revert FeeBpsTooHigh(_protocolFeeBps, MAX_PROTOCOL_FEE_BPS);
         REPUTATION_REGISTRY = _reputationRegistry;
         SUBNAME_REGISTRAR   = _subnameRegistrar;
         ALLOWED_ROUTER      = _allowedRouter;
+        FEE_RECIPIENT       = _feeRecipient;
+        PROTOCOL_FEE_BPS    = _protocolFeeBps;
     }
 
     // ── Create ────────────────────────────────────────────────────────────────
@@ -91,6 +105,8 @@ contract HandOffFactory {
             SUBNAME_REGISTRAR,
             _sellerEns,
             ALLOWED_ROUTER,
+            FEE_RECIPIENT,
+            PROTOCOL_FEE_BPS,
             _sellerPayoutAddress   // address(0) → defaults to msg.sender inside HandOff
         );
 

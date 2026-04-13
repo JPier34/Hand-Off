@@ -1,6 +1,7 @@
 import { parseEther } from 'viem'
 import { EscrowStatus } from './types'
 import type { Address, DealDetails } from './types'
+import { calculateProtocolFee } from './fee'
 
 // MOCK_MODE: development flag only. Set VITE_MOCK=true to bypass wallet/contract calls.
 // No hardcoded deal IDs or fake addresses are exposed in production.
@@ -10,6 +11,7 @@ export const MOCK_MODE = import.meta.env.VITE_MOCK === 'true'
 export const MOCK_DEAL_ID = 1n
 
 const ZERO = '0x0000000000000000000000000000000000000000' as Address
+const DEFAULT_PROTOCOL_FEE_BPS = 1n
 
 // ─── Per-deal runtime state (only active when MOCK_MODE=true) ─────────────────
 
@@ -56,10 +58,15 @@ function getDealState(id: number): MockDealState {
 export function getMockDeal(dealId?: bigint): DealDetails {
   const id = Number(dealId ?? 1n)
   const s = getDealState(id)
+  const feeAmount = calculateProtocolFee(s.amount, DEFAULT_PROTOCOL_FEE_BPS)
   return {
     seller:      s.seller,
     buyer:       s.buyer,
     amount:      s.amount,
+    feeAmount,
+    requiredFunding: s.amount + feeAmount,
+    feeRecipient: ZERO,
+    protocolFeeBps: DEFAULT_PROTOCOL_FEE_BPS,
     status:      s.status,
     expiresAt:   s.expiresAt,
     description: s.description,

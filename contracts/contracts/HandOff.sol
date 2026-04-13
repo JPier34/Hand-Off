@@ -46,8 +46,10 @@ contract HandOff is ReentrancyGuard {
     // ── Custom errors ────────────────────────────────────────────────────────
     // QUALITY: custom errors replace require strings — saves ~200 gas per revert
     error InvalidSeller();
+    error InvalidFeeRecipient();
     error AmountZero();
     error WindowTooShort(uint256 provided, uint256 minimum);
+    error FeeBpsTooHigh(uint256 provided, uint256 maximum);
     error NotSeller();
     error NotBuyer();
     error WrongState();
@@ -83,6 +85,7 @@ contract HandOff is ReentrancyGuard {
     /// @dev SECURITY FIX: minimum expiry window prevents effectively-instant-expired deals
     ///      and protects against block.timestamp edge cases near expiry.
     uint256 public constant MIN_EXPIRY_WINDOW = 5 minutes; // 300 seconds
+    uint256 public constant MAX_PROTOCOL_FEE_BPS = 1000; // 10%
 
     // ── Immutable fields (never change after deployment) ─────────────────────
     uint256 public immutable DEAL_ID;
@@ -92,6 +95,8 @@ contract HandOff is ReentrancyGuard {
     address public immutable SUBNAME_REGISTRAR;   // address(0) = cross-chain, skip
     /// @dev SECURITY FIX: allowlisted router for fundWithSwap — address(0) disables swap
     address public immutable ALLOWED_ROUTER;
+    address public immutable FEE_RECIPIENT;
+    uint256 public immutable PROTOCOL_FEE_BPS;
 
     // ── Mutable terms (editable by seller in CREATED state only) ─────────────
     address public payoutToken;         // address(0) = ETH payout
@@ -121,6 +126,7 @@ contract HandOff is ReentrancyGuard {
         address indexed sellerPayoutAddress,
         uint256 amount
     );
+    event ProtocolFeePaid(address indexed recipient, uint256 amount);
     event HandOffExpired(
         address indexed escrow,
         address indexed buyer,
@@ -178,6 +184,8 @@ contract HandOff is ReentrancyGuard {
     /// @param _subnameRegistrar     HandOffSubnameRegistrar address, or address(0) for cross-chain.
     /// @param _sellerEns            Seller's ENS name for display (informational).
     /// @param _allowedRouter        Uniswap router address for fundWithSwap, or address(0) to disable.
+    /// @param _feeRecipient         Safe multisig that receives the protocol fee on completion.
+    /// @param _protocolFeeBps       Buyer-paid fee in basis points (1 = 0.01%).
     /// @param _sellerPayoutAddress  Address that receives funds on unlock. Defaults to _seller if address(0).
     constructor(
         address _seller,
@@ -189,10 +197,15 @@ contract HandOff is ReentrancyGuard {
         address _subnameRegistrar,
         string memory _sellerEns,
         address _allowedRouter,
+        address _feeRecipient,
+        uint256 _protocolFeeBps,
         address _sellerPayoutAddress
     ) {
         if (_seller == address(0)) revert InvalidSeller();
+        if (_feeRecipient == address(0)) revert InvalidFeeRecipient();
         if (_amount == 0) revert AmountZero();
+        if (_protocolFeeBps > MAX_PROTOCOL_FEE_BPS)
+            revert FeeBpsTooHigh(_protocolFeeBps, MAX_PROTOCOL_FEE_BPS);
         // SECURITY FIX: minimum 5-minute window prevents instant-expired deals and
         // block.timestamp manipulation at the expiry boundary
         if (_expirationWindow < MIN_EXPIRY_WINDOW)
@@ -205,6 +218,8 @@ contract HandOff is ReentrancyGuard {
         SUBNAME_REGISTRAR = _subnameRegistrar;
         // SECURITY FIX: only this allowlisted router may be called in fundWithSwap
         ALLOWED_ROUTER = _allowedRouter;
+        FEE_RECIPIENT = _feeRecipient;
+        PROTOCOL_FEE_BPS = _protocolFeeBps;
 
         payoutToken = _payoutToken;
         amount = _amount;
@@ -238,10 +253,10 @@ contract HandOff is ReentrancyGuard {
         if (block.timestamp >= expirationTimestamp) revert DealExpired();
 
         if (payoutToken == address(0)) {
-            if (msg.value != amount) revert WrongETHAmount();
+            if (msg.value != _requiredFunding()) revert WrongETHAmount();
         } else {
             if (msg.value != 0) revert ETHForbiddenForTokenEscrow();
-            IERC20(payoutToken).safeTransferFrom(msg.sender, address(this), amount);
+            IERC20(payoutToken).safeTransferFrom(msg.sender, address(this), _requiredFunding());
         }
 
         buyer = msg.sender;
@@ -301,8 +316,14 @@ contract HandOff is ReentrancyGuard {
         (bool success, ) = _router.call(_swapData);
         if (!success) revert SwapCallReverted();
 
+        uint256 requiredFunding = _requiredFunding();
         uint256 received = IERC20(payoutToken).balanceOf(address(this)) - balanceBefore;
-        if (received < amount) revert SlippageExceeded();
+        if (received < requiredFunding) revert SlippageExceeded();
+
+        uint256 payoutSurplus = received - requiredFunding;
+        if (payoutSurplus > 0) {
+            IERC20(payoutToken).safeTransfer(msg.sender, payoutSurplus);
+        }
 
         // SECURITY FIX: always revoke router approval unconditionally — prevents residual
         // allowance for tokens (e.g. USDT) that don't decrement allowances atomically
@@ -355,11 +376,13 @@ contract HandOff is ReentrancyGuard {
             }
         }
 
-        // SECURITY FIX: transfer full balance rather than stored `amount` — prevents
-        // surplus payout tokens (from a favorable swap) from being permanently locked
-        uint256 payout = _currentBalance();
-        _transferOut(sellerPayoutAddress, payout);
-        emit HandOffCompleted(SELLER, buyer, sellerPayoutAddress, payout);
+        uint256 feeAmount = _feeAmount(amount);
+        _transferOut(sellerPayoutAddress, amount);
+        if (feeAmount > 0) {
+            _transferOut(FEE_RECIPIENT, feeAmount);
+            emit ProtocolFeePaid(FEE_RECIPIENT, feeAmount);
+        }
+        emit HandOffCompleted(SELLER, buyer, sellerPayoutAddress, amount);
     }
 
     // ── Refund (UC-17) ────────────────────────────────────────────────────────
@@ -473,6 +496,16 @@ contract HandOff is ReentrancyGuard {
         return (SELLER, buyer);
     }
 
+    /// @notice Returns the protocol fee charged on the current seller amount.
+    function getFeeAmount() external view returns (uint256) {
+        return _feeAmount(amount);
+    }
+
+    /// @notice Returns the total funding required from the buyer: seller amount + fee.
+    function getRequiredFunding() external view returns (uint256) {
+        return _requiredFunding();
+    }
+
     /// @notice Returns true if the deal has passed its expiration timestamp.
     function isExpired() external view returns (bool) {
         return block.timestamp > expirationTimestamp;
@@ -501,6 +534,14 @@ contract HandOff is ReentrancyGuard {
         return payoutToken == address(0)
             ? address(this).balance
             : IERC20(payoutToken).balanceOf(address(this));
+    }
+
+    function _feeAmount(uint256 _sellerAmount) internal view returns (uint256) {
+        return (_sellerAmount * PROTOCOL_FEE_BPS) / 10_000;
+    }
+
+    function _requiredFunding() internal view returns (uint256) {
+        return amount + _feeAmount(amount);
     }
 
     /// @dev Transfers `_amount` of the payout asset to `_to`. Reverts on failure.
