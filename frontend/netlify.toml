@@ -3,6 +3,11 @@
   command = "npm run build"
   publish = "dist"
 
+# CHAIN_ID (11155111 = Eth Sepolia) is a public constant, not a secret.
+# Netlify's scanner false-positives on it because it matches the CHAIN_ID env var value.
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "CHAIN_ID"
+
 [functions]
   directory = "netlify/functions"
 
