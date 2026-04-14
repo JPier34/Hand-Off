@@ -38,10 +38,9 @@ export function dynamicWagmiConnector() {
       type: 'dynamic' as const,
 
       async setup() {
-        // Defer onEvent until the Dynamic client is fully initialized.
-        // wagmi calls setup() during createConfig() — before waitForClientInitialized()
-        // resolves — so calling onEvent() here directly throws ClientNotFoundError.
+        console.log('[dynamic-wagmi-connector] setup() called')
         waitForClientInitialized().then(() => {
+          console.log('[dynamic-wagmi-connector] waitForClientInitialized resolved in setup()')
           onEvent({
             event: 'walletAccountsChanged',
             listener: ({ walletAccounts }: { walletAccounts: { address?: string }[] }) => {

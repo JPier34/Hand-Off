@@ -32,6 +32,8 @@ export interface DynamicAuthState {
   walletProviders: WalletProviderInfo[]
 }
 
+console.log('[useDynamicAuth.ts] module evaluated')
+
 // Module-level shared state
 const _listeners = new Set<() => void>()
 let _state: DynamicAuthState = {
@@ -49,13 +51,11 @@ function setState(partial: Partial<DynamicAuthState>) {
 }
 
 if (DYNAMIC_ENABLED) {
-  // waitForClientInitialized resolves once createDynamicClient() has booted.
-  // Wrapped in try/catch as a second line of defence: if the bundler evaluates
-  // this module before dynamic.ts despite the explicit import ordering in main.tsx,
-  // waitForClientInitialized() itself can throw synchronously (not a rejected Promise).
+  console.log('[useDynamicAuth.ts] calling waitForClientInitialized()')
   try {
     waitForClientInitialized()
     .then(() => {
+      console.log('[useDynamicAuth.ts] waitForClientInitialized resolved')
       onEvent({
         event: 'walletAccountsChanged',
         listener: ({ walletAccounts }: { walletAccounts: { address?: string }[] }) => {
@@ -81,13 +81,12 @@ if (DYNAMIC_ENABLED) {
         walletProviders,
       })
     })
-    .catch(() => {
+    .catch((err) => {
+      console.error('[useDynamicAuth.ts] waitForClientInitialized rejected:', err)
       setState({ isClientReady: true })
     })
-  } catch {
-    // waitForClientInitialized threw synchronously — client not yet created.
-    // Mark ready so the UI doesn't hang; the onEvent listener won't fire
-    // but the user can still trigger auth manually.
+  } catch (err) {
+    console.error('[useDynamicAuth.ts] waitForClientInitialized threw synchronously:', err)
     setState({ isClientReady: true })
   }
 }
