@@ -50,9 +50,11 @@ function setState(partial: Partial<DynamicAuthState>) {
 
 if (DYNAMIC_ENABLED) {
   // waitForClientInitialized resolves once createDynamicClient() has booted.
-  // All SDK calls (onEvent, getWalletAccounts, etc.) are deferred until then
-  // to avoid ClientNotFoundError when this module is evaluated before dynamic.ts.
-  waitForClientInitialized()
+  // Wrapped in try/catch as a second line of defence: if the bundler evaluates
+  // this module before dynamic.ts despite the explicit import ordering in main.tsx,
+  // waitForClientInitialized() itself can throw synchronously (not a rejected Promise).
+  try {
+    waitForClientInitialized()
     .then(() => {
       onEvent({
         event: 'walletAccountsChanged',
@@ -82,6 +84,12 @@ if (DYNAMIC_ENABLED) {
     .catch(() => {
       setState({ isClientReady: true })
     })
+  } catch {
+    // waitForClientInitialized threw synchronously — client not yet created.
+    // Mark ready so the UI doesn't hang; the onEvent listener won't fire
+    // but the user can still trigger auth manually.
+    setState({ isClientReady: true })
+  }
 }
 
 export function useDynamicAuth() {

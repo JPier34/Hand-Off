@@ -1,3 +1,9 @@
+// ⚠️  MUST be the very first import — runs addEvmExtension() + createDynamicClient()
+// before any other module in the dependency graph calls Dynamic SDK functions.
+// App.tsx → useDynamicAuth.ts has module-level waitForClientInitialized() calls;
+// if dynamic.ts hasn't been evaluated first, they throw ClientNotFoundError.
+import '@/lib/dynamic'
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { WagmiProvider, createConfig, http } from 'wagmi'
@@ -11,8 +17,6 @@ import { MOCK_MODE, resetMock, setMockDeal } from '@/lib/mock'
 import { TOKENS } from '@/lib/tokens'
 import { DYNAMIC_ENABLED } from '@/lib/dynamic-config'
 import { initDynamic } from '@/lib/dynamic'
-
-initDynamic()
 
 const dynamicConnector = dynamicWagmiConnector()
 
