@@ -19,6 +19,7 @@ import { IntroScreen } from '@/components/escrow/IntroScreen'
 import { TOKENS, TOKEN_KEYS, type TokenKey, payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { useReputation } from '@/hooks/useReputation'
 
 const DEFAULT_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
@@ -47,7 +48,7 @@ function FeeRow({ label, value, highlight = false }: { label: string; value: str
 function ExpiryBar({ expiresAt, totalMs }: { expiresAt: number; totalMs: number }) {
   const remaining = Math.max(0, expiresAt - Date.now())
   const fraction = Math.min(1, remaining / totalMs)
-  const color = fraction > 0.25 ? 'bg-hoff-accent' : fraction > 0 ? 'bg-amber-500' : 'bg-red-500'
+  const color = fraction > 0.25 ? 'bg-hoff-accent' : fraction > 0 ? 'bg-hoff-warn' : 'bg-hoff-err'
 
   return (
     <div className="h-1.5 w-full rounded-full bg-hoff-elevated overflow-hidden">
@@ -61,29 +62,14 @@ function ExpiryBar({ expiresAt, totalMs }: { expiresAt: number; totalMs: number 
 
 // ─── Token selector ───────────────────────────────────────────────────────────
 
-interface TokenSelectorProps {
-  selected: TokenKey
-  onChange: (key: TokenKey) => void
-}
-
-function TokenSelector({ selected, onChange }: TokenSelectorProps) {
-  // Measure width dynamically based on selected symbol length
-  const charWidth = TOKENS[selected]?.symbol.length ?? 3
-  const width = `${charWidth * 0.7 + 1.2}em`
-
+function TokenSelector({ selected, onChange }: { selected: TokenKey; onChange: (key: TokenKey) => void }) {
   return (
-    <select
+    <Dropdown
+      className="shrink-0 min-w-[90px]"
       value={selected}
-      onChange={e => onChange(e.target.value)}
-      className="shrink-0 h-8 px-2 rounded-lg bg-hoff-accent-muted text-hoff-accent text-xl font-medium appearance-none [&::-ms-expand]:hidden cursor-pointer focus:outline-none transition-colors text-center"
-      style={{ width, WebkitAppearance: 'none', MozAppearance: 'none' }}
-    >
-      {TOKEN_KEYS.map(key => (
-        <option key={key} value={key} className="bg-hoff-elevated text-hoff-text-primary">
-          {TOKENS[key].symbol}
-        </option>
-      ))}
-    </select>
+      onChange={v => onChange(v as TokenKey)}
+      options={TOKEN_KEYS.map(key => ({ label: TOKENS[key].symbol, value: key }))}
+    />
   )
 }
 
@@ -118,7 +104,7 @@ function SwapPreview({ tokenKey, quotedIn, amountOutWei, payoutSymbol: outSym, p
       )}
 
       {error && (
-        <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-xl text-sm border border-red-800/30">
+        <div className="text-hoff-err bg-hoff-err-bg px-4 py-3 rounded-xl text-sm border border-hoff-err/20">
           {error}
         </div>
       )}
@@ -276,8 +262,8 @@ function CompletedView({ code, description, dealIdParam, status, onSubmitReview 
               onClick={() => setReview('negative')}
               className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${
                 review === 'negative'
-                  ? 'bg-red-900/30 border-red-500 text-red-400'
-                  : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-red-500/40'
+                  ? 'bg-hoff-err-bg border-hoff-err text-hoff-err'
+                  : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-hoff-err/40'
               }`}
             >
               <svg width="20" height="20" viewBox="0 0 24 24">
@@ -289,7 +275,7 @@ function CompletedView({ code, description, dealIdParam, status, onSubmitReview 
           <button
             onClick={handleSubmit}
             disabled={!review}
-            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
+            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
           >
             Submit
           </button>
@@ -329,7 +315,7 @@ export default function BuyerPay() {
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
           <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-red-400">Invalid deal link. Check the URL and try again.</p>
+            <p className="text-sm text-hoff-err">Invalid deal link. Check the URL and try again.</p>
           </div>
         </main>
       </Layout>
@@ -490,7 +476,7 @@ export default function BuyerPay() {
 
         {isError || !details ? (
           <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-red-400">Could not load deal. Check the link and try again.</p>
+            <p className="text-sm text-hoff-err">Could not load deal. Check the link and try again.</p>
           </div>
         ) : (
           <>
@@ -548,7 +534,7 @@ export default function BuyerPay() {
                     </div>
                   )}
                   {quoteError && (
-                    <p className="text-xs text-red-400 py-1">{quoteError}</p>
+                    <p className="text-xs text-hoff-err py-1">{quoteError}</p>
                   )}
                   {!quoteLoading && !quoteError && quotedIn !== undefined && (() => {
                     const payToken = TOKENS[selectedToken]
@@ -653,8 +639,8 @@ export default function BuyerPay() {
             {details.status === EscrowStatus.CREATED && (
               <>
                 {anyError && friendlyErr && (
-                  <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3">
-                    <p className="text-sm text-red-400 text-center">{friendlyErr}</p>
+                  <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3">
+                    <p className="text-sm text-hoff-err text-center">{friendlyErr}</p>
                   </div>
                 )}
                 <Button
@@ -670,22 +656,22 @@ export default function BuyerPay() {
 
             {/* FUNDED — not expired */}
             {details.status === EscrowStatus.FUNDED && !isExpired && (
-              <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3">
-                <p className="text-sm text-amber-400 text-center">This escrow has already been funded.</p>
+              <div className="bg-hoff-warn-bg border border-hoff-warn/20 rounded-xl px-4 py-3">
+                <p className="text-sm text-hoff-warn text-center">This escrow has already been funded.</p>
               </div>
             )}
 
             {/* FUNDED + expired — UC-9: Claim Refund */}
             {isExpired && (
               <div className="space-y-3">
-                <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3 space-y-1">
-                  <p className="text-sm text-red-400 font-medium text-center">This HandOff has expired</p>
-                  <p className="text-xs text-red-400/70 text-center">
+                <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3 space-y-1">
+                  <p className="text-sm text-hoff-err font-medium text-center">This HandOff has expired</p>
+                  <p className="text-xs text-hoff-err/70 text-center">
                     The seller did not enter the code in time. You can reclaim your funds.
                   </p>
                 </div>
 
-                {refund.isError && <p className="text-xs text-red-400 text-center">Refund failed. Try again.</p>}
+                {refund.isError && <p className="text-xs text-hoff-err text-center">Refund failed. Try again.</p>}
 
                 {!refund.isSuccess ? (
                   <Button
@@ -722,7 +708,7 @@ export default function BuyerPay() {
             {details.status === EscrowStatus.CANCELED && (
               <div className="space-y-4">
                 <div className="flex flex-col items-center gap-3 pt-2">
-                  <div className="w-14 h-14 rounded-full bg-red-900/30 border-2 border-red-500/40 flex items-center justify-center">
+                  <div className="w-14 h-14 rounded-full bg-hoff-err-bg border-2 border-hoff-err/40 flex items-center justify-center">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round">
                       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
@@ -738,7 +724,7 @@ export default function BuyerPay() {
             {MOCK_MODE && details.status === EscrowStatus.FUNDED && !isExpired && (
               <button
                 onClick={() => mockExpire(mockDealId)}
-                className="w-full text-xs text-hoff-text-tertiary hover:text-amber-400 transition-colors py-1 text-center"
+                className="w-full text-xs text-hoff-text-tertiary hover:text-hoff-warn transition-colors py-1 text-center"
               >
                 [Mock] Simulate expiry
               </button>

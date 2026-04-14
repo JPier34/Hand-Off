@@ -210,7 +210,7 @@ export function WalletButton() {
     return (
       <button
         onClick={login}
-        className="h-9 px-4 rounded-xl bg-hoff-accent text-hoff-bg text-xs font-bold hover:bg-hoff-accent-hover transition-colors"
+        className="h-9 px-4 rounded-xl bg-hoff-accent text-hoff-accent-fg text-xs font-bold hover:bg-hoff-accent-hover transition-colors"
       >
         Connect
       </button>
@@ -250,7 +250,7 @@ export function WalletButton() {
                   {walletInfo?.networkName ?? 'Loading...'}
                 </span>
                 {walletInfo?.isTestnet && (
-                  <span className="text-[9px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded-full font-medium">
+                  <span className="text-[9px] bg-hoff-warn-bg text-hoff-warn px-1.5 py-0.5 rounded-full font-medium">
                     Testnet
                   </span>
                 )}
@@ -294,7 +294,7 @@ export function WalletButton() {
               <div className="py-1">
                 <button
                   onClick={() => { disconnect(); handleClose() }}
-                  className="w-full px-4 py-2.5 flex items-center gap-3 text-red-400 hover:bg-red-900/10 transition-colors"
+                  className="w-full px-4 py-2.5 flex items-center gap-3 text-hoff-err hover:bg-hoff-err-bg/50 transition-colors"
                 >
                   <LogoutIcon />
                   <span className="text-xs font-medium">Disconnect</span>
@@ -318,7 +318,7 @@ export function WalletButton() {
                 </div>
                 <button
                   onClick={handleCopy}
-                  className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg text-sm font-bold hover:bg-hoff-accent-hover transition-colors flex items-center justify-center gap-2"
+                  className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg text-sm font-bold hover:bg-hoff-accent-hover transition-colors flex items-center justify-center gap-2"
                 >
                   {copied ? 'Copied!' : 'Copy Address'}
                 </button>
@@ -364,12 +364,12 @@ export function WalletButton() {
                 </div>
 
                 {sendResult?.hash && (
-                  <div className="bg-green-900/20 text-green-400 text-xs px-3 py-2.5 rounded-lg break-all">
+                  <div className="bg-hoff-ok-bg text-hoff-ok text-xs px-3 py-2.5 rounded-lg break-all">
                     Sent! Tx: {sendResult.hash.slice(0, 10)}...{sendResult.hash.slice(-8)}
                   </div>
                 )}
                 {sendResult?.error && (
-                  <div className="bg-red-900/20 text-red-400 text-xs px-3 py-2.5 rounded-lg">
+                  <div className="bg-hoff-err-bg text-hoff-err text-xs px-3 py-2.5 rounded-lg">
                     {sendResult.error}
                   </div>
                 )}
@@ -377,7 +377,7 @@ export function WalletButton() {
                 <button
                   onClick={handleSend}
                   disabled={!sendTo || !sendAmount || sending}
-                  className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg text-sm font-bold hover:bg-hoff-accent-hover transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                  className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg text-sm font-bold hover:bg-hoff-accent-hover transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                   {sending ? <Spinner size="sm" /> : 'Send'}
                 </button>
@@ -426,7 +426,7 @@ export function WalletButton() {
                   >
                     {exportingKey && !keyExported && <Spinner size="sm" />}
                   </div>
-                  <p className="text-[10px] text-amber-400 mt-2 text-center">
+                  <p className="text-[10px] text-hoff-warn mt-2 text-center">
                     Never share your private key with anyone
                   </p>
                 </div>
@@ -468,7 +468,7 @@ export function WalletButton() {
                         <span className="w-2 h-2 rounded-full bg-hoff-accent" />
                       )}
                       {n.testnet && (
-                        <span className="text-[9px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded-full font-medium">
+                        <span className="text-[9px] bg-hoff-warn-bg text-hoff-warn px-1.5 py-0.5 rounded-full font-medium">
                           Testnet
                         </span>
                       )}

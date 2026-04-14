@@ -10,6 +10,7 @@ import { useCreateDeal } from '@/hooks/useEscrowWrite'
 import { MOCK_MODE } from '@/lib/mock'
 import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
+import { Dropdown } from '@/components/ui/Dropdown'
 
 function validate(amount: string, description: string, decimals: number) {
   const errors: { amount?: string; description?: string } = {}
@@ -184,11 +185,11 @@ export default function CreateDeal() {
           ) : (
             <>
               {/* Fallback: tx confirmed but event parsing failed — still show success */}
-              <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3 space-y-2">
-                <p className="text-sm text-amber-400">
+              <div className="bg-hoff-warn-bg border border-hoff-warn/20 rounded-xl px-4 py-3 space-y-2">
+                <p className="text-sm text-hoff-warn">
                   Deal created but we couldn't extract the payment link automatically.
                 </p>
-                <p className="text-xs text-amber-400/70">
+                <p className="text-xs text-hoff-warn/70">
                   Check your recent transactions on Etherscan (Sepolia) to find the new escrow address, then share <span className="font-mono">{window.location.origin}/pay/[address]</span> with your buyer.
                 </p>
               </div>
@@ -240,21 +241,15 @@ export default function CreateDeal() {
                     <p className="text-xs text-hoff-text-tertiary mt-1">≈ ${usdValue} USD</p>
                   )}
                   {touched && errors.amount && (
-                    <p className="text-xs text-red-400 mt-1">{errors.amount}</p>
+                    <p className="text-xs text-hoff-err mt-1">{errors.amount}</p>
                   )}
                 </div>
-                <select
+                <Dropdown
+                  className="shrink-0 mt-6 min-w-[100px]"
                   value={payoutToken}
-                  onChange={e => setPayoutToken(e.target.value)}
-                  className="shrink-0 mt-6 h-9 px-3 rounded-xl bg-hoff-elevated border border-hoff-brand text-hoff-text-secondary font-medium text-sm appearance-none cursor-pointer focus:outline-none focus:border-hoff-accent/60 transition-colors text-center"
-                  style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
-                >
-                  {TOKEN_KEYS.map(key => (
-                    <option key={key} value={key} className="bg-hoff-elevated">
-                      {TOKENS[key].symbol}
-                    </option>
-                  ))}
-                </select>
+                  onChange={v => setPayoutToken(v as TokenKey)}
+                  options={TOKEN_KEYS.map(key => ({ label: TOKENS[key].symbol, value: key }))}
+                />
               </div>
             </div>
 
@@ -271,7 +266,7 @@ export default function CreateDeal() {
                 className="w-full bg-transparent text-hoff-text-primary text-sm placeholder:text-hoff-text-tertiary focus:outline-none"
               />
               {touched && errors.description && (
-                <p className="text-xs text-red-400 mt-1">{errors.description}</p>
+                <p className="text-xs text-hoff-err mt-1">{errors.description}</p>
               )}
             </div>
 
@@ -292,13 +287,13 @@ export default function CreateDeal() {
               />
               {isEnsInput && ensLoading && <p className="text-xs text-hoff-text-tertiary mt-2">Resolving…</p>}
               {isEnsInput && !ensLoading && resolvedAddress && (
-                <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
+                <p className="text-xs text-hoff-ok mt-2 flex items-center gap-1">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                   Verified: {resolvedAddress.slice(0, 6)}...{resolvedAddress.slice(-4)}
                 </p>
               )}
               {isEnsInput && !ensLoading && !resolvedAddress && recipient.length > 4 && (
-                <p className="text-xs text-red-400 mt-2">Could not resolve ENS name</p>
+                <p className="text-xs text-hoff-err mt-2">Could not resolve ENS name</p>
               )}
             </div>
 
@@ -307,20 +302,14 @@ export default function CreateDeal() {
               <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-2">
                 Expires In
               </p>
-              <select
-                value={timeoutHours}
-                onChange={e => setTimeoutHours(Number(e.target.value))}
-                className="w-full bg-transparent text-hoff-text-primary text-sm focus:outline-none cursor-pointer"
-              >
-                {TIMEOUT_OPTIONS.map(o => (
-                  <option key={o.hours} value={o.hours} className="bg-hoff-elevated">
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+              <Dropdown
+                value={String(timeoutHours)}
+                onChange={v => setTimeoutHours(Number(v))}
+                options={TIMEOUT_OPTIONS.map(o => ({ label: o.label, value: String(o.hours) }))}
+              />
             </div>
 
-            {isError && <p className="text-xs text-red-400 text-center">{error?.message ?? 'Transaction failed'}</p>}
+            {isError && <p className="text-xs text-hoff-err text-center">{error?.message ?? 'Transaction failed'}</p>}
 
             <Button
               fullWidth

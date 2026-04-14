@@ -168,11 +168,11 @@ const MOCK_HISTORY: HistoryEntry[] = [
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<EscrowStatus, { label: string; dot: string }> = {
-  [EscrowStatus.CREATED]:  { label: 'Awaiting Payment', dot: 'bg-amber-400' },
-  [EscrowStatus.FUNDED]:   { label: 'Funds Held',       dot: 'bg-blue-400' },
+  [EscrowStatus.CREATED]:  { label: 'Awaiting Payment', dot: 'bg-hoff-warn' },
+  [EscrowStatus.FUNDED]:   { label: 'Funds Held',       dot: 'bg-hoff-info' },
   [EscrowStatus.COMPLETED]: { label: 'Completed',        dot: 'bg-hoff-accent' },
   [EscrowStatus.EXPIRED]: { label: 'Refunded',         dot: 'bg-hoff-text-tertiary' },
-  [EscrowStatus.CANCELED]: { label: 'Cancelled',        dot: 'bg-red-400' },
+  [EscrowStatus.CANCELED]: { label: 'Cancelled',        dot: 'bg-hoff-err' },
 }
 
 function reviewIcon(review?: 'positive' | 'negative') {
@@ -329,7 +329,7 @@ export default function History() {
                 onClick={() => setStatusFilter(key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   statusFilter === key
-                    ? 'bg-hoff-accent text-hoff-bg'
+                    ? 'bg-hoff-accent text-hoff-accent-fg'
                     : 'bg-hoff-surface text-hoff-text-tertiary hover:text-hoff-text-secondary'
                 }`}
               >
@@ -399,7 +399,7 @@ export default function History() {
                         <span className="text-xs text-hoff-text-tertiary">{label}</span>
                       </div>
                       <span className="text-xs text-hoff-text-tertiary">·</span>
-                      <span className={`text-xs font-medium ${entry.role === 'seller' ? 'text-hoff-accent' : 'text-blue-400'}`}>
+                      <span className={`text-xs font-medium ${entry.role === 'seller' ? 'text-hoff-accent' : 'text-hoff-info'}`}>
                         {entry.role === 'seller' ? 'Selling' : 'Buying'}
                       </span>
                     </div>

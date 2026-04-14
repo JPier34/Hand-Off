@@ -24,7 +24,7 @@ export function Button({
   const variants = {
     primary: 'bg-hoff-accent text-white hover:bg-hoff-accent-hover rounded-2xl',
     ghost:   'border border-hoff-brand text-hoff-text-secondary hover:bg-hoff-surface hover:text-hoff-text-primary rounded-xl',
-    danger:  'bg-red-900/40 text-red-400 border border-red-800 hover:bg-red-900/60 rounded-xl',
+    danger:  'bg-hoff-err-bg text-hoff-err border border-hoff-err/30 hover:bg-hoff-err-bg/80 rounded-xl',
   }
   return (
     <button

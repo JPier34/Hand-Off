@@ -5,6 +5,13 @@
     <link rel="icon" type="image/png" href="/logo-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hand-Off</title>
+    <script>
+      // Prevent flash of wrong theme on page load
+      (function () {
+        var theme = localStorage.getItem('hoff-theme') || 'dark';
+        if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

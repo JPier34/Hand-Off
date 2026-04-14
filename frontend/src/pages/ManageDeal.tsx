@@ -13,6 +13,7 @@ import { parseContractError } from '@/lib/errors'
 import { EscrowStatus } from '@/lib/types'
 import { MOCK_MODE } from '@/lib/mock'
 import { IntroScreen } from '@/components/escrow/IntroScreen'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
@@ -390,7 +391,7 @@ function ClaimFundsView({
         </div>
       </div>
 
-      {isError && (() => { const msg = parseContractError(error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
+      {isError && (() => { const msg = parseContractError(error); return msg ? <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3"><p className="text-sm text-hoff-err text-center">{msg}</p></div> : null })()}
 
       <Button
         fullWidth
@@ -526,8 +527,8 @@ function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usd
               onClick={() => setReview('negative')}
               className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${
                 review === 'negative'
-                  ? 'bg-red-900/30 border-red-500 text-red-400'
-                  : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-red-500/40'
+                  ? 'bg-hoff-err-bg border-hoff-err text-hoff-err'
+                  : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-hoff-err/40'
               }`}
             >
               <svg width="20" height="20" viewBox="0 0 24 24">
@@ -543,7 +544,7 @@ function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usd
               setSubmitted(true)
             }}
             disabled={!review}
-            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
+            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
           >
             Submit
           </button>
@@ -580,7 +581,7 @@ export default function ManageDeal() {
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
           <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-red-400">Invalid deal link. Check the URL and try again.</p>
+            <p className="text-sm text-hoff-err">Invalid deal link. Check the URL and try again.</p>
           </div>
         </main>
       </Layout>
@@ -623,7 +624,7 @@ export default function ManageDeal() {
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
           <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-red-400">Could not load deal. Check the link and try again.</p>
+            <p className="text-sm text-hoff-err">Could not load deal. Check the link and try again.</p>
           </div>
         </main>
       </Layout>
@@ -684,7 +685,7 @@ export default function ManageDeal() {
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
           <div className="flex flex-col items-center gap-3 pt-2">
-            <div className="w-16 h-16 rounded-full bg-red-900/30 border-2 border-red-500/40 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-hoff-err-bg border-2 border-hoff-err/40 flex items-center justify-center">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
@@ -717,7 +718,7 @@ export default function ManageDeal() {
               No funds have been deposited, so nothing needs to be refunded.
             </p>
 
-            {cancelDeal.isError && (() => { const msg = parseContractError(cancelDeal.error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
+            {cancelDeal.isError && (() => { const msg = parseContractError(cancelDeal.error); return msg ? <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3"><p className="text-sm text-hoff-err text-center">{msg}</p></div> : null })()}
 
             <Button
               fullWidth
@@ -796,24 +797,20 @@ export default function ManageDeal() {
               <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-2">
                 New Expiration
               </p>
-              <select
-                value={editExpirationHours}
-                onChange={e => setEditExpirationHours(Number(e.target.value))}
-                className="w-full bg-transparent text-hoff-text-primary text-sm focus:outline-none cursor-pointer"
-              >
-                {[
-                  { label: '1 Day',   hours: 24 },
-                  { label: '3 Days',  hours: 72 },
-                  { label: '7 Days',  hours: 168 },
-                  { label: '14 Days', hours: 336 },
-                  { label: '30 Days', hours: 720 },
-                ].map(o => (
-                  <option key={o.hours} value={o.hours} className="bg-hoff-elevated">{o.label}</option>
-                ))}
-              </select>
+              <Dropdown
+                value={String(editExpirationHours)}
+                onChange={v => setEditExpirationHours(Number(v))}
+                options={[
+                  { label: '1 Day',   value: '24' },
+                  { label: '3 Days',  value: '72' },
+                  { label: '7 Days',  value: '168' },
+                  { label: '14 Days', value: '336' },
+                  { label: '30 Days', value: '720' },
+                ]}
+              />
             </div>
 
-            {editDeal.isError && (() => { const msg = parseContractError(editDeal.error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
+            {editDeal.isError && (() => { const msg = parseContractError(editDeal.error); return msg ? <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3"><p className="text-sm text-hoff-err text-center">{msg}</p></div> : null })()}
 
             {!editDeal.isSuccess ? (
               <Button
@@ -883,9 +880,9 @@ export default function ManageDeal() {
           </div>
 
           {/* Waiting indicator */}
-          <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3 flex items-center gap-2">
+          <div className="bg-hoff-warn-bg border border-hoff-warn/20 rounded-xl px-4 py-3 flex items-center gap-2">
             <Spinner size="sm" />
-            <span className="text-sm text-amber-400">Waiting for buyer to pay…</span>
+            <span className="text-sm text-hoff-warn">Waiting for buyer to pay…</span>
           </div>
 
           {/* Share link */}
