@@ -1,5 +1,5 @@
 import { createConnector } from 'wagmi'
-import { getWalletAccounts, onEvent } from '@dynamic-labs-sdk/client'
+import { getWalletAccounts, onEvent, waitForClientInitialized } from '@dynamic-labs-sdk/client'
 import { sepolia } from 'wagmi/chains'
 import type { Address } from 'viem'
 import { DYNAMIC_ENABLED } from '@/lib/dynamic-config'
@@ -38,19 +38,23 @@ export function dynamicWagmiConnector() {
       type: 'dynamic' as const,
 
       async setup() {
-        // Listen for Dynamic wallet changes and emit wagmi events
-        onEvent({
-          event: 'walletAccountsChanged',
-          listener: ({ walletAccounts }: { walletAccounts: { address?: string }[] }) => {
-            if (walletAccounts && walletAccounts.length > 0 && walletAccounts[0].address) {
-              config.emitter.emit('change', {
-                accounts: [walletAccounts[0].address as Address],
-              })
-            } else {
-              config.emitter.emit('disconnect')
-            }
-          },
-        })
+        // Defer onEvent until the Dynamic client is fully initialized.
+        // wagmi calls setup() during createConfig() — before waitForClientInitialized()
+        // resolves — so calling onEvent() here directly throws ClientNotFoundError.
+        waitForClientInitialized().then(() => {
+          onEvent({
+            event: 'walletAccountsChanged',
+            listener: ({ walletAccounts }: { walletAccounts: { address?: string }[] }) => {
+              if (walletAccounts && walletAccounts.length > 0 && walletAccounts[0].address) {
+                config.emitter.emit('change', {
+                  accounts: [walletAccounts[0].address as Address],
+                })
+              } else {
+                config.emitter.emit('disconnect')
+              }
+            },
+          })
+        }).catch(() => { /* client init failed — connector stays idle */ })
       },
 
       async connect() {
@@ -86,8 +90,13 @@ export function dynamicWagmiConnector() {
       },
 
       async isAuthorized() {
-        const accounts = getWalletAccounts()
-        return !!accounts && accounts.length > 0
+        try {
+          const accounts = getWalletAccounts()
+          return !!accounts && accounts.length > 0
+        } catch {
+          // Client not yet initialized — report not authorized; wagmi will retry
+          return false
+        }
       },
 
       onAccountsChanged(accounts: string[]) {
