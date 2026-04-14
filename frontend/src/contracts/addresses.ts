@@ -16,10 +16,10 @@ export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
     subnameRegistrar:   "0x0000000000000000000000000000000000000000" as Address,
   },
   [CHAIN_IDS.ETH_SEPOLIA]: {
-    // Redeployed 2026-04-05 — Factory now wired to SubnameRegistrar (UC-16 ENS minting)
-    // + UNISWAP_ROUTER updated to Universal Router 2.0 on Eth Sepolia
-    reputationRegistry: "0x63838546767C30202DFAf52C3fB8bd99ce81B771" as Address,
-    factory:            "0xE694B02924897dC0E11eFb283E4E3E0c2BEDeA3C" as Address,
+    // Redeployed 2026-04-14 — Factory now includes buyer-paid protocol fee
+    // (FEE_RECIPIENT + PROTOCOL_FEE_BPS params, getFeeAmount / getRequiredFunding views)
+    reputationRegistry: "0x79F69A7A38C325D5bd8fE96B111d938981F0d528" as Address,
+    factory:            "0xafc9a06b2cfd04dB18882813f17592Aa623801Ad" as Address,
     subnameRegistrar:   "0x8e9568CF2F4Aa172DCDc91d320d96B964255226B" as Address,
   },
 };
