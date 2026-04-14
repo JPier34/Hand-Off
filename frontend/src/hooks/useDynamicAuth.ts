@@ -49,34 +49,39 @@ function setState(partial: Partial<DynamicAuthState>) {
 }
 
 if (DYNAMIC_ENABLED) {
-  onEvent({
-    event: 'walletAccountsChanged',
-    listener: ({ walletAccounts }: { walletAccounts: { address?: string }[] }) => {
-      const addr = walletAccounts?.[0]?.address ?? null
-      setState({ isAuthenticated: !!addr, walletAddress: addr })
-    },
-  })
+  // waitForClientInitialized resolves once createDynamicClient() has booted.
+  // All SDK calls (onEvent, getWalletAccounts, etc.) are deferred until then
+  // to avoid ClientNotFoundError when this module is evaluated before dynamic.ts.
+  waitForClientInitialized()
+    .then(() => {
+      onEvent({
+        event: 'walletAccountsChanged',
+        listener: ({ walletAccounts }: { walletAccounts: { address?: string }[] }) => {
+          const addr = walletAccounts?.[0]?.address ?? null
+          setState({ isAuthenticated: !!addr, walletAddress: addr })
+        },
+      })
 
-  waitForClientInitialized().then(() => {
-    const accounts = getWalletAccounts()
-    const addr = accounts?.[0]?.address ?? null
-    const providers = getAvailableWalletProvidersData()
-    const walletProviders: WalletProviderInfo[] = providers.map((p) => ({
-      key: p.key,
-      displayName: p.metadata.displayName,
-      icon: p.metadata.icon,
-      groupKey: p.groupKey,
-      chain: p.chain,
-    }))
-    setState({
-      isClientReady: true,
-      isAuthenticated: !!addr,
-      walletAddress: addr,
-      walletProviders,
+      const accounts = getWalletAccounts()
+      const addr = accounts?.[0]?.address ?? null
+      const providers = getAvailableWalletProvidersData()
+      const walletProviders: WalletProviderInfo[] = providers.map((p) => ({
+        key: p.key,
+        displayName: p.metadata.displayName,
+        icon: p.metadata.icon,
+        groupKey: p.groupKey,
+        chain: p.chain,
+      }))
+      setState({
+        isClientReady: true,
+        isAuthenticated: !!addr,
+        walletAddress: addr,
+        walletProviders,
+      })
     })
-  }).catch(() => {
-    setState({ isClientReady: true })
-  })
+    .catch(() => {
+      setState({ isClientReady: true })
+    })
 }
 
 export function useDynamicAuth() {
