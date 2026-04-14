@@ -481,11 +481,12 @@ export default function BuyerPay() {
                     const paySym = payToken.symbol
                     return (
                       <>
-                        <FeeRow label={`Escrow Amount (${sym})`} value={`${fmt(details.amount)} ${sym}`} />
-                        <FeeRow label={`Protocol Fee (${feePercentLabel})`} value={`${fmt(details.feeAmount)} ${sym}`} />
-                        <FeeRow label={`You pay (${paySym})`} value={`${payFmt(quotedIn)} ${paySym}`} />
+                        <FeeRow label={`Seller receives (${sym})`} value={`${fmt(details.amount)} ${sym}`} />
+                        {details.feeAmount > 0n && (
+                          <FeeRow label={`Protocol Fee (${feePercentLabel})`} value={`${fmt(details.feeAmount)} ${sym}`} />
+                        )}
                         <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
-                          <FeeRow label="Total" value={`≈ ${payFmt(quotedIn)} ${paySym} + gas`} highlight />
+                          <FeeRow label={`You pay (${paySym})`} value={`${payFmt(quotedIn)} ${paySym}`} highlight />
                         </div>
                         <div className="flex items-center justify-between pt-1.5 border-t border-hoff-brand">
                           <span className="text-xs text-hoff-text-tertiary">Slippage</span>
@@ -506,7 +507,7 @@ export default function BuyerPay() {
                           </div>
                         </div>
                         <p className="text-[10px] text-hoff-text-tertiary pt-1">
-                          Powered by Uniswap · {paySym} → {sym}
+                          Fee included · Powered by Uniswap · {paySym} → {sym}
                         </p>
                       </>
                     )
@@ -519,8 +520,10 @@ export default function BuyerPay() {
                 </>
               ) : (
                 <>
-                  <FeeRow label="Escrow Amount" value={`${fmt(details.amount)} ${sym}`} />
-                  <FeeRow label={`Protocol Fee (${feePercentLabel})`} value={`${fmt(details.feeAmount)} ${sym}`} />
+                  <FeeRow label={`Seller receives (${sym})`} value={`${fmt(details.amount)} ${sym}`} />
+                  {details.feeAmount > 0n && (
+                    <FeeRow label={`Protocol Fee (${feePercentLabel})`} value={`${fmt(details.feeAmount)} ${sym}`} />
+                  )}
                   <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
                     <FeeRow label="Total" value={`${fmt(details.requiredFunding)} ${sym} + gas`} highlight />
                   </div>
