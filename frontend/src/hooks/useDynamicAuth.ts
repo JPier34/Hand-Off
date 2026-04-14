@@ -32,8 +32,6 @@ export interface DynamicAuthState {
   walletProviders: WalletProviderInfo[]
 }
 
-console.log('[useDynamicAuth.ts] module evaluated')
-
 // Module-level shared state
 const _listeners = new Set<() => void>()
 let _state: DynamicAuthState = {
@@ -51,11 +49,9 @@ function setState(partial: Partial<DynamicAuthState>) {
 }
 
 if (DYNAMIC_ENABLED) {
-  console.log('[useDynamicAuth.ts] calling waitForClientInitialized()')
   try {
     waitForClientInitialized()
     .then(() => {
-      console.log('[useDynamicAuth.ts] waitForClientInitialized resolved')
       onEvent({
         event: 'walletAccountsChanged',
         listener: ({ walletAccounts }: { walletAccounts: { address?: string }[] }) => {
@@ -81,12 +77,10 @@ if (DYNAMIC_ENABLED) {
         walletProviders,
       })
     })
-    .catch((err) => {
-      console.error('[useDynamicAuth.ts] waitForClientInitialized rejected:', err)
+    .catch(() => {
       setState({ isClientReady: true })
     })
-  } catch (err) {
-    console.error('[useDynamicAuth.ts] waitForClientInitialized threw synchronously:', err)
+  } catch {
     setState({ isClientReady: true })
   }
 }
