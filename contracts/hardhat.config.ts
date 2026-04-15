@@ -20,6 +20,11 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {},
+    ethMainnet: {
+      url: `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+      accounts: [PRIVATE_KEY],
+      chainId: 1,
+    },
     baseSepolia: {
       url: `https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}`,
       accounts: [PRIVATE_KEY],
@@ -33,6 +38,7 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     // Etherscan V2 unified key (V1 per-network keys deprecated May 2025)
+    // Covers ethMainnet (chainId=1) natively — no customChains entry needed for mainnet.
     apiKey: ETHERSCAN_KEY,
     customChains: [
       {

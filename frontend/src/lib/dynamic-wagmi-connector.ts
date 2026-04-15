@@ -1,8 +1,11 @@
 import { createConnector } from 'wagmi'
 import { getWalletAccounts, onEvent, waitForClientInitialized } from '@dynamic-labs-sdk/client'
-import { sepolia } from 'wagmi/chains'
+import { sepolia, mainnet } from 'wagmi/chains'
 import type { Address } from 'viem'
 import { DYNAMIC_ENABLED } from '@/lib/dynamic-config'
+import { getTargetChainId, CHAIN_IDS } from '@/lib/chains'
+
+const TARGET_CHAIN = getTargetChainId() === CHAIN_IDS.MAINNET ? mainnet : sepolia
 
 /**
  * Custom wagmi connector that bridges Dynamic SDK wallet accounts to wagmi.
@@ -20,7 +23,7 @@ export function dynamicWagmiConnector() {
       async connect() { throw new Error('Dynamic is disabled in this environment') },
       async disconnect() {},
       async getAccounts() { return [] as readonly Address[] },
-      async getChainId() { return sepolia.id },
+      async getChainId() { return TARGET_CHAIN.id },
       async getProvider() { return {} as unknown },
       async isAuthorized() { return false },
       onAccountsChanged() {},
@@ -60,7 +63,7 @@ export function dynamicWagmiConnector() {
         if (!walletAccount) throw new Error('No Dynamic wallet connected')
 
         const addr = walletAccount.address as Address
-        const chainId = sepolia.id as number
+        const chainId = TARGET_CHAIN.id as number
 
         config.emitter.emit('connect', { accounts: [addr] as readonly Address[], chainId })
         return { accounts: [addr] as readonly Address[], chainId }
@@ -77,7 +80,7 @@ export function dynamicWagmiConnector() {
       },
 
       async getChainId() {
-        return sepolia.id
+        return TARGET_CHAIN.id
       },
 
       async getProvider() {

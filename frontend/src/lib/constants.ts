@@ -4,7 +4,7 @@ import HandOffReputationAbi from '@/contracts/HandOffReputation.abi.json'
 import HandOffSubnameAbi from '@/contracts/HandOffSubnameRegistrar.abi.json'
 import HandOffFactoryAbi from '@/contracts/HandOffFactory.abi.json'
 import { CONTRACT_ADDRESSES } from '@/contracts/addresses'
-import { CHAIN_IDS } from '@/lib/chains'
+import { getTargetChainId } from '@/lib/chains'
 
 // ─── ABIs ─────────────────────────────────────────────────────────────────────
 export const HANDOFF_ABI   = HandOffAbi as unknown as Abi
@@ -14,9 +14,9 @@ export const SUBNAME_ABI   = HandOffSubnameAbi as unknown as Abi
 export const FACTORY_ABI   = HandOffFactoryAbi as unknown as Abi
 
 // ─── Contract addresses ──────────────────────────────────────────────────────
-// Priority: .env override > addresses.ts > zero address fallback
-// All core contracts now deployed on Ethereum Sepolia (11155111)
-const ethAddrs = CONTRACT_ADDRESSES[CHAIN_IDS.ETH_SEPOLIA]
+// Priority: .env override > addresses.ts for target chain > zero address fallback
+// Target chain: VITE_NETWORK=mainnet → 1, anything else → Eth Sepolia (11155111)
+const ethAddrs = CONTRACT_ADDRESSES[getTargetChainId()]
 
 // Reputation registry on Eth Sepolia
 export const REPUTATION_ADDRESS = (

@@ -8,6 +8,7 @@ import { fetchQuote, getOutputAmount, checkApproval, fetchSwap, type QuoteRespon
 import { HANDOFF_ABI, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
 import type { Address } from '@/lib/types'
 import { buildExactOutputQuoteRequest } from '@/lib/swapQuoteLogic'
+import { getTargetChainId } from '@/lib/chains'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -213,7 +214,7 @@ function useRealSwapAndDeposit(
       setState({ ...IDLE_SWAP, isApprovePending: true })
 
       const inputAmount = getOutputAmount(quoteResponse) // for EXACT_OUTPUT, this is the input amount
-      const approval = await checkApproval(address, token.address, inputAmount, 11155111)
+      const approval = await checkApproval(address, token.address, inputAmount, getTargetChainId())
 
       if (approval) {
         // Need to approve — swap will be triggered reactively after confirmation
