@@ -16,11 +16,14 @@ export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
     subnameRegistrar:   "0x0000000000000000000000000000000000000000" as Address,
   },
   [CHAIN_IDS.ETH_SEPOLIA]: {
-    // Redeployed 2026-04-14 — Factory now includes buyer-paid protocol fee
-    // (FEE_RECIPIENT + PROTOCOL_FEE_BPS params, getFeeAmount / getRequiredFunding views)
-    reputationRegistry: "0x79F69A7A38C325D5bd8fE96B111d938981F0d528" as Address,
-    factory:            "0xafc9a06b2cfd04dB18882813f17592Aa623801Ad" as Address,
-    subnameRegistrar:   "0x8e9568CF2F4Aa172DCDc91d320d96B964255226B" as Address,
+    // Redeployed 2026-04-15 — Full chain redeploy; Ignition modules now wired so
+    // Factory receives SubnameRegistrar address at deploy time (no hardcoded constant).
+    // HandOff escrows self-register with SubnameRegistrar on creation (msg.sender == escrow).
+    // ENS step still required: hand-off.eth owner must call ENS_Registry.setOwner(
+    //   namehash("hand-off.eth"), 0xaE1cEb6058BC0118080ACb9b6bd96Ba2463B96E5)
+    reputationRegistry: "0x8fe5A9F3949054Ca9A9f2f3378517180226D9222" as Address,
+    factory:            "0x34C44393b0E6704cbd908249E1b05e84D986C642" as Address,
+    subnameRegistrar:   "0xaE1cEb6058BC0118080ACb9b6bd96Ba2463B96E5" as Address,
   },
 };
 
