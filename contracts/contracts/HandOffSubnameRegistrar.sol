@@ -199,6 +199,7 @@ contract HandOffSubnameRegistrar {
         // Subname node: keccak256(abi.encodePacked(parentNode, labelHash))
         bytes32 subnameNode = keccak256(abi.encodePacked(PARENT_NODE, labelHash));
 
+        // slither-disable-next-line reentrancy-no-eth -- minted[_dealId] = true set above; ENS contracts are trusted
         // Create subnode under hand-off.eth pointing to this contract as owner+resolver
         ENS_REGISTRY.setSubnodeRecord(
             PARENT_NODE,

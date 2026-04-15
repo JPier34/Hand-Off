@@ -87,6 +87,10 @@ contract HandOff is ReentrancyGuard {
     ///      and protects against block.timestamp edge cases near expiry.
     uint256 public constant MIN_EXPIRY_WINDOW = 5 minutes; // 300 seconds
     uint256 public constant MAX_PROTOCOL_FEE_BPS = 1000; // 10%
+    /// @dev Gas forwarded to SubnameRegistrar.mintDealReceipt — enough for 3 ENS storage writes + resolver calls.
+    uint256 private constant ENS_MINT_GAS = 500_000;
+    /// @dev Gas forwarded to Reputation.recordCompletion / recordReview — lightweight storage update.
+    uint256 private constant REPUTATION_GAS = 150_000;
 
     // ── Immutable fields (never change after deployment) ─────────────────────
     uint256 public immutable DEAL_ID;
@@ -315,6 +319,7 @@ contract HandOff is ReentrancyGuard {
         IERC20(_inputToken).forceApprove(_router, actualInput);
 
         uint256 balanceBefore = IERC20(payoutToken).balanceOf(address(this));
+        // slither-disable-next-line reentrancy-no-eth -- nonReentrant modifier on this function prevents reentry
         (bool success, ) = _router.call(_swapData);
         if (!success) revert SwapCallReverted();
 
@@ -362,7 +367,7 @@ contract HandOff is ReentrancyGuard {
 
         if (REPUTATION_REGISTRY != address(0)) {
             // SECURITY FIX: Gas limit prevents OOG attacks from a malicious/bloated registry
-            try IHandOffReputation(REPUTATION_REGISTRY).recordCompletion{gas: 150000}(
+            try IHandOffReputation(REPUTATION_REGISTRY).recordCompletion{gas: REPUTATION_GAS}(
                 SELLER, buyer, amount
             ) {} catch {}
         }
@@ -371,7 +376,7 @@ contract HandOff is ReentrancyGuard {
 
         if (SUBNAME_REGISTRAR != address(0)) {
             // SECURITY FIX: Gas limit ensures ENS minting doesn't exhaust block gas
-            try IHandOffSubnameRegistrar(SUBNAME_REGISTRAR).mintDealReceipt{gas: 500000}(
+            try IHandOffSubnameRegistrar(SUBNAME_REGISTRAR).mintDealReceipt{gas: ENS_MINT_GAS}(
                 DEAL_ID, address(this), buyer, SELLER, amount, block.timestamp
             ) {} catch {
                 emit SubnameMintFailed(DEAL_ID);
@@ -422,7 +427,7 @@ contract HandOff is ReentrancyGuard {
         
         if (REPUTATION_REGISTRY != address(0)) {
             // SECURITY FIX: Gas limit prevents OOG.
-            try IHandOffReputation(REPUTATION_REGISTRY).recordReview{gas: 150000}(
+            try IHandOffReputation(REPUTATION_REGISTRY).recordReview{gas: REPUTATION_GAS}(
                 msg.sender,
                 isBuyer ? SELLER : buyer,
                 address(this),
