@@ -126,9 +126,16 @@ Uniswap Router 2.0 0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD
 - ✅ 3.2  `waitForTransactionReceipt` sostituisce receipt poller manuale (`useReceiptPoller` + `receiptPollerLogic.ts`)
 - ✅ 3.5  Slippage configurabile via UI — picker 0.1/0.5/1.0% in BuyerPay + SwapPreview; propagato a Uniswap Trading API
 - ✅ 3.x  Fix lint P0/P1 — rules-of-hooks (BuyerPay, ManageDeal), no-unused-vars, react-refresh, vite.config dedup
-- [ ] 3.3  Slither audit contratti
+- ✅ 3.3  Slither audit contratti — 0 finding su 90 detector (pre e post proxy refactor)
 - ✅ 3.4  Netlify Function proxy per API key — `netlify/functions/uniswap.js` inietta `UNISWAP_API_KEY` server-side; `VITE_UNISWAP_API_KEY` mai nel bundle
-- [ ] 3.6  Zod validation su risposte Uniswap Trading API (`fetchQuote`, `fetchSwap`) — pre-mainnet
+- ✅ 3.6  Zod validation su risposte Uniswap Trading API — già implementata in `lib/uniswap.ts`
+
+### ✅ FASE 3.x — EIP-1167 Minimal Proxy (HandOff)
+- HandOff usa `Clones.clone() + initialize()` — gas `createHandOff` da 1.9M → 405k (-79%)
+- `HandOff.sol`: `Initializable` OZ, `constructor()` chiama `_disableInitializers()`, campi ex-`immutable` → storage
+- `HandOffFactory.sol`: deploya implementation nel costruttore, `createHandOff` clona + inizializza
+- Test: `deployHandOffClone()` helper + `ClonesHelper.sol` — 154/154 test passati
+- Slither: 0 finding post-refactor
 
 ### 🟢 FASE 4 — Deploy Mainnet
 - [ ] 4.1  Ownership `hand-off.eth` ENS mainnet — dal wallet owner di `hand-off.eth` su mainnet, chiamare ENS Registry (`0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e`):
