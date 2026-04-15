@@ -9,6 +9,11 @@ const ENS_RESOLVER  = "0x8FADE66B79cC9f707aB26799354482EB93a5B7dD";
 const PARENT_NODE   = namehash("hand-off.eth") as `0x${string}`;
 
 const HandOffSubnameRegistrarModule = buildModule("HandOffSubnameRegistrar", (m) => {
+  // AUTHORIZED_DEPLOYER = deployer wallet (account 0).
+  // This wallet must also own (or be operator of) "hand-off.eth" in the ENS Registry
+  // so that setSubnodeRecord succeeds when minting deal-{id}.hand-off.eth subnames.
+  // After deploy: ENS_Registry.setOwner(namehash("hand-off.eth"), registrar.address)
+  //   OR: ENS_Registry.setApprovalForAll(registrar.address, true) from the "hand-off.eth" owner.
   const deployer = m.getAccount(0);
 
   const registrar = m.contract("HandOffSubnameRegistrar", [
