@@ -25,14 +25,13 @@ export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
     subnameRegistrar:   "0x0000000000000000000000000000000000000000" as Address,
   },
   [CHAIN_IDS.ETH_SEPOLIA]: {
-    // Redeployed 2026-04-15 — Full chain redeploy; Ignition modules now wired so
-    // Factory receives SubnameRegistrar address at deploy time (no hardcoded constant).
-    // HandOff escrows self-register with SubnameRegistrar on creation (msg.sender == escrow).
-    // ENS step still required: hand-off.eth owner must call ENS_Registry.setOwner(
-    //   namehash("hand-off.eth"), 0xaE1cEb6058BC0118080ACb9b6bd96Ba2463B96E5)
-    reputationRegistry: "0x8fe5A9F3949054Ca9A9f2f3378517180226D9222" as Address,
-    factory:            "0x34C44393b0E6704cbd908249E1b05e84D986C642" as Address,
-    subnameRegistrar:   "0xaE1cEb6058BC0118080ACb9b6bd96Ba2463B96E5" as Address,
+    // Redeployed 2026-04-15 — EIP-1167 minimal proxy pattern (createHandOff: 1.9M→405k gas).
+    // HandOff uses Clones.clone()+initialize(); Factory deploys implementation in constructor.
+    // ENS step still required: hand-off.eth owner must call ENS_Registry.setApprovalForAll(
+    //   0xb61C34b0da348b65741757fb9b5671f3Fd359d61, true)
+    reputationRegistry: "0x2B34136c33DF34B4d1B38Bc9D0DfB73A70b1c6B7" as Address,
+    factory:            "0x3d1B1b5D01E008eaEC73309bfbD3AFF0082f018a" as Address,
+    subnameRegistrar:   "0xb61C34b0da348b65741757fb9b5671f3Fd359d61" as Address,
   },
 };
 
