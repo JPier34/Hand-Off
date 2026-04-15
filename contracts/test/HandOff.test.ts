@@ -125,21 +125,23 @@ describe("HandOff", function () {
     });
 
     it("reverts with amount=0 — AmountZero", async function () {
-      const [, seller, , , feeRecipient] = await ethers.getSigners();
+      const [deployer, seller, , , feeRecipient] = await ethers.getSigners();
       const factory = await ethers.getContractFactory("HandOff");
+      const rep = await ethers.deployContract("HandOffReputation", [deployer.address]);
       await expect(
         factory.deploy(seller.address, ethers.ZeroAddress, 0n, EXPIRY_WINDOW,
-          1n, ethers.ZeroAddress, ethers.ZeroAddress, "", ethers.ZeroAddress, feeRecipient.address, FEE_BPS, ethers.ZeroAddress)
+          1n, await rep.getAddress(), ethers.ZeroAddress, "", ethers.ZeroAddress, feeRecipient.address, FEE_BPS, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(factory, "AmountZero");
     });
 
     it("reverts with expirationWindow below minimum — WindowTooShort", async function () {
       // Updated: window=1 is below MIN_EXPIRY_WINDOW (300s) — correct error is WindowTooShort
-      const [, seller, , , feeRecipient] = await ethers.getSigners();
+      const [deployer, seller, , , feeRecipient] = await ethers.getSigners();
       const factory = await ethers.getContractFactory("HandOff");
+      const rep = await ethers.deployContract("HandOffReputation", [deployer.address]);
       await expect(
         factory.deploy(seller.address, ethers.ZeroAddress, ONE_ETH, 1n,
-          1n, ethers.ZeroAddress, ethers.ZeroAddress, "", ethers.ZeroAddress, feeRecipient.address, FEE_BPS, ethers.ZeroAddress)
+          1n, await rep.getAddress(), ethers.ZeroAddress, "", ethers.ZeroAddress, feeRecipient.address, FEE_BPS, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(factory, "WindowTooShort");
     });
 
@@ -153,11 +155,12 @@ describe("HandOff", function () {
     });
 
     it("reverts with fee recipient=zero address — InvalidFeeRecipient", async function () {
-      const [, seller] = await ethers.getSigners();
+      const [deployer, seller] = await ethers.getSigners();
       const factory = await ethers.getContractFactory("HandOff");
+      const rep = await ethers.deployContract("HandOffReputation", [deployer.address]);
       await expect(
         factory.deploy(seller.address, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
-          1n, ethers.ZeroAddress, ethers.ZeroAddress, "", ethers.ZeroAddress, ethers.ZeroAddress, FEE_BPS, ethers.ZeroAddress)
+          1n, await rep.getAddress(), ethers.ZeroAddress, "", ethers.ZeroAddress, ethers.ZeroAddress, FEE_BPS, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(factory, "InvalidFeeRecipient");
     });
 
@@ -759,18 +762,16 @@ describe("HandOff", function () {
       expect(b.buyerDealCount).to.equal(1n);
     });
 
-    it("unlock() succeeds silently when REPUTATION_REGISTRY is zero", async function () {
-      const [, seller, buyer, , feeRecipient] = await ethers.getSigners();
-      const h = (await ethers.deployContract("HandOff", [
+    it("constructor reverts with ZeroReputationRegistry when REPUTATION_REGISTRY is zero", async function () {
+      const [, seller, , , feeRecipient] = await ethers.getSigners();
+      await expect(ethers.deployContract("HandOff", [
         seller.address, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
         8n, ethers.ZeroAddress, ethers.ZeroAddress, "",
         ethers.ZeroAddress, // ALLOWED_ROUTER
         feeRecipient.address,
         FEE_BPS,
         ethers.ZeroAddress, // _sellerPayoutAddress
-      ])) as HandOff;
-      await h.connect(buyer).fund(VALID_HASH, "", { value: requiredFunding(ONE_ETH) });
-      await expect(h.connect(seller).unlock(VALID_HASH)).to.emit(h, "HandOffCompleted");
+      ])).to.be.revertedWithCustomError({ interface: (await ethers.getContractFactory("HandOff")).interface }, "ZeroReputationRegistry");
     });
   });
 });

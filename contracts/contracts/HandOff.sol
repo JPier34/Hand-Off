@@ -46,6 +46,7 @@ contract HandOff is ReentrancyGuard {
     // ── Custom errors ────────────────────────────────────────────────────────
     // QUALITY: custom errors replace require strings — saves ~200 gas per revert
     error InvalidSeller();
+    error ZeroReputationRegistry();
     error InvalidFeeRecipient();
     error AmountZero();
     error WindowTooShort(uint256 provided, uint256 minimum);
@@ -202,6 +203,7 @@ contract HandOff is ReentrancyGuard {
         address _sellerPayoutAddress
     ) {
         if (_seller == address(0)) revert InvalidSeller();
+        if (_reputationRegistry == address(0)) revert ZeroReputationRegistry();
         if (_feeRecipient == address(0)) revert InvalidFeeRecipient();
         if (_amount == 0) revert AmountZero();
         if (_protocolFeeBps > MAX_PROTOCOL_FEE_BPS)
