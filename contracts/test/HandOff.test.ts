@@ -10,6 +10,60 @@ import type {
   MockSwapRouter,
 } from "../typechain-types";
 
+// ---------------------------------------------------------------------------
+// Proxy-aware deploy helper
+// HandOff now uses EIP-1167 clone pattern. All tests must go through this
+// helper instead of `new HandOff(...)` directly.
+// ---------------------------------------------------------------------------
+let _handOffImpl: HandOff | null = null;
+
+async function getHandOffImpl(): Promise<HandOff> {
+  if (!_handOffImpl) {
+    _handOffImpl = (await ethers.deployContract("HandOff", [])) as HandOff;
+  }
+  return _handOffImpl;
+}
+
+let _clonesHelper: Awaited<ReturnType<typeof ethers.deployContract>> | null = null;
+
+async function getClonesHelper() {
+  if (!_clonesHelper) {
+    _clonesHelper = await ethers.deployContract("ClonesHelper", []);
+  }
+  return _clonesHelper;
+}
+
+async function deployHandOffClone(args: {
+  seller: string;
+  payoutToken: string;
+  amount: bigint;
+  expirationWindow: bigint;
+  dealId: bigint;
+  reputationRegistry: string;
+  subnameRegistrar: string;
+  sellerEns: string;
+  allowedRouter: string;
+  feeRecipient: string;
+  protocolFeeBps: bigint;
+  sellerPayoutAddress: string;
+}): Promise<HandOff> {
+  const impl        = await getHandOffImpl();
+  const helper      = await getClonesHelper();
+  const implAddress = await impl.getAddress();
+
+  // staticCall returns the address that the next real call will create (same nonce).
+  const cloneAddress: string = await helper.clone.staticCall(implAddress);
+  await helper.clone(implAddress); // deploy the actual proxy
+
+  const handOff = (await ethers.getContractFactory("HandOff")).attach(cloneAddress) as HandOff;
+  await handOff.initialize(
+    args.seller, args.payoutToken, args.amount, args.expirationWindow,
+    args.dealId, args.reputationRegistry, args.subnameRegistrar, args.sellerEns,
+    args.allowedRouter, args.feeRecipient, args.protocolFeeBps, args.sellerPayoutAddress
+  );
+  return handOff;
+}
+
 const ONE_ETH       = ethers.parseEther("1.0");
 const HALF_ETH      = ethers.parseEther("0.5");
 const TWO_ETH       = ethers.parseEther("2.0");
@@ -31,15 +85,13 @@ function requiredFunding(amount: bigint) {
 async function baseFixture() {
   const [deployer, seller, buyer, other, feeRecipient] = await ethers.getSigners();
   const rep = (await ethers.deployContract("HandOffReputation", [deployer.address])) as HandOffReputation;
-  const h   = (await ethers.deployContract("HandOff", [
-    seller.address, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
-    1n, await rep.getAddress(), ethers.ZeroAddress, "seller.eth",
-    ethers.ZeroAddress, // ALLOWED_ROUTER — address(0) disables swap
-    feeRecipient.address,
-    FEE_BPS,
-    ethers.ZeroAddress, // _sellerPayoutAddress — defaults to seller
-  ])) as HandOff;
-  // Register the escrow with the reputation registry (deployer is AUTHORIZED_DEPLOYER in unit tests).
+  const h = await deployHandOffClone({
+    seller: seller.address, payoutToken: ethers.ZeroAddress, amount: ONE_ETH,
+    expirationWindow: EXPIRY_WINDOW, dealId: 1n, reputationRegistry: await rep.getAddress(),
+    subnameRegistrar: ethers.ZeroAddress, sellerEns: "seller.eth",
+    allowedRouter: ethers.ZeroAddress, feeRecipient: feeRecipient.address,
+    protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+  });
   await rep.connect(deployer).registerHandOff(await h.getAddress());
   return { h, rep, deployer, seller, buyer, other, feeRecipient };
 }
@@ -49,14 +101,13 @@ async function tokenFixture() {
   const token = (await ethers.deployContract("MockERC20", ["T", "T", 18])) as MockERC20;
   await token.mint(buyer.address, TWO_ETH * 5n);
   const rep = (await ethers.deployContract("HandOffReputation", [deployer.address])) as HandOffReputation;
-  const h   = (await ethers.deployContract("HandOff", [
-    seller.address, await token.getAddress(), ONE_ETH, EXPIRY_WINDOW,
-    2n, await rep.getAddress(), ethers.ZeroAddress, "",
-    ethers.ZeroAddress, // ALLOWED_ROUTER
-    feeRecipient.address,
-    FEE_BPS,
-    ethers.ZeroAddress, // _sellerPayoutAddress
-  ])) as HandOff;
+  const h = await deployHandOffClone({
+    seller: seller.address, payoutToken: await token.getAddress(), amount: ONE_ETH,
+    expirationWindow: EXPIRY_WINDOW, dealId: 2n, reputationRegistry: await rep.getAddress(),
+    subnameRegistrar: ethers.ZeroAddress, sellerEns: "",
+    allowedRouter: ethers.ZeroAddress, feeRecipient: feeRecipient.address,
+    protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+  });
   await rep.connect(deployer).registerHandOff(await h.getAddress());
   return { h, rep, token, deployer, seller, buyer, other, feeRecipient };
 }
@@ -124,57 +175,60 @@ describe("HandOff", function () {
       expect(info._sellerEns).to.equal("seller.eth");
     });
 
-    it("reverts with amount=0 — AmountZero", async function () {
+    it("initialize() reverts with amount=0 — AmountZero", async function () {
       const [deployer, seller, , , feeRecipient] = await ethers.getSigners();
-      const factory = await ethers.getContractFactory("HandOff");
       const rep = await ethers.deployContract("HandOffReputation", [deployer.address]);
-      await expect(
-        factory.deploy(seller.address, ethers.ZeroAddress, 0n, EXPIRY_WINDOW,
-          1n, await rep.getAddress(), ethers.ZeroAddress, "", ethers.ZeroAddress, feeRecipient.address, FEE_BPS, ethers.ZeroAddress)
-      ).to.be.revertedWithCustomError(factory, "AmountZero");
+      await expect(deployHandOffClone({
+        seller: seller.address, payoutToken: ethers.ZeroAddress, amount: 0n,
+        expirationWindow: EXPIRY_WINDOW, dealId: 1n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: ethers.ZeroAddress, sellerEns: "", allowedRouter: ethers.ZeroAddress,
+        feeRecipient: feeRecipient.address, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      })).to.be.revertedWithCustomError({ interface: (await ethers.getContractFactory("HandOff")).interface }, "AmountZero");
     });
 
-    it("reverts with expirationWindow below minimum — WindowTooShort", async function () {
-      // Updated: window=1 is below MIN_EXPIRY_WINDOW (300s) — correct error is WindowTooShort
+    it("initialize() reverts with expirationWindow below minimum — WindowTooShort", async function () {
       const [deployer, seller, , , feeRecipient] = await ethers.getSigners();
-      const factory = await ethers.getContractFactory("HandOff");
       const rep = await ethers.deployContract("HandOffReputation", [deployer.address]);
-      await expect(
-        factory.deploy(seller.address, ethers.ZeroAddress, ONE_ETH, 1n,
-          1n, await rep.getAddress(), ethers.ZeroAddress, "", ethers.ZeroAddress, feeRecipient.address, FEE_BPS, ethers.ZeroAddress)
-      ).to.be.revertedWithCustomError(factory, "WindowTooShort");
+      await expect(deployHandOffClone({
+        seller: seller.address, payoutToken: ethers.ZeroAddress, amount: ONE_ETH,
+        expirationWindow: 1n, dealId: 1n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: ethers.ZeroAddress, sellerEns: "", allowedRouter: ethers.ZeroAddress,
+        feeRecipient: feeRecipient.address, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      })).to.be.revertedWithCustomError({ interface: (await ethers.getContractFactory("HandOff")).interface }, "WindowTooShort");
     });
 
-    it("reverts with seller=zero address — InvalidSeller", async function () {
-      const [, , , , feeRecipient] = await ethers.getSigners();
-      const factory = await ethers.getContractFactory("HandOff");
-      await expect(
-        factory.deploy(ethers.ZeroAddress, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
-          1n, ethers.ZeroAddress, ethers.ZeroAddress, "", ethers.ZeroAddress, feeRecipient.address, FEE_BPS, ethers.ZeroAddress)
-      ).to.be.revertedWithCustomError(factory, "InvalidSeller");
+    it("initialize() reverts with seller=zero address — InvalidSeller", async function () {
+      const [deployer, , , , feeRecipient] = await ethers.getSigners();
+      const rep = await ethers.deployContract("HandOffReputation", [deployer.address]);
+      await expect(deployHandOffClone({
+        seller: ethers.ZeroAddress, payoutToken: ethers.ZeroAddress, amount: ONE_ETH,
+        expirationWindow: EXPIRY_WINDOW, dealId: 1n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: ethers.ZeroAddress, sellerEns: "", allowedRouter: ethers.ZeroAddress,
+        feeRecipient: feeRecipient.address, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      })).to.be.revertedWithCustomError({ interface: (await ethers.getContractFactory("HandOff")).interface }, "InvalidSeller");
     });
 
-    it("reverts with fee recipient=zero address — InvalidFeeRecipient", async function () {
+    it("initialize() reverts with fee recipient=zero address — InvalidFeeRecipient", async function () {
       const [deployer, seller] = await ethers.getSigners();
-      const factory = await ethers.getContractFactory("HandOff");
       const rep = await ethers.deployContract("HandOffReputation", [deployer.address]);
-      await expect(
-        factory.deploy(seller.address, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
-          1n, await rep.getAddress(), ethers.ZeroAddress, "", ethers.ZeroAddress, ethers.ZeroAddress, FEE_BPS, ethers.ZeroAddress)
-      ).to.be.revertedWithCustomError(factory, "InvalidFeeRecipient");
+      await expect(deployHandOffClone({
+        seller: seller.address, payoutToken: ethers.ZeroAddress, amount: ONE_ETH,
+        expirationWindow: EXPIRY_WINDOW, dealId: 1n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: ethers.ZeroAddress, sellerEns: "", allowedRouter: ethers.ZeroAddress,
+        feeRecipient: ethers.ZeroAddress, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      })).to.be.revertedWithCustomError({ interface: (await ethers.getContractFactory("HandOff")).interface }, "InvalidFeeRecipient");
     });
 
     it("ALLOWED_ROUTER stored as immutable", async function () {
       const [deployer, seller, , , feeRecipient] = await ethers.getSigners();
       const router = ethers.Wallet.createRandom().address;
       const rep = await ethers.deployContract("HandOffReputation", [deployer.address]);
-      const h = (await ethers.deployContract("HandOff", [
-        seller.address, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
-        1n, await rep.getAddress(), ethers.ZeroAddress, "", router,
-        feeRecipient.address,
-        FEE_BPS,
-        ethers.ZeroAddress, // _sellerPayoutAddress
-      ])) as HandOff;
+      const h = await deployHandOffClone({
+        seller: seller.address, payoutToken: ethers.ZeroAddress, amount: ONE_ETH,
+        expirationWindow: EXPIRY_WINDOW, dealId: 1n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: ethers.ZeroAddress, sellerEns: "", allowedRouter: router,
+        feeRecipient: feeRecipient.address, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      });
       expect(await h.ALLOWED_ROUTER()).to.equal(router);
     });
 
@@ -366,16 +420,12 @@ describe("HandOff", function () {
         await payoutTok.getAddress(), requiredFunding(ONE_ETH),
       ])) as MockSwapRouter;
       const rep = (await ethers.deployContract("HandOffReputation", [deployer.address])) as HandOffReputation;
-      // Pass router address as ALLOWED_ROUTER (9th constructor param) — fixes C-1
-      const h   = (await ethers.deployContract("HandOff", [
-        seller.address, await payoutTok.getAddress(), ONE_ETH, EXPIRY_WINDOW,
-        10n, await rep.getAddress(), ethers.ZeroAddress, "",
-        await router.getAddress(), // ALLOWED_ROUTER
-        feeRecipient.address,
-        FEE_BPS,
-        ethers.ZeroAddress, // _sellerPayoutAddress
-      ])) as HandOff;
-      // HandOff self-registers with rep in its constructor — no manual call needed.
+      const h = await deployHandOffClone({
+        seller: seller.address, payoutToken: await payoutTok.getAddress(), amount: ONE_ETH,
+        expirationWindow: EXPIRY_WINDOW, dealId: 10n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: ethers.ZeroAddress, sellerEns: "", allowedRouter: await router.getAddress(),
+        feeRecipient: feeRecipient.address, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      });
       await inputTok.mint(buyer.address, TWO_ETH);
       await inputTok.connect(buyer).approve(await h.getAddress(), TWO_ETH);
       const iface   = new ethers.Interface(["function swap(address,uint256)"]);
@@ -403,14 +453,12 @@ describe("HandOff", function () {
         await payoutTok.getAddress(), requiredFunding(ONE_ETH),
       ])) as MockReentrantSwapRouter;
       const rep = (await ethers.deployContract("HandOffReputation", [deployer.address])) as HandOffReputation;
-      const h   = (await ethers.deployContract("HandOff", [
-        await router.getAddress(), await payoutTok.getAddress(), ONE_ETH, EXPIRY_WINDOW,
-        11n, await rep.getAddress(), ethers.ZeroAddress, "",
-        await router.getAddress(), // router is also seller for the reentrancy attempt
-        feeRecipient.address,
-        FEE_BPS,
-        ethers.ZeroAddress, // _sellerPayoutAddress
-      ])) as HandOff;
+      const h = await deployHandOffClone({
+        seller: await router.getAddress(), payoutToken: await payoutTok.getAddress(), amount: ONE_ETH,
+        expirationWindow: EXPIRY_WINDOW, dealId: 11n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: ethers.ZeroAddress, sellerEns: "", allowedRouter: await router.getAddress(),
+        feeRecipient: feeRecipient.address, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      });
 
       await router.setTarget(await h.getAddress());
       await inputTok.mint(buyer.address, TWO_ETH);
@@ -501,14 +549,12 @@ describe("HandOff", function () {
       const [deployer, seller, buyer] = await ethers.getSigners();
       const tok = (await ethers.deployContract("MockERC20", ["T","T",18])) as MockERC20;
       const rep = (await ethers.deployContract("HandOffReputation", [deployer.address])) as HandOffReputation;
-      const noSwapH = (await ethers.deployContract("HandOff", [
-        seller.address, await tok.getAddress(), ONE_ETH, EXPIRY_WINDOW,
-        99n, await rep.getAddress(), ethers.ZeroAddress, "",
-        ethers.ZeroAddress, // no router
-        buyer.address,
-        FEE_BPS,
-        ethers.ZeroAddress, // _sellerPayoutAddress
-      ])) as HandOff;
+      const noSwapH = await deployHandOffClone({
+        seller: seller.address, payoutToken: await tok.getAddress(), amount: ONE_ETH,
+        expirationWindow: EXPIRY_WINDOW, dealId: 99n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: ethers.ZeroAddress, sellerEns: "", allowedRouter: ethers.ZeroAddress,
+        feeRecipient: buyer.address, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      });
       await expect(
         noSwapH.connect(buyer).fundWithSwap(
           ethers.ZeroAddress, await tok.getAddress(), ONE_ETH, "0x", VALID_HASH, "",
@@ -611,15 +657,12 @@ describe("HandOff", function () {
       const [deployer, seller, buyer] = await ethers.getSigners();
       const bad = await ethers.deployContract("RevertingENSResolver");
       const rep = (await ethers.deployContract("HandOffReputation", [deployer.address])) as HandOffReputation;
-      const h   = (await ethers.deployContract("HandOff", [
-        seller.address, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
-        99n, await rep.getAddress(), await bad.getAddress(), "",
-        ethers.ZeroAddress, // ALLOWED_ROUTER
-        buyer.address,
-        FEE_BPS,
-        ethers.ZeroAddress, // _sellerPayoutAddress
-      ])) as HandOff;
-      // HandOff self-registers with rep in its constructor — no manual call needed.
+      const h = await deployHandOffClone({
+        seller: seller.address, payoutToken: ethers.ZeroAddress, amount: ONE_ETH,
+        expirationWindow: EXPIRY_WINDOW, dealId: 99n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: await bad.getAddress(), sellerEns: "", allowedRouter: ethers.ZeroAddress,
+        feeRecipient: buyer.address, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      });
       await h.connect(buyer).fund(VALID_HASH, "", { value: requiredFunding(ONE_ETH) });
       await expect(h.connect(seller).unlock(VALID_HASH))
         .to.emit(h, "HandOffCompleted")
@@ -713,15 +756,12 @@ describe("HandOff", function () {
       const [d, sel, buy, , feeRecipient] = await ethers.getSigners();
       const rep = await ethers.deployContract("HandOffReputation", [d.address]);
       // Updated: SHORT_WINDOW (300s) is the minimum valid window — was 5n which is too short
-      const h   = (await ethers.deployContract("HandOff", [
-        sel.address, ethers.ZeroAddress, ONE_ETH, SHORT_WINDOW,
-        3n, await rep.getAddress(), ethers.ZeroAddress, "",
-        ethers.ZeroAddress, // ALLOWED_ROUTER
-        feeRecipient.address,
-        FEE_BPS,
-        ethers.ZeroAddress, // _sellerPayoutAddress
-      ])) as HandOff;
-      // HandOff self-registers with rep in its constructor — no manual call needed.
+      const h = await deployHandOffClone({
+        seller: sel.address, payoutToken: ethers.ZeroAddress, amount: ONE_ETH,
+        expirationWindow: SHORT_WINDOW, dealId: 3n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: ethers.ZeroAddress, sellerEns: "", allowedRouter: ethers.ZeroAddress,
+        feeRecipient: feeRecipient.address, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      });
       await h.connect(buy).fund(VALID_HASH, "", { value: requiredFunding(ONE_ETH) });
       // Increase past the 300s expiry
       await time.increase(SHORT_WINDOW + 1n);
@@ -733,15 +773,12 @@ describe("HandOff", function () {
       const [dep, , buy, , feeRecipient] = await ethers.getSigners();
       const mal = (await ethers.deployContract("MockReentrantUnlocker")) as MockReentrantUnlocker;
       const rep = await ethers.deployContract("HandOffReputation", [dep.address]);
-      const h   = (await ethers.deployContract("HandOff", [
-        await mal.getAddress(), ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
-        7n, await rep.getAddress(), ethers.ZeroAddress, "",
-        ethers.ZeroAddress, // ALLOWED_ROUTER
-        feeRecipient.address,
-        FEE_BPS,
-        ethers.ZeroAddress, // _sellerPayoutAddress
-      ])) as HandOff;
-      // HandOff self-registers with rep in its constructor — no manual call needed.
+      const h = await deployHandOffClone({
+        seller: await mal.getAddress(), payoutToken: ethers.ZeroAddress, amount: ONE_ETH,
+        expirationWindow: EXPIRY_WINDOW, dealId: 7n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: ethers.ZeroAddress, sellerEns: "", allowedRouter: ethers.ZeroAddress,
+        feeRecipient: feeRecipient.address, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      });
       await mal.setTarget(await h.getAddress(), VALID_HASH);
       await h.connect(buy).fund(VALID_HASH, "", { value: requiredFunding(ONE_ETH) });
       await mal.doUnlock();
@@ -762,16 +799,14 @@ describe("HandOff", function () {
       expect(b.buyerDealCount).to.equal(1n);
     });
 
-    it("constructor reverts with ZeroReputationRegistry when REPUTATION_REGISTRY is zero", async function () {
+    it("initialize() reverts with ZeroReputationRegistry when REPUTATION_REGISTRY is zero", async function () {
       const [, seller, , , feeRecipient] = await ethers.getSigners();
-      await expect(ethers.deployContract("HandOff", [
-        seller.address, ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW,
-        8n, ethers.ZeroAddress, ethers.ZeroAddress, "",
-        ethers.ZeroAddress, // ALLOWED_ROUTER
-        feeRecipient.address,
-        FEE_BPS,
-        ethers.ZeroAddress, // _sellerPayoutAddress
-      ])).to.be.revertedWithCustomError({ interface: (await ethers.getContractFactory("HandOff")).interface }, "ZeroReputationRegistry");
+      await expect(deployHandOffClone({
+        seller: seller.address, payoutToken: ethers.ZeroAddress, amount: ONE_ETH,
+        expirationWindow: EXPIRY_WINDOW, dealId: 8n, reputationRegistry: ethers.ZeroAddress,
+        subnameRegistrar: ethers.ZeroAddress, sellerEns: "", allowedRouter: ethers.ZeroAddress,
+        feeRecipient: feeRecipient.address, protocolFeeBps: FEE_BPS, sellerPayoutAddress: ethers.ZeroAddress,
+      })).to.be.revertedWithCustomError({ interface: (await ethers.getContractFactory("HandOff")).interface }, "ZeroReputationRegistry");
     });
   });
 });
