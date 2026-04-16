@@ -140,7 +140,7 @@ export function useDynamicWriteContract() {
         gasLimit = estimated * 120n / 100n
         if (gasLimit > 5_000_000n) gasLimit = 5_000_000n
       } catch (e) {
-        gasLimit = 1_000_000n // safe fallback
+        gasLimit = 2_000_000n // safe fallback
         console.warn('[useDynamicWrite] Gas estimation failed, using fallback 1M:', e)
       }
 

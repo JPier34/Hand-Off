@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Home from '@/pages/Home'
-import Landing from '@/pages/Landing'
 import CreateDeal from '@/pages/CreateDeal'
 import BuyerPay from '@/pages/BuyerPay'
 import ManageDeal from '@/pages/ManageDeal'
@@ -27,7 +26,6 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/landing" element={<Landing />} />
         <Route path="/create" element={<CreateDeal />} />
 <Route path="/pay/:dealId" element={<BuyerPay />} />
         <Route path="/deal/:dealId" element={<ManageDeal />} />

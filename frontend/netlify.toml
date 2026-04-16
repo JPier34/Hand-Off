@@ -3,6 +3,13 @@
   command = "npm run build"
   publish = "dist"
 
+# Production (main branch) — targets Ethereum Mainnet
+[context.production]
+  command = "npm run build"
+  publish = "dist"
+  [context.production.environment]
+    VITE_NETWORK = "mainnet"
+
 # CHAIN_ID (11155111 = Eth Sepolia) is a public constant, not a secret.
 # Netlify's scanner false-positives on it because it matches the CHAIN_ID env var value.
 [build.environment]
