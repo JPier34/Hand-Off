@@ -2,11 +2,13 @@ import { useState, useCallback } from 'react'
 import { getWalletAccounts, switchActiveNetwork } from '@dynamic-labs-sdk/client'
 import { createWalletClientForWalletAccount } from '@dynamic-labs-sdk/evm/viem'
 import { encodeFunctionData, createPublicClient, http } from 'viem'
-import { sepolia } from 'viem/chains'
+import { sepolia, mainnet } from 'viem/chains'
+import { getTargetChainId, CHAIN_IDS, getRpcUrl, getExplorerUrl } from '@/lib/chains'
 
 import type { Abi, Address } from 'viem'
 
-const ETH_SEPOLIA_RPC = 'https://ethereum-sepolia-rpc.publicnode.com'
+const TARGET_CHAIN    = getTargetChainId() === CHAIN_IDS.MAINNET ? mainnet : sepolia
+const TARGET_CHAIN_ID = String(TARGET_CHAIN.id)
 
 interface WriteContractParams {
   address: Address
@@ -40,7 +42,8 @@ const ETH_SEPOLIA_ID = String(sepolia.id) // "11155111"
  * WalletClient for the ACTUAL connected wallet (MetaMask, Rainbow, etc),
  * not window.ethereum which may be a different extension.
  *
- * Switches to Ethereum Sepolia via Dynamic's switchActiveNetwork if needed.
+ * Switches to the target chain (mainnet or Sepolia) via Dynamic's
+ * switchActiveNetwork if needed. Chain is determined by VITE_NETWORK env var.
  */
 export function useDynamicWriteContract() {
   const [state, setState] = useState<WriteState>(IDLE)
@@ -67,10 +70,10 @@ export function useDynamicWriteContract() {
 
       console.log('[useDynamicWrite] Wallet:', walletAccount.address, 'provider:', walletAccount.walletProviderKey, '(from', accounts.length, 'accounts)')
 
-      // Switch to Ethereum Sepolia if needed — uses Dynamic SDK which routes to the CORRECT wallet
+      // Switch to target chain if needed — uses Dynamic SDK which routes to the CORRECT wallet
       try {
-        await switchActiveNetwork({ walletAccount, networkId: ETH_SEPOLIA_ID })
-        console.log('[useDynamicWrite] Network switched to Ethereum Sepolia')
+        await switchActiveNetwork({ walletAccount, networkId: TARGET_CHAIN_ID })
+        console.log('[useDynamicWrite] Network switched to', TARGET_CHAIN.name)
       } catch (e) {
         // May throw if already on correct chain or if network needs to be added
         console.log('[useDynamicWrite] switchActiveNetwork result:', (e as Error)?.message ?? 'ok')
@@ -93,8 +96,8 @@ export function useDynamicWriteContract() {
         const msg = (e as Error)?.message ?? ''
         if (msg.includes('No network data')) {
           throw new Error(
-            'Ethereum Sepolia not configured in Dynamic dashboard. ' +
-            'Go to app.dynamic.xyz → Chains & Networks → enable Ethereum Sepolia (11155111).'
+            `${TARGET_CHAIN.name} not configured in Dynamic dashboard. ` +
+            `Go to app.dynamic.xyz → Chains & Networks → enable ${TARGET_CHAIN.name} (${TARGET_CHAIN.id}).`
           )
         }
         throw e
@@ -104,23 +107,23 @@ export function useDynamicWriteContract() {
       try {
         const currentChainHex = await walletClient.request({ method: 'eth_chainId' }) as string
         const currentChainId = parseInt(currentChainHex, 16)
-        if (currentChainId !== sepolia.id) {
-          console.log('[useDynamicWrite] Wallet on chain', currentChainId, '→ switching to Ethereum Sepolia via WalletClient')
+        if (currentChainId !== TARGET_CHAIN.id) {
+          console.log('[useDynamicWrite] Wallet on chain', currentChainId, '→ switching to', TARGET_CHAIN.name, 'via WalletClient')
           try {
             await walletClient.request({
               method: 'wallet_switchEthereumChain',
-              params: [{ chainId: `0x${sepolia.id.toString(16)}` }],
+              params: [{ chainId: `0x${TARGET_CHAIN.id.toString(16)}` }],
             })
           } catch (switchErr: unknown) {
             if ((switchErr as { code?: number })?.code === 4902) {
               await walletClient.request({
                 method: 'wallet_addEthereumChain',
                 params: [{
-                  chainId: `0x${sepolia.id.toString(16)}`,
-                  chainName: 'Ethereum Sepolia',
+                  chainId: `0x${TARGET_CHAIN.id.toString(16)}`,
+                  chainName: TARGET_CHAIN.name,
                   nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                  rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'],
-                  blockExplorerUrls: ['https://sepolia.etherscan.io'],
+                  rpcUrls: [getRpcUrl()],
+                  blockExplorerUrls: [getExplorerUrl()],
                 }],
               })
             } else {
@@ -138,8 +141,8 @@ export function useDynamicWriteContract() {
       let gasLimit: bigint
       try {
         const publicClient = createPublicClient({
-          chain: sepolia,
-          transport: http(ETH_SEPOLIA_RPC),
+          chain: TARGET_CHAIN,
+          transport: http(getRpcUrl()),
         })
         const estimated = await publicClient.estimateGas({
           account: walletAccount.address as `0x${string}`,

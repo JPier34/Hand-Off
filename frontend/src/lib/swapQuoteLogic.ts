@@ -1,8 +1,7 @@
 import { TOKENS, type TokenKey } from './tokens'
 import type { Address } from './types'
 import type { QuoteRequest } from './uniswap'
-
-const SEPOLIA_CHAIN_ID = '11155111'
+import { getTargetChainId } from './chains'
 
 interface BuildQuoteRequestParams {
   swapper?: Address
@@ -25,12 +24,14 @@ export function buildExactOutputQuoteRequest({
     return null
   }
 
+  const chainId = String(getTargetChainId())
+
   return {
     swapper,
     tokenIn: token.address,
     tokenOut: payoutToken,
-    tokenInChainId: SEPOLIA_CHAIN_ID,
-    tokenOutChainId: SEPOLIA_CHAIN_ID,
+    tokenInChainId: chainId,
+    tokenOutChainId: chainId,
     amount: amountOutWei.toString(),
     type: 'EXACT_OUTPUT',
     slippageTolerance: slippage,

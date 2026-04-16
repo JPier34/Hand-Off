@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { createPublicClient, http, type TransactionReceipt } from 'viem'
-import { sepolia } from 'viem/chains'
+import { sepolia, mainnet } from 'viem/chains'
 import { waitForReceipt } from './receiptPollerLogic'
+import { getTargetChainId, CHAIN_IDS, getRpcUrl } from '@/lib/chains'
 
 // Shared client — one instance reused across all receipt watchers in the session.
 const publicClient = createPublicClient({
-  chain: sepolia,
-  transport: http('https://ethereum-sepolia-rpc.publicnode.com'),
+  chain: getTargetChainId() === CHAIN_IDS.MAINNET ? mainnet : sepolia,
+  transport: http(getRpcUrl()),
 })
 
 /**

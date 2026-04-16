@@ -29,6 +29,7 @@ export interface SwapAndDepositState {
   isSuccess:           boolean
   isError:             boolean
   error:               Error | null
+  txHash:              `0x${string}` | undefined
 }
 
 const IDLE_SWAP: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
@@ -40,6 +41,7 @@ const IDLE_SWAP: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
   isSuccess:           false,
   isError:             false,
   error:               null,
+  txHash:              undefined,
 }
 
 // ─── Mock: useQuote ───────────────────────────────────────────────────────────
@@ -279,6 +281,7 @@ function useRealSwapAndDeposit(
     isSuccess:           swapReceipt.isSuccess,
     isError:             state.isError || approveWrite.isError || swapWrite.isError,
     error:               state.error || approveWrite.error || swapWrite.error || null,
+    txHash:              swapWrite.data,
   }
 
   return { swapAndDeposit, ...derivedState }

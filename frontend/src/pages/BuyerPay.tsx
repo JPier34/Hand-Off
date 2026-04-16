@@ -23,6 +23,7 @@ import { useReputation } from '@/hooks/useReputation'
 import { MOCK_MODE } from '@/lib/mock'
 import { getAutoSelectedTokenKey, shouldShowTokenSelector, shouldUseSwapPath } from '@/lib/buyerPayLogic'
 import { formatFeePercent } from '@/lib/fee'
+import { getTargetChainId, CHAIN_IDS } from '@/lib/chains'
 
 const DEFAULT_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
@@ -102,14 +103,18 @@ interface CompletedViewProps {
   code: string
   description: string
   dealIdParam: string
+  txHash?: string
   onSubmitReview: (vote: 'positive' | 'negative') => void
 }
 
-function CompletedView({ code, description, dealIdParam, onSubmitReview }: CompletedViewProps) {
+function CompletedView({ code, description, dealIdParam, txHash, onSubmitReview }: CompletedViewProps) {
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
-  const etherscanHref = 'https://sepolia.etherscan.io/tx/'
+  const etherscanBase = getTargetChainId() === CHAIN_IDS.MAINNET
+    ? 'https://etherscan.io/tx/'
+    : 'https://sepolia.etherscan.io/tx/'
+  const etherscanHref = txHash ? `${etherscanBase}${txHash}` : undefined
 
   function handleSubmit() {
     if (!review) return
@@ -163,19 +168,21 @@ function CompletedView({ code, description, dealIdParam, onSubmitReview }: Compl
       {/* ENS Receipt Badge */}
       <DealReceiptBadge dealIdParam={dealIdParam} />
 
-      <a
-        href={etherscanHref}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 w-full h-12 rounded-xl border border-hoff-text-tertiary/30 text-sm text-hoff-text-secondary hover:text-hoff-text-primary hover:border-hoff-text-secondary/50 transition-colors"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-          <polyline points="15 3 21 3 21 9"/>
-          <line x1="10" y1="14" x2="21" y2="3"/>
-        </svg>
-        View on Etherscan
-      </a>
+      {etherscanHref && (
+        <a
+          href={etherscanHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full h-12 rounded-xl border border-hoff-text-tertiary/30 text-sm text-hoff-text-secondary hover:text-hoff-text-primary hover:border-hoff-text-secondary/50 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          View on Etherscan
+        </a>
+      )}
 
       {!submitted ? (
         <div className="space-y-3">
@@ -241,7 +248,7 @@ export default function BuyerPay() {
   // ─── All hooks unconditionally — rules of hooks require no conditional calls ──
   const { details, isLoading, isError, escrowAddress } = useDealDetails(dealId, directAddress)
   const dealIdOrZero = dealId ?? 0n
-  const { deposit, isPending, isConfirming, isSuccess, isError: txError, error: txErrorObj } = useDepositFunds(dealIdOrZero, escrowAddress)
+  const { deposit, isPending, isConfirming, isSuccess, isError: txError, error: txErrorObj, txHash } = useDepositFunds(dealIdOrZero, escrowAddress)
   const refund    = useClaimRefund(dealIdOrZero, escrowAddress)
   const reviewHook = useSubmitReview(escrowAddress)
   const amountWei  = details?.amount ?? 0n
@@ -337,6 +344,7 @@ export default function BuyerPay() {
           code={unlockCode}
           description={details?.description ?? ''}
           dealIdParam={dealIdParam}
+          txHash={isSwapPath ? swap.txHash : txHash}
           onSubmitReview={(vote) => {
             reviewHook.submitReview(vote === 'positive')
           }}

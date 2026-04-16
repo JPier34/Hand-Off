@@ -17,6 +17,7 @@ import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
 import { DealReceiptBadge } from '@/components/DealReceiptBadge'
 import { useReputation } from '@/hooks/useReputation'
+import { getTargetChainId, CHAIN_IDS, getExplorerUrl } from '@/lib/chains'
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 function isValidDealParam(param: string | undefined): param is string {
@@ -204,7 +205,7 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, sellerEns, sta
             />
           </div>
           <a
-            href={`https://sepolia.etherscan.io/address/${seller}`}
+            href={`${getExplorerUrl()}/address/${seller}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-hoff-text-tertiary hover:text-hoff-text-secondary transition-colors shrink-0"
@@ -411,13 +412,22 @@ interface CompletedProps {
   sym: string
   fmt: (v: bigint) => string
   usdLabel: string
+  txHash?: string
+  escrowAddress?: string
   onSubmitReview?: (isPositive: boolean) => void
 }
 
-function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, onSubmitReview }: CompletedProps) {
+function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, txHash, escrowAddress, onSubmitReview }: CompletedProps) {
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
-  const etherscanHref = 'https://sepolia.etherscan.io/tx/'
+  const etherscanBase = getTargetChainId() === CHAIN_IDS.MAINNET
+    ? 'https://etherscan.io/'
+    : 'https://sepolia.etherscan.io/'
+  const etherscanHref = txHash
+    ? `${etherscanBase}tx/${txHash}`
+    : escrowAddress
+      ? `${etherscanBase}address/${escrowAddress}`
+      : undefined
 
   return (
     <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
@@ -463,19 +473,21 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, o
       <DealReceiptBadge dealIdParam={dealIdParam} />
 
       {/* Etherscan */}
-      <a
-        href={etherscanHref}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 w-full h-12 rounded-xl border border-hoff-text-tertiary/30 text-sm text-hoff-text-secondary hover:text-hoff-text-primary hover:border-hoff-text-secondary/50 transition-colors"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-          <polyline points="15 3 21 3 21 9"/>
-          <line x1="10" y1="14" x2="21" y2="3"/>
-        </svg>
-        View on Etherscan
-      </a>
+      {etherscanHref && (
+        <a
+          href={etherscanHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full h-12 rounded-xl border border-hoff-text-tertiary/30 text-sm text-hoff-text-secondary hover:text-hoff-text-primary hover:border-hoff-text-secondary/50 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          {txHash ? 'View on Etherscan' : 'View Contract on Etherscan'}
+        </a>
+      )}
 
       {/* Review */}
       {!submitted ? (
@@ -551,7 +563,7 @@ export default function ManageDeal() {
   const dealIdOrZero = dealId ?? 0n
 
   const { details, isLoading, isError, escrowAddress }                              = useDealDetails(dealId, directAddress)
-  const { release, isPending, isConfirming, isSuccess, isError: releaseError, error: releaseErrorObj } = useReleaseEscrow(dealIdOrZero, escrowAddress)
+  const { release, isPending, isConfirming, isSuccess, isError: releaseError, error: releaseErrorObj, txHash } = useReleaseEscrow(dealIdOrZero, escrowAddress)
   const cancelDeal = useCancelDeal(dealIdOrZero, escrowAddress)
   const editDeal   = useEditDeal(dealIdOrZero, escrowAddress)
   const reviewHook = useSubmitReview(escrowAddress)
@@ -620,6 +632,8 @@ export default function ManageDeal() {
           sym={sym}
           fmt={fmt}
           usdLabel={usdLabel}
+          txHash={txHash}
+          escrowAddress={escrowAddress}
           onSubmitReview={(isPositive) => reviewHook.submitReview(isPositive)}
         />
       </Layout>

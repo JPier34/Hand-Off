@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { parseEther, parseEventLogs, createWalletClient, custom } from 'viem'
-import { sepolia } from 'viem/chains'
+import { sepolia, mainnet } from 'viem/chains'
+import { getTargetChainId, CHAIN_IDS } from '@/lib/chains'
 import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS, SUBNAME_ABI, SUBNAME_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
 import { hashUnlockCode } from '@/lib/code-gen'
@@ -190,6 +191,7 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
     isSuccess,
     isError: isError || approveWrite.isError,
     error: error || approveWrite.error,
+    txHash: hash,
   }
 }
 
@@ -231,7 +233,8 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
 
       if (typeof window !== 'undefined' && (window as unknown as { ethereum?: unknown }).ethereum) {
         const ethProvider = (window as unknown as { ethereum: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum
-        const walletClient = createWalletClient({ chain: sepolia, transport: custom(ethProvider) })
+        const targetChain = getTargetChainId() === CHAIN_IDS.MAINNET ? mainnet : sepolia
+        const walletClient = createWalletClient({ chain: targetChain, transport: custom(ethProvider) })
 
         ethProvider.request({ method: 'eth_requestAccounts' }).then(async (accounts) => {
           const accs = accounts as `0x${string}`[]
@@ -243,7 +246,7 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
             functionName: 'mintDealReceipt',
             args:         [args.dealId, args.escrow, args.buyer, args.seller, args.amount, args.timestamp],
             account:      accs[0],
-            chain:        sepolia,
+            chain:        targetChain,
             gas:          300_000n, // explicit cap — prevents MetaMask gas estimation overflow
           })
         }).catch((err: unknown) => {
@@ -256,7 +259,7 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuccess])
 
-  return { release, isPending, isConfirming, isSuccess, isError, error }
+  return { release, isPending, isConfirming, isSuccess, isError, error, txHash: hash }
 }
 
 // Refund: call refund() on escrow — no args
@@ -351,13 +354,13 @@ function useMockCreateDeal() {
 function useMockDepositFunds(dealId: bigint) {
   const { trigger, ...state } = useMockTx(() => mockDeposit(dealId))
   function deposit(_requiredFunding: bigint, _codeHash: `0x${string}`, _buyerEns = '', _payoutToken?: Address | null) { trigger() }
-  return { deposit, ...state }
+  return { deposit, ...state, txHash: undefined }
 }
 
 function useMockReleaseEscrow(dealId: bigint) {
   const { trigger, ...state } = useMockTx(() => mockRelease(dealId))
   function release(_code: string) { trigger() }
-  return { release, ...state }
+  return { release, ...state, txHash: undefined }
 }
 
 function useMockClaimRefund(dealId: bigint) {
