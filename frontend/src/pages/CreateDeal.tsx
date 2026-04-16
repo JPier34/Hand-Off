@@ -71,9 +71,6 @@ export default function CreateDeal() {
   const shareableLink =
     dealParam ? `${window.location.origin}/pay/${dealParam}` : null
 
-  // Debug: trace success screen gate
-  console.log('[CreateDeal] isSuccess:', isSuccess, 'newDealId:', newDealId?.toString(), 'newEscrowAddress:', newEscrowAddress, 'dealParam:', dealParam, 'shareableLink:', shareableLink)
-
   function handleCreate() {
     setTouched(true)
     if (hasErrors) return

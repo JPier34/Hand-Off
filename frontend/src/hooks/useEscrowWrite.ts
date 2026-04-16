@@ -50,11 +50,6 @@ function useRealCreateDeal() {
   const receiptQuery = useReceiptPoller(hash)
   const { isLoading: isConfirming, isSuccess, receipt } = receiptQuery
 
-  // Debug: trace the full create flow
-  if (hash) {
-    console.log('[useCreateDeal] hash:', hash, 'isConfirming:', isConfirming, 'isSuccess:', isSuccess, 'receipt:', !!receipt, 'receiptStatus:', receipt?.status, 'receiptError:', receiptQuery.isError, receiptQuery.error?.message)
-  }
-
   // FACTORY WIRING (UC-1): call HandOffFactory.createHandOff() instead of deploying directly.
   // The factory atomically deploys a new HandOff escrow + registers it with HandOffReputation.
   function create(
@@ -82,32 +77,25 @@ function useRealCreateDeal() {
   let newDealId: bigint | undefined
   let newEscrowAddress: Address | undefined
   if (receipt) {
-    console.log('[useEscrowWrite] Receipt received, logs:', receipt.logs.length, 'status:', receipt.status)
     try {
       const logs = parseEventLogs({
         abi: FACTORY_ABI as Abi,
         logs: receipt.logs,
         eventName: 'HandOffCreated',
       })
-      console.log('[useEscrowWrite] HandOffCreated logs found:', logs.length)
       if (logs.length > 0) {
         const args = logs[0].args as { seller: Address; escrow: Address; dealId: bigint }
         newDealId = args.dealId
         newEscrowAddress = args.escrow
-        console.log('[useEscrowWrite] Parsed dealId:', newDealId?.toString(), 'escrow:', newEscrowAddress)
       }
     } catch (e) {
       console.warn('[useEscrowWrite] Failed to parse HandOffCreated event:', e)
       // Fallback: try to extract from raw log topics if parseEventLogs fails
-      // HandOffCreated topic0 = keccak256("HandOffCreated(address,address,uint256)")
       for (const log of receipt.logs) {
         if (log.topics.length === 4 && log.address.toLowerCase() === FACTORY_ADDRESS.toLowerCase()) {
-          console.log('[useEscrowWrite] Fallback: found factory log with 4 topics')
           try {
-            // topics[1] = seller (address, padded), topics[2] = escrow, topics[3] = dealId
             newEscrowAddress = ('0x' + log.topics[2]!.slice(26)) as Address
             newDealId = BigInt(log.topics[3]!)
-            console.log('[useEscrowWrite] Fallback parsed dealId:', newDealId.toString(), 'escrow:', newEscrowAddress)
           } catch (e2) {
             console.warn('[useEscrowWrite] Fallback parsing also failed:', e2)
           }
@@ -135,12 +123,10 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
   } | null>(null)
 
   function deposit(requiredFunding: bigint, codeHash: `0x${string}`, buyerEns = '', payoutToken?: Address | null) {
-    console.log('[useEscrowWrite] deposit called:', { requiredFunding: requiredFunding.toString(), codeHash, buyerEns, escrowAddress, payoutToken })
-    if (!escrowAddress) { console.log('[useEscrowWrite] No escrowAddress, aborting deposit'); return }
+    if (!escrowAddress) return
 
     if (!payoutToken) {
       // ETH escrow: send native ETH as msg.value
-      console.log('[useEscrowWrite] ETH path, calling fund() with value:', requiredFunding.toString())
       writeContract({
         address: escrowAddress,
         abi: HANDOFF_ABI,
@@ -150,8 +136,6 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
       })
     } else {
       // ERC20 escrow: step 1 = approve, step 2 = fund (chained via useEffect)
-      const decimals = getTokenByAddress(payoutToken).decimals
-      console.log('[useEscrowWrite] ERC20 path, approving', payoutToken, 'decimals:', decimals, 'amount:', requiredFunding.toString())
       pendingFundRef.current = { codeHash, buyerEns, amount: requiredFunding }
       approveWrite.writeContract({
         address: payoutToken,
@@ -170,7 +154,6 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
   useEffect(() => {
     const pendingFund = pendingFundRef.current
     if (approveReceipt.isSuccess && pendingFund && escrowAddress && !hash) {
-      console.log('[useEscrowWrite] ERC20 approval confirmed, calling fund() with value: 0')
       writeContract({
         address: escrowAddress,
         abi: HANDOFF_ABI,
@@ -225,11 +208,10 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
       const args = extractEnsMintFallbackArgs(receipt.logs)
       if (!args) {
         // On-chain mint succeeded — nothing to do
-        console.log('[useReleaseEscrow] ENS subname minted on-chain — skipping frontend fallback')
         return
       }
 
-      console.log('[useReleaseEscrow] On-chain ENS mint failed — retrying from wallet for dealId:', args.dealId.toString())
+      console.warn('[useReleaseEscrow] On-chain ENS mint failed — retrying from wallet for dealId:', args.dealId.toString())
 
       if (typeof window !== 'undefined' && (window as unknown as { ethereum?: unknown }).ethereum) {
         const ethProvider = (window as unknown as { ethereum: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum

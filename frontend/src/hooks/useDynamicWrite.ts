@@ -52,13 +52,6 @@ export function useDynamicWriteContract() {
     setState({ ...IDLE, isPending: true })
 
     try {
-      console.log('[useDynamicWrite] Starting writeContract:', {
-        to: params.address,
-        fn: params.functionName,
-        args: params.args,
-        value: params.value?.toString(),
-      })
-
       const accounts = getWalletAccounts()
       if (!accounts || accounts.length === 0) throw new Error('No wallet connected')
 
@@ -68,15 +61,11 @@ export function useDynamicWriteContract() {
         ?? accounts.find(a => !a.walletProviderKey?.includes('rainbow'))
         ?? accounts[0]
 
-      console.log('[useDynamicWrite] Wallet:', walletAccount.address, 'provider:', walletAccount.walletProviderKey, '(from', accounts.length, 'accounts)')
-
       // Switch to target chain if needed — uses Dynamic SDK which routes to the CORRECT wallet
       try {
         await switchActiveNetwork({ walletAccount, networkId: TARGET_CHAIN_ID })
-        console.log('[useDynamicWrite] Network switched to', TARGET_CHAIN.name)
-      } catch (e) {
-        // May throw if already on correct chain or if network needs to be added
-        console.log('[useDynamicWrite] switchActiveNetwork result:', (e as Error)?.message ?? 'ok')
+      } catch {
+        // May throw if already on correct chain — not an error
       }
 
       const data = encodeFunctionData({
@@ -88,7 +77,6 @@ export function useDynamicWriteContract() {
       const value = params.value ?? 0n
 
       // Use Dynamic's WalletClient — routes to the correct wallet extension
-      console.log('[useDynamicWrite] Creating WalletClient for', walletAccount.walletProviderKey)
       let walletClient
       try {
         walletClient = await createWalletClientForWalletAccount({ walletAccount })
@@ -108,7 +96,6 @@ export function useDynamicWriteContract() {
         const currentChainHex = await walletClient.request({ method: 'eth_chainId' }) as string
         const currentChainId = parseInt(currentChainHex, 16)
         if (currentChainId !== TARGET_CHAIN.id) {
-          console.log('[useDynamicWrite] Wallet on chain', currentChainId, '→ switching to', TARGET_CHAIN.name, 'via WalletClient')
           try {
             await walletClient.request({
               method: 'wallet_switchEthereumChain',
@@ -130,7 +117,6 @@ export function useDynamicWriteContract() {
               throw switchErr
             }
           }
-          console.log('[useDynamicWrite] Chain switched, waiting for wallet to settle...')
           await new Promise(r => setTimeout(r, 1000))
         }
       } catch (e) {
@@ -153,7 +139,6 @@ export function useDynamicWriteContract() {
         // +20% buffer, hard-capped at 5M (well below MetaMask's 16.7M cap)
         gasLimit = estimated * 120n / 100n
         if (gasLimit > 5_000_000n) gasLimit = 5_000_000n
-        console.log('[useDynamicWrite] Gas estimate:', estimated.toString(), '→ using:', gasLimit.toString())
       } catch (e) {
         gasLimit = 1_000_000n // safe fallback
         console.warn('[useDynamicWrite] Gas estimation failed, using fallback 1M:', e)
@@ -168,7 +153,6 @@ export function useDynamicWriteContract() {
         chain: null,
       })
 
-      console.log('[useDynamicWrite] TX hash:', hash)
       setState({ data: hash, isPending: false, isError: false, error: null })
     } catch (err) {
       console.error('[useDynamicWrite] Transaction failed:', err)

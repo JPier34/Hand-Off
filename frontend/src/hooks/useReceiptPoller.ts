@@ -41,7 +41,6 @@ export function useReceiptPoller(hash: `0x${string}` | undefined) {
     waitForReceipt(publicClient, hash)
       .then((r: TransactionReceipt) => {
         if (cancelled) return
-        console.log('[useReceiptPoller] Receipt:', r.status, 'logs:', r.logs.length)
         setState({
           watchedHash: hash,
           receipt: r,
