@@ -1,13 +1,30 @@
 import { useState, useEffect, useRef } from 'react'
-import { parseUnits, parseEventLogs, createWalletClient, custom } from 'viem'
+import { parseUnits, parseEventLogs, createWalletClient, createPublicClient, custom, http, formatUnits } from 'viem'
 import { sepolia, mainnet } from 'viem/chains'
-import { getTargetChainId, CHAIN_IDS } from '@/lib/chains'
+import { getTargetChainId, CHAIN_IDS, getRpcUrl } from '@/lib/chains'
 import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS, SUBNAME_ABI, SUBNAME_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
 import { hashUnlockCode } from '@/lib/code-gen'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { TOKENS, getTokenByAddress } from '@/lib/tokens'
+import { getWalletAccounts } from '@dynamic-labs-sdk/client'
+
+const ERC20_BALANCE_ABI = [{
+  name: 'balanceOf', type: 'function', stateMutability: 'view',
+  inputs: [{ name: 'account', type: 'address' }],
+  outputs: [{ name: '', type: 'uint256' }],
+}] as const
+
+async function getConnectedAddress(): Promise<Address | null> {
+  try {
+    const accounts = getWalletAccounts()
+    const addr = accounts?.[0]?.address
+    return (addr as Address | undefined) ?? null
+  } catch {
+    return null
+  }
+}
 import { extractEnsMintFallbackArgs } from '@/lib/ensFallback'
 import type { Address } from '@/lib/types'
 import type { Abi } from 'viem'
@@ -117,16 +134,43 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
   const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
   const { isLoading: isConfirming, isSuccess } = useReceiptPoller(hash)
 
+  // Surface balance / native-coin pre-flight failures that happen before any
+  // tx is fired, so the UI can show a specific message instead of a bare
+  // 'execution reverted'.
+  const [preflightError, setPreflightError] = useState<Error | null>(null)
+
   // Store params for the chained fund() call after ERC20 approval
   const pendingFundRef = useRef<{
     codeHash: `0x${string}`; buyerEns: string; amount: bigint
   } | null>(null)
 
-  function deposit(requiredFunding: bigint, codeHash: `0x${string}`, buyerEns = '', payoutToken?: Address | null) {
+  async function deposit(requiredFunding: bigint, codeHash: `0x${string}`, buyerEns = '', payoutToken?: Address | null) {
     if (!escrowAddress) return
+    setPreflightError(null)
+
+    const chain = getTargetChainId() === CHAIN_IDS.MAINNET ? mainnet : sepolia
+    const publicClient = createPublicClient({ chain, transport: http(getRpcUrl()) })
+
+    // Resolve the connected buyer address (used for balance/allowance reads).
+    const buyer = await getConnectedAddress()
+    if (!buyer) {
+      setPreflightError(new Error('No wallet connected. Connect a wallet and try again.'))
+      return
+    }
 
     if (!payoutToken) {
-      // ETH escrow: send native ETH as msg.value
+      // ETH escrow — make sure the wallet can cover the native transfer.
+      try {
+        const balance = await publicClient.getBalance({ address: buyer })
+        if (balance < requiredFunding) {
+          const short = formatUnits(requiredFunding - balance, 18)
+          setPreflightError(new Error(
+            `Not enough ETH to fund this deal. You need about ${short} ETH more (plus gas).`
+          ))
+          return
+        }
+      } catch { /* RPC hiccup — fall through and let the wallet / contract surface it */ }
+
       writeContract({
         address: escrowAddress,
         abi: HANDOFF_ABI,
@@ -134,20 +178,44 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
         args: [codeHash, buyerEns],
         value: requiredFunding,
       })
-    } else {
-      // ERC20 escrow: step 1 = approve, step 2 = fund (chained via useEffect)
-      pendingFundRef.current = { codeHash, buyerEns, amount: requiredFunding }
-      approveWrite.writeContract({
-        address: payoutToken,
-        abi: [{
-          name: 'approve', type: 'function', stateMutability: 'nonpayable',
-          inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
-          outputs: [{ name: '', type: 'bool' }],
-        }] as unknown as Abi,
-        functionName: 'approve',
-        args: [escrowAddress, requiredFunding],
-      })
+      return
     }
+
+    // ERC20 escrow — confirm the buyer actually holds enough of the payout token.
+    try {
+      const tokenMeta = getTokenByAddress(payoutToken)
+      const decimals = tokenMeta?.decimals ?? 18
+      const symbol = tokenMeta?.symbol ?? 'the payout token'
+      const balance = await publicClient.readContract({
+        address: payoutToken,
+        abi: ERC20_BALANCE_ABI,
+        functionName: 'balanceOf',
+        args: [buyer],
+      }) as bigint
+      if (balance < requiredFunding) {
+        const missing = formatUnits(requiredFunding - balance, decimals)
+        setPreflightError(new Error(
+          `Not enough ${symbol} in your wallet. You need about ${missing} ${symbol} more. ` +
+          (symbol === 'WETH'
+            ? 'Wrap some ETH to WETH first, or pick a different Pay-With token.'
+            : 'Top up your wallet, or pick a different Pay-With token.')
+        ))
+        return
+      }
+    } catch { /* RPC hiccup — fall through and let the approve / fund path revert */ }
+
+    // Step 1 = approve, step 2 = fund (chained via useEffect once the approval receipt is in)
+    pendingFundRef.current = { codeHash, buyerEns, amount: requiredFunding }
+    approveWrite.writeContract({
+      address: payoutToken,
+      abi: [{
+        name: 'approve', type: 'function', stateMutability: 'nonpayable',
+        inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
+        outputs: [{ name: '', type: 'bool' }],
+      }] as unknown as Abi,
+      functionName: 'approve',
+      args: [escrowAddress, requiredFunding],
+    })
   }
 
   // Chain: after ERC20 approval confirms, call fund() with value = 0
@@ -172,8 +240,8 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
     isPending: isPending || isApproving,
     isConfirming,
     isSuccess,
-    isError: isError || approveWrite.isError,
-    error: error || approveWrite.error,
+    isError: isError || approveWrite.isError || !!preflightError,
+    error: preflightError ?? error ?? approveWrite.error,
     txHash: hash,
   }
 }
