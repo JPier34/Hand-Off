@@ -520,18 +520,16 @@ export default function BuyerPay() {
                   </span>
                   <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
                 </div>
-                {details.status === EscrowStatus.CREATED && (
+                {details.status === EscrowStatus.CREATED && shouldShowTokenSelector(details.payoutToken) && (
                   <div className="flex flex-col items-end gap-0.5 shrink-0">
                     <span className="text-[10px] text-hoff-text-tertiary uppercase tracking-wider">Pay with</span>
-                    {shouldShowTokenSelector(details.payoutToken) && (
-                      <TokenSelector
-                        selected={selectedToken}
-                        onChange={(key) => {
-                          setSelectedToken(key)
-                          setIsAutoSelected(false)
-                        }}
-                      />
-                    )}
+                    <TokenSelector
+                      selected={selectedToken}
+                      onChange={(key) => {
+                        setSelectedToken(key)
+                        setIsAutoSelected(false)
+                      }}
+                    />
                   </div>
                 )}
               </div>

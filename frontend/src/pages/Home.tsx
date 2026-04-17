@@ -20,7 +20,7 @@ function MockBtn({ label, onClick }: { label: string; onClick: () => void }) {
 
 const MOCK_DEALS = [
   { id: 42, label: '0.633 ETH · Pending · iPhone 14 Pro' },
-  { id: 35, label: '1,200 USDC · Funded · MacBook Air M2' },
+  { id: 35, label: '1,200 USDC · Pending · MacBook Air M2' },
   { id: 22, label: '2,500 USDC · Funded · Rolex Submariner' },
   { id: 27, label: '350 DAI · Complete · Canon EOS R6' },
   { id: 25, label: '0.5 WETH · Complete · Herman Miller' },
