@@ -10,6 +10,7 @@ import { useCreateDeal } from '@/hooks/useEscrowWrite'
 import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { Dropdown } from '@/components/ui/Dropdown'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
 
 function validate(amount: string, description: string, decimals: number) {
   const errors: { amount?: string; description?: string } = {}
@@ -301,7 +302,7 @@ export default function CreateDeal() {
               />
             </div>
 
-            {isError && <p className="text-xs text-hoff-err text-center">{error?.message ?? 'Transaction failed'}</p>}
+            {isError && <ErrorBanner error={error} />}
 
             <Button
               fullWidth

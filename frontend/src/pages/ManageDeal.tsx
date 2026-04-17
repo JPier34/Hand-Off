@@ -10,6 +10,7 @@ import { CountdownTimer } from '@/components/escrow/CountdownTimer'
 import { useDealDetails, parseDealParam } from '@/hooks/useEscrow'
 import { useReleaseEscrow, useCancelDeal, useEditDeal, useSubmitReview } from '@/hooks/useEscrowWrite'
 import { parseContractError } from '@/lib/errors'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import { EscrowStatus } from '@/lib/types'
 import { IntroScreen } from '@/components/escrow/IntroScreen'
 import { Dropdown } from '@/components/ui/Dropdown'
@@ -391,7 +392,7 @@ function ClaimFundsView({
         </div>
       </div>
 
-      {isError && (() => { const msg = parseContractError(error); return msg ? <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3"><p className="text-sm text-hoff-err text-center">{msg}</p></div> : null })()}
+      {isError && <ErrorBanner error={error} />}
 
       <Button
         fullWidth
@@ -732,7 +733,7 @@ export default function ManageDeal() {
               No funds have been deposited, so nothing needs to be refunded.
             </p>
 
-            {cancelDeal.isError && (() => { const msg = parseContractError(cancelDeal.error); return msg ? <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3"><p className="text-sm text-hoff-err text-center">{msg}</p></div> : null })()}
+            {cancelDeal.isError && <ErrorBanner error={cancelDeal.error} />}
 
             <Button
               fullWidth
@@ -824,7 +825,7 @@ export default function ManageDeal() {
               />
             </div>
 
-            {editDeal.isError && (() => { const msg = parseContractError(editDeal.error); return msg ? <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3"><p className="text-sm text-hoff-err text-center">{msg}</p></div> : null })()}
+            {editDeal.isError && <ErrorBanner error={editDeal.error} />}
 
             {!editDeal.isSuccess ? (
               <Button

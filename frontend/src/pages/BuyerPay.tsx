@@ -11,6 +11,7 @@ import { CountdownTimer } from '@/components/escrow/CountdownTimer'
 import { useDealDetails, parseDealParam } from '@/hooks/useEscrow'
 import { useDepositFunds, useClaimRefund, useSubmitReview } from '@/hooks/useEscrowWrite'
 import { parseContractError } from '@/lib/errors'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import { useQuote, useSwapAndDeposit } from '@/hooks/useTokenSwap'
 import { generateUnlockCode, hashUnlockCode } from '@/lib/code-gen'
 import { EscrowStatus } from '@/lib/types'
@@ -679,11 +680,7 @@ export default function BuyerPay() {
             {/* CTA */}
             {details.status === EscrowStatus.CREATED && (
               <>
-                {anyError && friendlyErr && (
-                  <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3">
-                    <p className="text-sm text-hoff-err text-center">{friendlyErr}</p>
-                  </div>
-                )}
+                {anyError && <ErrorBanner error={anyErrorObj} />}
                 <Button
                   fullWidth
                   onClick={canAct ? handleDeposit : () => login()}
