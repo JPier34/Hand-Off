@@ -11,8 +11,10 @@ export function getAutoSelectedTokenKey(payoutToken: Address | null): TokenKey {
 }
 
 export function shouldUseSwapPath(selectedToken: TokenKey, payoutToken: Address | null): boolean {
+  if (selectedToken === 'ETH') return false
   const selectedTokenAddr = TOKENS[selectedToken]?.address ?? null
-  return selectedToken !== 'ETH' && selectedTokenAddr !== payoutToken
+  // Case-insensitive compare — on-chain addresses aren't checksum-normalised.
+  return (selectedTokenAddr ?? '').toLowerCase() !== (payoutToken ?? '').toLowerCase()
 }
 
 export function shouldShowTokenSelector(payoutToken: Address | null): boolean {
