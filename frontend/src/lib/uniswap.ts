@@ -145,13 +145,12 @@ export function isUniswapXQuote(q: QuoteResponse): q is UniswapXQuoteResponse {
   return q.routing === 'DUTCH_V2' || q.routing === 'DUTCH_V3' || q.routing === 'PRIORITY'
 }
 
-export function getOutputAmount(q: QuoteResponse): string {
+// Returns the tokenIn amount the buyer must send (EXACT_OUTPUT quote → input side)
+export function getInputAmount(q: QuoteResponse): string {
   if (isUniswapXQuote(q)) {
-    const first = q.quote.orderInfo.outputs[0]
-    if (!first) throw new Error('UniswapX quote has no outputs')
-    return first.startAmount
+    return q.quote.orderInfo.input.startAmount
   }
-  return q.quote.output.amount
+  return q.quote.input.amount
 }
 
 export async function fetchQuote(params: QuoteRequest): Promise<QuoteResponse> {

@@ -4,7 +4,7 @@ import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
 import { TOKENS, type TokenKey } from '@/lib/tokens'
-import { fetchQuote, getOutputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
+import { fetchQuote, getInputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
 import { HANDOFF_ABI, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
 import type { Address } from '@/lib/types'
 import { buildExactOutputQuoteRequest } from '@/lib/swapQuoteLogic'
@@ -110,7 +110,7 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Add
     fetchQuote(quoteRequest)
       .then(resp => {
         if (cancelled) return
-        const outputAmt = getOutputAmount(resp)
+        const outputAmt = getInputAmount(resp)
         setState({
           requestKey,
           quotedIn: BigInt(outputAmt),
@@ -215,7 +215,7 @@ function useRealSwapAndDeposit(
     try {
       setState({ ...IDLE_SWAP, isApprovePending: true })
 
-      const inputAmount = getOutputAmount(quoteResponse) // for EXACT_OUTPUT, this is the input amount
+      const inputAmount = getInputAmount(quoteResponse) // for EXACT_OUTPUT, this is the input amount
       const approval = await checkApproval(address, token.address, inputAmount, getTargetChainId())
 
       if (approval) {
@@ -263,7 +263,7 @@ function useRealSwapAndDeposit(
     if (!approveReceipt.isSuccess || swapWrite.data || !quoteResponse || !pendingCodeHashRef.current) return
     const token = TOKENS[_tokenKey]
     if (!token?.address) return
-    const inputAmount = getOutputAmount(quoteResponse)
+    const inputAmount = getInputAmount(quoteResponse)
     const codeHash = pendingCodeHashRef.current
     pendingCodeHashRef.current = null
     setState(prev => ({ ...prev, isApproveSuccess: true, isSwapPending: true }))

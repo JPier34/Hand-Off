@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  getOutputAmount,
+  getInputAmount,
   parseApprovalResponse,
   parseQuoteResponse,
   parseSwapResponse,
@@ -22,7 +22,7 @@ describe('uniswap payload validation', () => {
     })
 
     expect(quote.routing).toBe('CLASSIC')
-    expect(getOutputAmount(quote)).toBe('999000')
+    expect(getInputAmount(quote)).toBe('1000000')
   })
 
   it('parses a valid UniswapX quote response', () => {
@@ -51,7 +51,7 @@ describe('uniswap payload validation', () => {
     })
 
     expect(quote.routing).toBe('DUTCH_V2')
-    expect(getOutputAmount(quote)).toBe('555')
+    expect(getInputAmount(quote)).toBe('600')
   })
 
   it('rejects malformed quote payloads', () => {
