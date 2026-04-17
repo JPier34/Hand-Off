@@ -75,12 +75,16 @@ function ExpiryBar({ expiresAt, totalMs }: { expiresAt: number; totalMs: number 
 // ─── Token selector ───────────────────────────────────────────────────────────
 
 function TokenSelector({ selected, onChange }: { selected: TokenKey; onChange: (key: TokenKey) => void }) {
+  // ETH is excluded for token escrows: the contract's fundWithSwap only takes
+  // ERC20 inputs (safeTransferFrom), and the direct fund() path would revert
+  // because it expects an ERC20 transferFrom when payoutToken ≠ 0x0.
+  const options = TOKEN_KEYS.filter(key => key !== 'ETH')
   return (
     <Dropdown
       className="shrink-0 min-w-[90px]"
       value={selected}
       onChange={v => onChange(v as TokenKey)}
-      options={TOKEN_KEYS.map(key => ({ label: TOKENS[key].symbol, value: key }))}
+      options={options.map(key => ({ label: TOKENS[key].symbol, value: key }))}
     />
   )
 }
