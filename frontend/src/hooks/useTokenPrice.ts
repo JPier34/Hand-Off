@@ -25,9 +25,10 @@ async function fetchEthPrice(): Promise<number> {
   }
 }
 
-// Stablecoin addresses (Eth Sepolia) — assumed $1
+// Stablecoin addresses — assumed $1
 const STABLECOIN_ADDRS = new Set([
   TOKENS.USDC.address?.toLowerCase(),
+  TOKENS.DAI?.address?.toLowerCase(),
 ].filter(Boolean) as string[])
 
 function isStablecoin(addr: Address | null): boolean {
