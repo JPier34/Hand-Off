@@ -11,12 +11,6 @@ import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { Dropdown } from '@/components/ui/Dropdown'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
-import { calculateProtocolFee, formatFeePercent } from '@/lib/fee'
-import { formatTokenAmount } from '@/lib/format'
-
-// Mirrors HandOff.PROTOCOL_FEE_BPS on-chain constant. Shown as a hint only —
-// the authoritative value comes from the escrow after creation (see useEscrow).
-const DEFAULT_PROTOCOL_FEE_BPS = 1n
 
 function validate(amount: string, description: string, decimals: number) {
   const errors: { amount?: string; description?: string } = {}
@@ -240,28 +234,6 @@ export default function CreateDeal() {
                   {touched && errors.amount && (
                     <p className="text-xs text-hoff-err mt-1">{errors.amount}</p>
                   )}
-                  {parsedAmount > 0n && (() => {
-                    const feeAmt = calculateProtocolFee(parsedAmount, DEFAULT_PROTOCOL_FEE_BPS)
-                    const sym = TOKENS[payoutToken]?.symbol ?? ''
-                    return (
-                      <div className="mt-3 pt-3 border-t border-hoff-brand space-y-0.5">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-hoff-text-tertiary">You receive</span>
-                          <span className="text-hoff-text-secondary tabular-nums">
-                            {formatTokenAmount(parsedAmount, tokenDecimals)} {sym}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-hoff-text-tertiary">
-                            Buyer pays (incl. {formatFeePercent(DEFAULT_PROTOCOL_FEE_BPS)} fee)
-                          </span>
-                          <span className="text-hoff-text-secondary tabular-nums">
-                            {formatTokenAmount(parsedAmount + feeAmt, tokenDecimals)} {sym}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })()}
                 </div>
                 <Dropdown
                   className="shrink-0 mt-6 min-w-[100px]"
