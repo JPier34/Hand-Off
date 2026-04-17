@@ -1,10 +1,13 @@
 import { z } from 'zod'
 
 // Uniswap Trading API client
-// Uses CORS proxy in dev (/api/uniswap → trade-api.gateway.uniswap.org/v1)
-// and Netlify rewrite/function in production.
-
-const API_BASE = '/api/uniswap'
+// Dev: Vite proxy at /api/uniswap forwards to trade-api.gateway.uniswap.org/v1
+// Production: calls Netlify function directly (redirect rewrite blocks POST on Netlify Edge)
+function apiUrl(path: string): string {
+  return import.meta.env.DEV
+    ? `/api/uniswap/${path}`
+    : `/.netlify/functions/uniswap?path=${path}`
+}
 
 const HEADERS: HeadersInit = {
   'Content-Type': 'application/json',
@@ -152,7 +155,7 @@ export function getOutputAmount(q: QuoteResponse): string {
 }
 
 export async function fetchQuote(params: QuoteRequest): Promise<QuoteResponse> {
-  const res = await fetch(`${API_BASE}/quote`, {
+  const res = await fetch(apiUrl('quote'), {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({
@@ -173,7 +176,7 @@ export async function checkApproval(
   amount: string,
   chainId: number,
 ): Promise<{ to: string; data: string; value: string } | null> {
-  const res = await fetch(`${API_BASE}/check_approval`, {
+  const res = await fetch(apiUrl('check_approval'), {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({ walletAddress, token, amount, chainId }),
@@ -198,7 +201,7 @@ export async function fetchSwap(
     request.permitData = permitData
   }
 
-  const res = await fetch(`${API_BASE}/swap`, {
+  const res = await fetch(apiUrl('swap'), {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify(request),
