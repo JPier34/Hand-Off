@@ -1,6 +1,7 @@
 import { useReadContract } from 'wagmi'
 import { REPUTATION_ABI, REPUTATION_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE } from '@/lib/mock'
+import { getTargetChainId } from '@/lib/chains'
 import type { Address } from '@/lib/types'
 
 export interface ReputationData {
@@ -39,6 +40,7 @@ export function useReputation(walletAddress: Address | undefined) {
     abi: REPUTATION_ABI,
     functionName: 'getReputation',
     args: walletAddress ? [walletAddress] : undefined,
+    chainId: getTargetChainId(),
     query: { enabled: !MOCK_MODE && !!walletAddress },
   })
 
