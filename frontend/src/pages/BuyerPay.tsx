@@ -12,6 +12,7 @@ import { useDealDetails, parseDealParam } from '@/hooks/useEscrow'
 import { useDepositFunds, useClaimRefund, useSubmitReview } from '@/hooks/useEscrowWrite'
 import { parseContractError } from '@/lib/errors'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
+import { formatTokenAmount } from '@/lib/format'
 import { useQuote, useSwapAndDeposit } from '@/hooks/useTokenSwap'
 import { generateUnlockCode, hashUnlockCode } from '@/lib/code-gen'
 import { EscrowStatus } from '@/lib/types'
@@ -453,16 +454,10 @@ export default function BuyerPay() {
     if (!canAct) return 'Connect Wallet To Continue'
     if (isSwapPath && quotedIn !== undefined) {
       const token = TOKENS[selectedToken]
-      const full = formatUnits(quotedIn, token.decimals)
-      const n = parseFloat(full)
-      const display = n === 0 ? full : n.toPrecision(6).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
-      return `Pay ${display} ${token.symbol}`
+      return `Pay ${formatTokenAmount(quotedIn, token.decimals)} ${token.symbol}`
     }
     if (!isSwapPath && details) {
-      const full = formatUnits(details.amount, dec)
-      const n = parseFloat(full)
-      const display = n === 0 ? full : n.toPrecision(6).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
-      return `Pay ${display} ${sym}`
+      return `Pay ${formatTokenAmount(details.amount, dec)} ${sym}`
     }
     return 'Fund Escrow'
   }
@@ -555,11 +550,7 @@ export default function BuyerPay() {
                   )}
                   {!quoteLoading && !quoteError && quotedIn !== undefined && (() => {
                     const payToken = TOKENS[selectedToken]
-                    const payFmt = (v: bigint) => {
-                      const full = formatUnits(v, payToken.decimals)
-                      const n = parseFloat(full)
-                      return n === 0 ? full : n.toPrecision(6).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
-                    }
+                    const payFmt = (v: bigint) => formatTokenAmount(v, payToken.decimals)
                     const paySym = payToken.symbol
                     return (
                       <>

@@ -3,7 +3,7 @@ import { useAccount } from 'wagmi'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
-import { TOKENS, type TokenKey } from '@/lib/tokens'
+import { TOKENS, type TokenKey, payoutDecimals } from '@/lib/tokens'
 import { fetchQuote, getOutputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
 import { HANDOFF_ABI, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
 import type { Address } from '@/lib/types'
@@ -59,9 +59,14 @@ function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Add
     const requestKey = `${tokenKey}:${amountOutWei.toString()}:${payoutToken}`
 
     const id = setTimeout(() => {
-      // mockRate is "smallest unit per 1 ETH (10^18 wei)"
-      // quotedIn = amountOutWei * mockRate / 10^18
-      const result = (amountOutWei * token.mockRate) / 10n ** 18n
+      // mockRate is "smallest unit per 1 ETH (10^18 wei)".
+      // Normalise amountOutWei to an 18-decimal base so the rate math
+      // works regardless of the payout token's decimals (USDC=6, WETH=18, …).
+      const outDec = payoutDecimals(payoutToken)
+      const normalised = outDec === 18
+        ? amountOutWei
+        : amountOutWei * 10n ** BigInt(18 - outDec)
+      const result = (normalised * token.mockRate) / 10n ** 18n
       setState({ requestKey, quotedIn: result })
     }, 400)
 
