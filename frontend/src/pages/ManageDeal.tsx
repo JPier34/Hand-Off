@@ -11,6 +11,7 @@ import { useDealDetails, parseDealParam } from '@/hooks/useEscrow'
 import { useReleaseEscrow, useCancelDeal, useEditDeal, useSubmitReview } from '@/hooks/useEscrowWrite'
 import { parseContractError } from '@/lib/errors'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
+import { formatFeePercent } from '@/lib/fee'
 import { EscrowStatus } from '@/lib/types'
 import { IntroScreen } from '@/components/escrow/IntroScreen'
 import { Dropdown } from '@/components/ui/Dropdown'
@@ -297,6 +298,8 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, sellerEns, sta
 interface ClaimFundsProps {
   dealIdParam: string
   amount: bigint
+  feeAmount: bigint
+  protocolFeeBps: bigint
   expiresAt: bigint
   description: string
   sym: string
@@ -311,7 +314,7 @@ interface ClaimFundsProps {
 }
 
 function ClaimFundsView({
-  dealIdParam, amount, expiresAt, description, sym, fmt, usdLabel,
+  dealIdParam, amount, feeAmount, protocolFeeBps, expiresAt, description, sym, fmt, usdLabel,
   onBack, onRelease, isPending, isConfirming, isError, error,
 }: ClaimFundsProps) {
   const [chars, setChars] = useState(['', '', '', ''])
@@ -360,6 +363,12 @@ function ClaimFundsView({
           <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
           <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
+        {feeAmount > 0n && (
+          <div className="pt-3 border-t border-hoff-brand flex items-center justify-between text-[11px] text-hoff-text-tertiary">
+            <span>Buyer paid {fmt(amount + feeAmount)} {sym}</span>
+            <span>{formatFeePercent(protocolFeeBps)} platform fee</span>
+          </div>
+        )}
       </div>
 
       {/* Code input card */}
@@ -963,6 +972,8 @@ export default function ManageDeal() {
         <ClaimFundsView
           dealIdParam={dealIdParam}
           amount={details.amount}
+          feeAmount={details.feeAmount}
+          protocolFeeBps={details.protocolFeeBps}
           expiresAt={details.expiresAt}
           description={details.description}
           sym={sym}
