@@ -325,7 +325,10 @@ export default function BuyerPay() {
   }
 
   // ─── Completed screen ──────────────────────────────────────────────────────
-  if (fundingSuccess && unlockCode) {
+  // Show CompletedView if the tx receipt confirmed OR if on-chain status is already FUNDED
+  // (guards against receipt-poller failures when the buyer revisits a funded deal)
+  const alreadyFunded = details?.status === EscrowStatus.FUNDED
+  if ((fundingSuccess || alreadyFunded) && unlockCode) {
     return (
       <Layout>
         <CompletedView
