@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAccount } from 'wagmi'
+import { useAccount, usePublicClient } from 'wagmi'
+import { erc20Abi } from 'viem'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
 import { TOKENS, type TokenKey } from '@/lib/tokens'
-import { fetchQuote, getInputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
+import { fetchQuote, getInputAmount, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
 import { HANDOFF_ABI, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
 import type { Address } from '@/lib/types'
 import { buildExactOutputQuoteRequest } from '@/lib/swapQuoteLogic'
-import { getTargetChainId } from '@/lib/chains'
+import { getTargetChainId, CHAIN_IDS } from '@/lib/chains'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -190,6 +191,7 @@ function useRealSwapAndDeposit(
   quoteResponse?: QuoteResponse | null,
 ): SwapAndDepositState {
   const { address } = useAccount()
+  const publicClient = usePublicClient({ chainId: getTargetChainId() === CHAIN_IDS.MAINNET ? 1 : 11155111 })
   const [state, setState] = useState(IDLE_SWAP)
   // Store codeHash across the async approval → swap boundary
   const pendingCodeHashRef = useRef<`0x${string}` | null>(null)
@@ -215,16 +217,26 @@ function useRealSwapAndDeposit(
     try {
       setState({ ...IDLE_SWAP, isApprovePending: true })
 
-      const inputAmount = getInputAmount(quoteResponse) // for EXACT_OUTPUT, this is the input amount
-      const approval = await checkApproval(address, token.address, inputAmount, getTargetChainId())
+      const inputAmount = getInputAmount(quoteResponse)
+      const inputAmountBig = BigInt(inputAmount)
 
-      if (approval) {
-        // Need to approve — swap will be triggered reactively after confirmation
+      // Check actual ERC20 allowance for the HandOff escrow (not Uniswap Permit2)
+      const allowance = publicClient
+        ? await publicClient.readContract({
+            address: token.address as `0x${string}`,
+            abi: erc20Abi,
+            functionName: 'allowance',
+            args: [address, escrowAddress],
+          })
+        : 0n
+
+      if ((allowance as bigint) < inputAmountBig) {
+        // Need to approve HandOff escrow to pull tokenIn
         approveWrite.writeContract({
           address: token.address as `0x${string}`,
-          abi: [{ name: 'approve', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }] }] as const,
+          abi: erc20Abi,
           functionName: 'approve',
-          args: [escrowAddress, BigInt(inputAmount)],
+          args: [escrowAddress, inputAmountBig],
         })
         setState({ ...IDLE_SWAP, isApproveConfirming: true })
       } else {
