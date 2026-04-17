@@ -63,14 +63,19 @@ test.describe('BuyerPay swap logic (mock e2e)', () => {
     await page.selectOption('select', 'USDC')
 
     const slippageRow = page.getByText('Slippage').locator('..')
+    // Slippage options are hidden behind gear toggle — open it first
+    await slippageRow.getByRole('button', { name: /⚙/ }).click()
     await expect(slippageRow.getByRole('button', { name: '0.1%', exact: true })).toBeVisible()
     await expect(slippageRow.getByRole('button', { name: '0.5%', exact: true })).toBeVisible()
     await expect(slippageRow.getByRole('button', { name: '1%', exact: true })).toBeVisible()
 
     await slippageRow.getByRole('button', { name: '1%', exact: true }).click()
+    // After selecting, panel closes; reopen to verify selection
+    await slippageRow.getByRole('button', { name: /⚙/ }).click()
     await expect(slippageRow.getByRole('button', { name: '1%', exact: true })).toHaveClass(/bg-hoff-accent/)
 
     await slippageRow.getByRole('button', { name: '0.1%', exact: true }).click()
+    await slippageRow.getByRole('button', { name: /⚙/ }).click()
     await expect(slippageRow.getByRole('button', { name: '0.1%', exact: true })).toHaveClass(/bg-hoff-accent/)
   })
 })
