@@ -12,10 +12,10 @@ type ContractAddresses = {
 
 export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
   [CHAIN_IDS.MAINNET]: {
-    // Deployed post-mainnet launch — fill after Ignition deploy
-    reputationRegistry: "0x0000000000000000000000000000000000000000" as Address,
-    factory:            "0x0000000000000000000000000000000000000000" as Address,
-    subnameRegistrar:   "0x0000000000000000000000000000000000000000" as Address,
+    // Deployed 2026-04-17 — EIP-1167 minimal proxy. ENS setApprovalForAll ✅ 2026-04-17 (tx 0xc96fe8b1).
+    reputationRegistry: "0x002d35f816A3cD5951C1707D1a91b8e95025655a" as Address,
+    factory:            "0x18f7aE8793e6FC61383aaa53F4F0E30F79591559" as Address,
+    subnameRegistrar:   "0x3D79a2d7ba642f4AC4EA0C552983Dc076B4A0De0" as Address,
   },
   [CHAIN_IDS.ETH_SEPOLIA]: {
     // Deployed 2026-04-15 — EIP-1167 minimal proxy (createHandOff: 1.9M→405k gas).

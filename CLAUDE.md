@@ -66,12 +66,23 @@ Monorepo: contratti Solidity (Hardhat) + frontend React (Vite).
 
 ---
 
-## Architettura Contratti (Eth Sepolia)
+## Architettura Contratti
 
+### Ethereum Mainnet (chain 1) — deploy 2026-04-17
 ```
-HandOffReputation  0x8fe5A9F3949054Ca9A9f2f3378517180226D9222
-HandOffFactory     0x34C44393b0E6704cbd908249E1b05e84D986C642
-SubnameRegistrar   0xaE1cEb6058BC0118080ACb9b6bd96Ba2463B96E5
+HandOffReputation     0x002d35f816A3cD5951C1707D1a91b8e95025655a
+HandOffFactory        0x18f7aE8793e6FC61383aaa53F4F0E30F79591559
+SubnameRegistrar      0x3D79a2d7ba642f4AC4EA0C552983Dc076B4A0De0
+ENS setApprovalForAll ✅ 2026-04-17 (tx 0xc96fe8b1)
+Uniswap Router 2.0    0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD
+```
+
+### Eth Sepolia (chain 11155111) — deploy 2026-04-15, verificati 2026-04-16
+```
+HandOffReputation  0x2B34136c33DF34B4d1B38Bc9D0DfB73A70b1c6B7
+HandOffFactory     0x3d1B1b5D01E008eaEC73309bfbD3AFF0082f018a
+SubnameRegistrar   0xb61C34b0da348b65741757fb9b5671f3Fd359d61
+ENS setApprovalForAll ✅ 2026-04-15
 Uniswap Router 2.0 0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD
 ```
 

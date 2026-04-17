@@ -29,10 +29,12 @@
   command = "npm run build"
   publish = "dist"
 
-# Context esplicito per test-jpier (le env var vengono impostate nel dashboard Netlify)
+# Context esplicito per test-jpier — punta a mainnet per test produzione
 [context.test-jpier]
   command = "npm run build"
   publish = "dist"
+  [context.test-jpier.environment]
+    VITE_NETWORK = "mainnet"
 
 [[redirects]]
   from   = "/api/uniswap/*"
