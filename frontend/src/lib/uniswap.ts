@@ -34,11 +34,12 @@ const classicQuoteResponseSchema = z.object({
       token: addressSchema,
       amount: numericStringSchema,
     }),
-    slippage: z.number(),
-    gasFee: numericStringSchema,
-    gasFeeUSD: z.string(),
-    gasUseEstimate: numericStringSchema,
-  }),
+    // non-critical fields — optional + permissive to handle API variations
+    slippage: z.number().optional(),
+    gasFee: z.string().optional(),
+    gasFeeUSD: z.string().optional(),
+    gasUseEstimate: z.string().optional(),
+  }).passthrough(),
   permitData: z.record(z.unknown()).nullable(),
 })
 
@@ -59,10 +60,10 @@ const uniswapXQuoteResponseSchema = z.object({
       }),
       deadline: z.number(),
       nonce: z.string(),
-    }),
+    }).passthrough(),
     encodedOrder: hexSchema,
     orderHash: hexSchema,
-  }),
+  }).passthrough(),
   permitData: z.record(z.unknown()).nullable(),
 })
 

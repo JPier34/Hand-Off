@@ -54,6 +54,19 @@ describe('uniswap payload validation', () => {
     expect(getInputAmount(quote)).toBe('600')
   })
 
+  it('parses classic quote without optional gas fields', () => {
+    const quote = parseQuoteResponse({
+      routing: 'CLASSIC',
+      quote: {
+        input: { token: '0x1111111111111111111111111111111111111111', amount: '42000000' },
+        output: { token: '0x2222222222222222222222222222222222222222', amount: '41000000' },
+      },
+      permitData: null,
+    })
+    expect(quote.routing).toBe('CLASSIC')
+    expect(getInputAmount(quote)).toBe('42000000')
+  })
+
   it('rejects malformed quote payloads', () => {
     expect(() => parseQuoteResponse({
       routing: 'CLASSIC',
