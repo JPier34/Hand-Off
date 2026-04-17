@@ -5,6 +5,7 @@ import { REPUTATION_ABI, REPUTATION_ADDRESS, HANDOFF_ABI } from '@/lib/constants
 import type { Address, DealDetails } from '@/lib/types'
 import { EscrowStatus } from '@/lib/types'
 import { MOCK_MODE, getMockDeal } from '@/lib/mock'
+import { getTargetChainId } from '@/lib/chains'
 
 /** Parse a URL param as either an escrow address or a numeric dealId */
 export function parseDealParam(param: string | undefined): { dealId?: bigint; escrowAddress?: Address } {
@@ -16,11 +17,14 @@ export function parseDealParam(param: string | undefined): { dealId?: bigint; es
 }
 
 function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Address | undefined) {
+  const chainId = getTargetChainId()
+
   const addressResult = useReadContract({
     address: REPUTATION_ADDRESS,
     abi: REPUTATION_ABI,
     functionName: 'getEscrowFromDealId',
     args: dealId ? [dealId] : undefined,
+    chainId,
     query: { enabled: !MOCK_MODE && !!dealId && !directEscrowAddress },
   })
 
@@ -30,6 +34,7 @@ function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Add
     address: escrowAddress,
     abi: HANDOFF_ABI,
     functionName: 'dealInfo',
+    chainId,
     query: {
       enabled: !MOCK_MODE && !!escrowAddress,
       refetchInterval: 5_000,
@@ -40,6 +45,7 @@ function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Add
     address: escrowAddress,
     abi: HANDOFF_ABI,
     functionName: 'getTerms',
+    chainId,
     query: { enabled: !MOCK_MODE && !!escrowAddress },
   })
 
@@ -47,6 +53,7 @@ function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Add
     address: escrowAddress,
     abi: HANDOFF_ABI,
     functionName: 'getFeeAmount',
+    chainId,
     query: { enabled: !MOCK_MODE && !!escrowAddress },
   })
 
@@ -54,6 +61,7 @@ function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Add
     address: escrowAddress,
     abi: HANDOFF_ABI,
     functionName: 'getRequiredFunding',
+    chainId,
     query: { enabled: !MOCK_MODE && !!escrowAddress },
   })
 
@@ -61,6 +69,7 @@ function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Add
     address: escrowAddress,
     abi: HANDOFF_ABI,
     functionName: 'FEE_RECIPIENT',
+    chainId,
     query: { enabled: !MOCK_MODE && !!escrowAddress },
   })
 
@@ -68,6 +77,7 @@ function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Add
     address: escrowAddress,
     abi: HANDOFF_ABI,
     functionName: 'PROTOCOL_FEE_BPS',
+    chainId,
     query: { enabled: !MOCK_MODE && !!escrowAddress },
   })
 

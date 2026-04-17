@@ -8,6 +8,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { WagmiProvider, createConfig, http } from 'wagmi'
 import { sepolia, mainnet } from 'wagmi/chains'
+import { getTargetChainId, getRpcUrl, CHAIN_IDS } from '@/lib/chains'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App.tsx'
@@ -20,12 +21,15 @@ import { initDynamic } from '@/lib/dynamic'
 
 const dynamicConnector = dynamicWagmiConnector()
 
+const isMainnet = getTargetChainId() === CHAIN_IDS.MAINNET
+const rpcUrl = getRpcUrl()
+
 const wagmiConfig = createConfig({
-  chains: [sepolia, mainnet],
+  chains: isMainnet ? [mainnet, sepolia] : [sepolia, mainnet],
   connectors: DYNAMIC_ENABLED ? [dynamicConnector] : [],
   transports: {
-    [sepolia.id]: http(),
-    [mainnet.id]: http(),
+    [sepolia.id]: http(isMainnet ? undefined : rpcUrl),
+    [mainnet.id]: http(isMainnet ? rpcUrl : undefined),
   },
 })
 
