@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { parseEther, isAddress } from 'viem'
+import { parseUnits, isAddress } from 'viem'
 import type { Address } from 'viem'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import { useNavigate } from 'react-router-dom'
@@ -10,13 +10,13 @@ import { useCreateDeal } from '@/hooks/useEscrowWrite'
 import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 
-function validate(amount: string) {
+function validate(amount: string, decimals: number) {
   const errors: { amount?: string } = {}
   if (!amount) {
     errors.amount = 'Required'
   } else {
     try {
-      const parsed = parseEther(amount as `${number}`)
+      const parsed = parseUnits(amount as `${number}`, decimals)
       if (parsed <= 0n) errors.amount = 'Must be greater than 0'
     } catch {
       errors.amount = 'Enter a valid number (e.g. 0.05)'
@@ -58,12 +58,13 @@ export default function CreateDeal() {
   const { create, isPending, isConfirming, isSuccess, isError, error, newDealId, newEscrowAddress } =
     useCreateDeal()
 
-  const errors = validate(amount)
+  const tokenDecimals = TOKENS[payoutToken]?.decimals ?? 18
+  const tokenAddr = TOKENS[payoutToken]?.address ?? null
+  const errors = validate(amount, tokenDecimals)
   const hasErrors = Object.keys(errors).length > 0
 
   // USD estimate for the entered amount
-  const parsedAmount = (() => { try { return amount ? parseEther(amount as `${number}`) : 0n } catch { return 0n } })()
-  const tokenAddr = TOKENS[payoutToken]?.address ?? null
+  const parsedAmount = (() => { try { return amount ? parseUnits(amount as `${number}`, tokenDecimals) : 0n } catch { return 0n } })()
   const usdValue = useUsdValue(parsedAmount, tokenAddr)
 
   // Prefer dealId for clean URLs, fall back to escrow address

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { parseEther, parseEventLogs, createWalletClient, custom } from 'viem'
+import { parseUnits, parseEventLogs, createWalletClient, custom } from 'viem'
 import { sepolia, mainnet } from 'viem/chains'
 import { getTargetChainId, CHAIN_IDS } from '@/lib/chains'
 import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS, SUBNAME_ABI, SUBNAME_ADDRESS } from '@/lib/constants'
@@ -68,7 +68,7 @@ function useRealCreateDeal() {
       address: FACTORY_ADDRESS,
       abi: FACTORY_ABI,
       functionName: 'createHandOff',
-      args: [payoutToken, parseEther(amount), expirationWindow, sellerEns, sellerPayoutAddress],
+      args: [payoutToken, parseUnits(amount, token?.decimals ?? 18), expirationWindow, sellerEns, sellerPayoutAddress],
     })
   }
 
