@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hand-Off</title>
     <script>
-      // Prevent flash of wrong theme on page load
+      // Prevent flash of wrong theme on page load. Dark is default; opt-in light via toggle.
       (function () {
-        var theme = localStorage.getItem('hoff-theme') || 'dark';
+        var theme = localStorage.getItem('hoff-theme-v2');
         if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
       })();
     </script>
