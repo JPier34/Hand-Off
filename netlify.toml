@@ -1,0 +1,8 @@
+[build]
+  command = "cd frontend && pnpm install && pnpm build"
+  publish = "frontend/dist"
+  functions = "frontend/netlify/functions"
+
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "DYNAMIC_ENVIRONMENT_ID,CHAIN_ID,MOCK"
+  PNPM_FLAGS = "--no-frozen-lockfile"

@@ -3,18 +3,68 @@
 @tailwind utilities;
 
 @layer base {
+  /* ── Dark theme (default) ─────────────────────────────────────────────────── */
+  :root {
+    --hoff-bg: 13 24 24;
+    --hoff-surface: 21 40 40;
+    --hoff-elevated: 30 53 53;
+    --hoff-brand: 32 50 50;
+    --hoff-accent: 46 191 122;
+    --hoff-accent-muted: 26 74 58;
+    --hoff-accent-hover: 37 160 104;
+    --hoff-accent-fg: 255 255 255;
+    --hoff-text-primary: 255 255 255;
+    --hoff-text-secondary: 127 168 168;
+    --hoff-text-tertiary: 108 145 145;
+
+    /* Feedback */
+    --hoff-warn: 251 191 36;
+    --hoff-warn-muted: 252 211 77;
+    --hoff-warn-bg: 50 44 26;
+    --hoff-err: 248 113 113;
+    --hoff-err-bg: 43 31 31;
+    --hoff-ok: 74 222 128;
+    --hoff-ok-bg: 21 49 41;
+    --hoff-info: 96 165 250;
+  }
+
+  /* ── Light theme ──────────────────────────────────────────────────────────── */
+  [data-theme="light"] {
+    --hoff-bg: 248 250 250;
+    --hoff-surface: 255 255 255;
+    --hoff-elevated: 241 245 245;
+    --hoff-brand: 209 222 222;
+    --hoff-accent: 46 191 122;
+    --hoff-accent-muted: 220 252 231;
+    --hoff-accent-hover: 37 160 104;
+    --hoff-accent-fg: 255 255 255;
+    --hoff-text-primary: 15 26 26;
+    --hoff-text-secondary: 61 90 90;
+    --hoff-text-tertiary: 107 138 138;
+
+    /* Feedback */
+    --hoff-warn: 180 83 9;
+    --hoff-warn-muted: 146 64 14;
+    --hoff-warn-bg: 254 243 199;
+    --hoff-err: 220 38 38;
+    --hoff-err-bg: 254 226 226;
+    --hoff-ok: 22 163 74;
+    --hoff-ok-bg: 220 252 231;
+    --hoff-info: 37 99 235;
+  }
+
   body {
-    background-color: #0D1818;
-    color: #FFFFFF;
+    background-color: rgb(var(--hoff-bg));
+    color: rgb(var(--hoff-text-primary));
   }
 }
 
 @layer components {
   .hoff-page-bg {
     background:
-      radial-gradient(ellipse 55% 45% at 10% 80%, rgba(21, 40, 40, 0.8) 0%, transparent 65%),
-      radial-gradient(ellipse 40% 35% at 85% 90%, rgba(30, 53, 53, 0.5) 0%, transparent 65%),
-      #0D1818;
+      radial-gradient(ellipse 55% 45% at 10% 80%, rgb(var(--hoff-surface) / 0.8) 0%, transparent 65%),
+      radial-gradient(ellipse 40% 35% at 85% 90%, rgb(var(--hoff-elevated) / 0.5) 0%, transparent 65%),
+      rgb(var(--hoff-bg));
     min-height: 100vh;
   }
 }

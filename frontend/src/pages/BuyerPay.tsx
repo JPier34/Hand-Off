@@ -19,8 +19,9 @@ import { TOKENS, TOKEN_KEYS, type TokenKey, payoutSymbol, payoutDecimals } from 
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
 import { DealReceiptBadge } from '@/components/DealReceiptBadge'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { useReputation } from '@/hooks/useReputation'
-import { MOCK_MODE } from '@/lib/mock'
+import { MOCK_MODE, mockExpire } from '@/lib/mock'
 import { getAutoSelectedTokenKey, shouldShowTokenSelector, shouldUseSwapPath } from '@/lib/buyerPayLogic'
 import { formatFeePercent } from '@/lib/fee'
 import { getTargetChainId, CHAIN_IDS } from '@/lib/chains'
@@ -57,7 +58,7 @@ function ExpiryBar({ expiresAt, totalMs }: { expiresAt: number; totalMs: number 
 
   const remaining = Math.max(0, expiresAt - now)
   const fraction = Math.min(1, remaining / totalMs)
-  const color = fraction > 0.25 ? 'bg-hoff-accent' : fraction > 0 ? 'bg-amber-500' : 'bg-red-500'
+  const color = fraction > 0.25 ? 'bg-hoff-accent' : fraction > 0 ? 'bg-hoff-warn' : 'bg-hoff-err'
 
   return (
     <div className="h-1.5 w-full rounded-full bg-hoff-elevated overflow-hidden">
@@ -71,29 +72,91 @@ function ExpiryBar({ expiresAt, totalMs }: { expiresAt: number; totalMs: number 
 
 // ─── Token selector ───────────────────────────────────────────────────────────
 
-interface TokenSelectorProps {
-  selected: TokenKey
-  onChange: (key: TokenKey) => void
+function TokenSelector({ selected, onChange }: { selected: TokenKey; onChange: (key: TokenKey) => void }) {
+  return (
+    <Dropdown
+      className="shrink-0 min-w-[90px]"
+      value={selected}
+      onChange={v => onChange(v as TokenKey)}
+      options={TOKEN_KEYS.map(key => ({ label: TOKENS[key].symbol, value: key }))}
+    />
+  )
 }
 
-function TokenSelector({ selected, onChange }: TokenSelectorProps) {
-  // Measure width dynamically based on selected symbol length
-  const charWidth = TOKENS[selected]?.symbol.length ?? 3
-  const width = `${charWidth * 0.7 + 1.2}em`
+// ─── Swap preview card ────────────────────────────────────────────────────────
+
+interface SwapPreviewProps {
+  tokenKey: TokenKey
+  quotedIn: bigint | undefined
+  amountOutWei: bigint
+  payoutSymbol: string
+  payoutDecimals: number
+  isLoading: boolean
+  error: string | null
+}
+
+function SwapPreview({ tokenKey, quotedIn, amountOutWei, payoutSymbol: outSym, payoutDecimals: outDec, isLoading, error }: SwapPreviewProps) {
+  if (tokenKey === 'ETH') return null
+
+  const token = TOKENS[tokenKey]
 
   return (
-    <select
-      value={selected}
-      onChange={e => onChange(e.target.value)}
-      className="shrink-0 h-8 px-2 rounded-lg bg-hoff-accent-muted text-hoff-accent text-xl font-medium appearance-none [&::-ms-expand]:hidden cursor-pointer focus:outline-none transition-colors text-center"
-      style={{ width, WebkitAppearance: 'none', MozAppearance: 'none' }}
-    >
-      {TOKEN_KEYS.map(key => (
-        <option key={key} value={key} className="bg-hoff-elevated text-hoff-text-primary">
-          {TOKENS[key].symbol}
-        </option>
-      ))}
-    </select>
+    <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
+      <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+        Swap Preview
+      </p>
+
+      {isLoading && (
+        <div className="flex items-center gap-2 py-2">
+          <Spinner size="sm" />
+          <span className="text-sm text-hoff-text-tertiary">Getting quote...</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="text-hoff-err bg-hoff-err-bg px-4 py-3 rounded-xl text-sm border border-hoff-err/20">
+          {error}
+        </div>
+      )}
+
+      {!isLoading && !error && quotedIn !== undefined && (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-xs text-hoff-text-tertiary mb-0.5">You pay</p>
+              <p className="text-lg font-bold text-hoff-text-primary">
+                {formatUnits(quotedIn, token.decimals)} {token.symbol}
+              </p>
+            </div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7B7B" strokeWidth="2" strokeLinecap="round">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+            <div className="text-right">
+              <p className="text-xs text-hoff-text-tertiary mb-0.5">Seller receives</p>
+              <p className="text-lg font-bold text-hoff-text-primary">
+                {formatUnits(amountOutWei, outDec)} {outSym}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
+            <span className="text-xs text-hoff-text-tertiary">Slippage tolerance</span>
+            <span className="text-xs text-hoff-text-secondary">0.5%</span>
+          </div>
+
+          <p className="text-xs text-hoff-text-tertiary">
+            Powered by Uniswap. Your {token.symbol} will be swapped to {outSym} and deposited into the escrow.
+          </p>
+        </>
+      )}
+
+      {!isLoading && !error && quotedIn === undefined && (
+        <p className="text-sm text-hoff-text-tertiary py-2">
+          No swap route available — try a different token or fund directly with {outSym}.
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -104,10 +167,12 @@ interface CompletedViewProps {
   description: string
   dealIdParam: string
   txHash?: string
+  status?: EscrowStatus
   onSubmitReview: (vote: 'positive' | 'negative') => void
 }
 
-function CompletedView({ code, description, dealIdParam, txHash, onSubmitReview }: CompletedViewProps) {
+function CompletedView({ code, description, dealIdParam, txHash, status, onSubmitReview }: CompletedViewProps) {
+  const isCompleted = status === EscrowStatus.COMPLETED
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
@@ -184,7 +249,15 @@ function CompletedView({ code, description, dealIdParam, txHash, onSubmitReview 
         </a>
       )}
 
-      {!submitted ? (
+      {/* Review section — only available once seller completes the handoff (COMPLETED state) */}
+      {!isCompleted && (
+        <div className="bg-hoff-elevated rounded-xl px-4 py-3 text-center space-y-1">
+          <p className="text-xs text-hoff-text-tertiary">Waiting for seller to complete the handoff…</p>
+          <p className="text-xs text-hoff-text-tertiary/60">You can leave a review once funds are released</p>
+        </div>
+      )}
+
+      {isCompleted && !submitted ? (
         <div className="space-y-3">
           <p className="text-sm text-hoff-text-tertiary text-center">Leave a Review – How did it go?</p>
           <div className="grid grid-cols-2 gap-3">
@@ -205,8 +278,8 @@ function CompletedView({ code, description, dealIdParam, txHash, onSubmitReview 
               onClick={() => setReview('negative')}
               className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${
                 review === 'negative'
-                  ? 'bg-red-900/30 border-red-500 text-red-400'
-                  : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-red-500/40'
+                  ? 'bg-hoff-err-bg border-hoff-err text-hoff-err'
+                  : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-hoff-err/40'
               }`}
             >
               <svg width="20" height="20" viewBox="0 0 24 24">
@@ -218,16 +291,16 @@ function CompletedView({ code, description, dealIdParam, txHash, onSubmitReview 
           <button
             onClick={handleSubmit}
             disabled={!review}
-            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
+            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
           >
             Submit
           </button>
         </div>
-      ) : (
+      ) : isCompleted ? (
         <div className="bg-hoff-accent/10 border border-hoff-accent/30 rounded-xl px-4 py-3 text-center">
           <p className="text-sm text-hoff-accent font-medium">Thanks for your review!</p>
         </div>
-      )}
+      ) : null}
     </main>
   )
 }
@@ -294,7 +367,7 @@ export default function BuyerPay() {
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
           <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-red-400">Invalid deal link. Check the URL and try again.</p>
+            <p className="text-sm text-hoff-err">Invalid deal link. Check the URL and try again.</p>
           </div>
         </main>
       </Layout>
@@ -333,6 +406,7 @@ export default function BuyerPay() {
           description={details?.description ?? ''}
           dealIdParam={dealIdParam}
           txHash={isSwapPath ? swap.txHash : txHash}
+          status={details?.status}
           onSubmitReview={(vote) => {
             reviewHook.submitReview(vote === 'positive')
           }}
@@ -378,7 +452,16 @@ export default function BuyerPay() {
     if (!canAct) return 'Connect Wallet To Continue'
     if (isSwapPath && quotedIn !== undefined) {
       const token = TOKENS[selectedToken]
-      return `Pay ${formatUnits(quotedIn, token.decimals)} ${token.symbol}`
+      const full = formatUnits(quotedIn, token.decimals)
+      const n = parseFloat(full)
+      const display = n === 0 ? full : n.toPrecision(6).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+      return `Pay ${display} ${token.symbol}`
+    }
+    if (!isSwapPath && details) {
+      const full = formatUnits(details.amount, dec)
+      const n = parseFloat(full)
+      const display = n === 0 ? full : n.toPrecision(6).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+      return `Pay ${display} ${sym}`
     }
     return 'Fund Escrow'
   }
@@ -403,7 +486,7 @@ export default function BuyerPay() {
 
         {isError || !details ? (
           <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-red-400">Could not load deal. Check the link and try again.</p>
+            <p className="text-sm text-hoff-err">Could not load deal. Check the link and try again.</p>
           </div>
         ) : (
           <>
@@ -469,11 +552,15 @@ export default function BuyerPay() {
                     </div>
                   )}
                   {quoteError && (
-                    <p className="text-xs text-red-400 py-1">{quoteError}</p>
+                    <p className="text-xs text-hoff-err py-1">{quoteError}</p>
                   )}
                   {!quoteLoading && !quoteError && quotedIn !== undefined && (() => {
                     const payToken = TOKENS[selectedToken]
-                    const payFmt = (v: bigint) => formatUnits(v, payToken.decimals)
+                    const payFmt = (v: bigint) => {
+                      const full = formatUnits(v, payToken.decimals)
+                      const n = parseFloat(full)
+                      return n === 0 ? full : n.toPrecision(6).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+                    }
                     const paySym = payToken.symbol
                     return (
                       <>
@@ -543,12 +630,20 @@ export default function BuyerPay() {
                   {details.seller.slice(2, 4).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-hoff-text-tertiary mb-0.5">Creator</p>
-                  <EnsName
-                    address={details.seller as `0x${string}`}
-                    hint={details.sellerEns || undefined}
-                    className="text-sm text-hoff-text-primary font-mono truncate block"
-                  />
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <p className="text-xs text-hoff-text-tertiary">Creator</p>
+                    <span className="text-[9px] font-semibold text-hoff-accent bg-hoff-accent/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">ENS</span>
+                  </div>
+                  {/* Forward ENS: seller's ENS name as stored on-chain at deal creation */}
+                  {details.sellerEns ? (
+                    <p className="text-sm text-hoff-text-primary font-medium truncate">{details.sellerEns}</p>
+                  ) : (
+                    /* Reverse ENS: resolve address → name via ENS registry */
+                    <EnsName
+                      address={details.seller as `0x${string}`}
+                      className="text-sm text-hoff-text-primary font-mono truncate block"
+                    />
+                  )}
                 </div>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-hoff-brand">
@@ -585,8 +680,8 @@ export default function BuyerPay() {
             {details.status === EscrowStatus.CREATED && (
               <>
                 {anyError && friendlyErr && (
-                  <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3">
-                    <p className="text-sm text-red-400 text-center">{friendlyErr}</p>
+                  <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3">
+                    <p className="text-sm text-hoff-err text-center">{friendlyErr}</p>
                   </div>
                 )}
                 <Button
@@ -602,22 +697,22 @@ export default function BuyerPay() {
 
             {/* FUNDED — not expired */}
             {details.status === EscrowStatus.FUNDED && !isExpired && (
-              <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3">
-                <p className="text-sm text-amber-400 text-center">This escrow has already been funded.</p>
+              <div className="bg-hoff-warn-bg border border-hoff-warn/20 rounded-xl px-4 py-3">
+                <p className="text-sm text-hoff-warn text-center">This escrow has already been funded.</p>
               </div>
             )}
 
             {/* FUNDED + expired — UC-9: Claim Refund */}
             {isExpired && (
               <div className="space-y-3">
-                <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3 space-y-1">
-                  <p className="text-sm text-red-400 font-medium text-center">This HandOff has expired</p>
-                  <p className="text-xs text-red-400/70 text-center">
+                <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3 space-y-1">
+                  <p className="text-sm text-hoff-err font-medium text-center">This HandOff has expired</p>
+                  <p className="text-xs text-hoff-err/70 text-center">
                     The seller did not enter the code in time. You can reclaim your funds.
                   </p>
                 </div>
 
-                {refund.isError && <p className="text-xs text-red-400 text-center">Refund failed. Try again.</p>}
+                {refund.isError && <p className="text-xs text-hoff-err text-center">Refund failed. Try again.</p>}
 
                 {!refund.isSuccess ? (
                   <Button
@@ -654,7 +749,7 @@ export default function BuyerPay() {
             {details.status === EscrowStatus.CANCELED && (
               <div className="space-y-4">
                 <div className="flex flex-col items-center gap-3 pt-2">
-                  <div className="w-14 h-14 rounded-full bg-red-900/30 border-2 border-red-500/40 flex items-center justify-center">
+                  <div className="w-14 h-14 rounded-full bg-hoff-err-bg border-2 border-hoff-err/40 flex items-center justify-center">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round">
                       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
@@ -664,6 +759,16 @@ export default function BuyerPay() {
                   </p>
                 </div>
               </div>
+            )}
+
+            {/* Mock debug: simulate expiry — poll picks up the change within 500ms */}
+            {MOCK_MODE && details.status === EscrowStatus.FUNDED && !isExpired && (
+              <button
+                onClick={() => mockExpire(dealIdOrZero)}
+                className="w-full text-xs text-hoff-text-tertiary hover:text-hoff-warn transition-colors py-1 text-center"
+              >
+                [Mock] Simulate expiry
+              </button>
             )}
 
             <p className="text-xs text-hoff-text-tertiary text-center pb-4">

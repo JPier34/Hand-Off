@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   getWalletAccounts,
   getBalance,
@@ -36,6 +37,7 @@ interface NetworkOption {
 }
 
 export function WalletButton() {
+  const navigate = useNavigate()
   const { isAuthenticated, walletAddress, login, disconnect } = useDynamicAuth()
   const [open, setOpen] = useState(false)
   const [panel, setPanel] = useState<Panel>('main')
@@ -208,7 +210,7 @@ export function WalletButton() {
     return (
       <button
         onClick={login}
-        className="h-9 px-4 rounded-xl bg-hoff-accent text-hoff-bg text-xs font-bold hover:bg-hoff-accent-hover transition-colors"
+        className="h-9 px-4 rounded-xl bg-hoff-accent text-hoff-accent-fg text-xs font-bold hover:bg-hoff-accent-hover transition-colors"
       >
         Connect
       </button>
@@ -248,7 +250,7 @@ export function WalletButton() {
                   {walletInfo?.networkName ?? 'Loading...'}
                 </span>
                 {walletInfo?.isTestnet && (
-                  <span className="text-[9px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded-full font-medium">
+                  <span className="text-[9px] bg-hoff-warn-bg text-hoff-warn px-1.5 py-0.5 rounded-full font-medium">
                     Testnet
                   </span>
                 )}
@@ -284,6 +286,7 @@ export function WalletButton() {
               <div className="py-1">
                 <MenuItem label={copied ? 'Copied!' : 'Copy address'} detail={short} onClick={handleCopy} icon={<CopyIcon />} />
                 <MenuItem label="Profile" onClick={() => setPanel('profile')} icon={<UserIcon />} />
+                <MenuItem label="History" onClick={() => { setOpen(false); navigate('/history') }} icon={<ClockIcon />} />
                 <MenuItem label="Settings" onClick={() => setPanel('settings')} icon={<GearIcon />} />
               </div>
 
@@ -291,7 +294,7 @@ export function WalletButton() {
               <div className="py-1">
                 <button
                   onClick={() => { disconnect(); handleClose() }}
-                  className="w-full px-4 py-2.5 flex items-center gap-3 text-red-400 hover:bg-red-900/10 transition-colors"
+                  className="w-full px-4 py-2.5 flex items-center gap-3 text-hoff-err hover:bg-hoff-err-bg/50 transition-colors"
                 >
                   <LogoutIcon />
                   <span className="text-xs font-medium">Disconnect</span>
@@ -315,7 +318,7 @@ export function WalletButton() {
                 </div>
                 <button
                   onClick={handleCopy}
-                  className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg text-sm font-bold hover:bg-hoff-accent-hover transition-colors flex items-center justify-center gap-2"
+                  className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg text-sm font-bold hover:bg-hoff-accent-hover transition-colors flex items-center justify-center gap-2"
                 >
                   {copied ? 'Copied!' : 'Copy Address'}
                 </button>
@@ -361,12 +364,12 @@ export function WalletButton() {
                 </div>
 
                 {sendResult?.hash && (
-                  <div className="bg-green-900/20 text-green-400 text-xs px-3 py-2.5 rounded-lg break-all">
+                  <div className="bg-hoff-ok-bg text-hoff-ok text-xs px-3 py-2.5 rounded-lg break-all">
                     Sent! Tx: {sendResult.hash.slice(0, 10)}...{sendResult.hash.slice(-8)}
                   </div>
                 )}
                 {sendResult?.error && (
-                  <div className="bg-red-900/20 text-red-400 text-xs px-3 py-2.5 rounded-lg">
+                  <div className="bg-hoff-err-bg text-hoff-err text-xs px-3 py-2.5 rounded-lg">
                     {sendResult.error}
                   </div>
                 )}
@@ -374,7 +377,7 @@ export function WalletButton() {
                 <button
                   onClick={handleSend}
                   disabled={!sendTo || !sendAmount || sending}
-                  className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg text-sm font-bold hover:bg-hoff-accent-hover transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                  className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg text-sm font-bold hover:bg-hoff-accent-hover transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                   {sending ? <Spinner size="sm" /> : 'Send'}
                 </button>
@@ -423,7 +426,7 @@ export function WalletButton() {
                   >
                     {exportingKey && !keyExported && <Spinner size="sm" />}
                   </div>
-                  <p className="text-[10px] text-amber-400 mt-2 text-center">
+                  <p className="text-[10px] text-hoff-warn mt-2 text-center">
                     Never share your private key with anyone
                   </p>
                 </div>
@@ -465,7 +468,7 @@ export function WalletButton() {
                         <span className="w-2 h-2 rounded-full bg-hoff-accent" />
                       )}
                       {n.testnet && (
-                        <span className="text-[9px] bg-amber-900/30 text-amber-400 px-1.5 py-0.5 rounded-full font-medium">
+                        <span className="text-[9px] bg-hoff-warn-bg text-hoff-warn px-1.5 py-0.5 rounded-full font-medium">
                           Testnet
                         </span>
                       )}
@@ -613,6 +616,14 @@ function KeyIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+    </svg>
+  )
+}
+
+function ClockIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
     </svg>
   )
 }

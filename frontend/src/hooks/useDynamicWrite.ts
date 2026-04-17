@@ -1,7 +1,13 @@
 import { useState, useCallback } from 'react'
 import { getWalletAccounts, switchActiveNetwork } from '@dynamic-labs-sdk/client'
 import { createWalletClientForWalletAccount } from '@dynamic-labs-sdk/evm/viem'
-import { encodeFunctionData, createPublicClient, http } from 'viem'
+import {
+  encodeFunctionData,
+  createPublicClient,
+  createWalletClient,
+  http,
+  custom,
+} from 'viem'
 import { sepolia, mainnet } from 'viem/chains'
 import { getTargetChainId, CHAIN_IDS, getRpcUrl, getExplorerUrl } from '@/lib/chains'
 
@@ -32,18 +38,22 @@ const IDLE: WriteState = {
   error: null,
 }
 
-const ETH_SEPOLIA_ID = String(sepolia.id) // "11155111"
+type EIP1193Provider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
+}
 
 /**
- * Drop-in replacement for wagmi's useWriteContract that uses
- * Dynamic SDK's wallet provider.
+ * Drop-in replacement for wagmi's useWriteContract.
  *
- * Uses Dynamic's createWalletClientForWalletAccount to get a viem
- * WalletClient for the ACTUAL connected wallet (MetaMask, Rainbow, etc),
- * not window.ethereum which may be a different extension.
+ * MetaMask path: uses window.ethereum directly and reads the currently
+ * active account via eth_requestAccounts. This avoids the 4100 Unauthorized
+ * error caused by Dynamic's stored address diverging from MetaMask's selected
+ * account (validateAndNormalizeKeyholder rejects mismatched `from`).
  *
- * Switches to the target chain (mainnet or Sepolia) via Dynamic's
- * switchActiveNetwork if needed. Chain is determined by VITE_NETWORK env var.
+ * Non-MetaMask path: falls back to Dynamic's createWalletClientForWalletAccount.
+ *
+ * Switches to the target chain (mainnet or Sepolia) — chain determined by
+ * VITE_NETWORK env var via getTargetChainId().
  */
 export function useDynamicWriteContract() {
   const [state, setState] = useState<WriteState>(IDLE)
@@ -55,55 +65,53 @@ export function useDynamicWriteContract() {
       const accounts = getWalletAccounts()
       if (!accounts || accounts.length === 0) throw new Error('No wallet connected')
 
-      // Prefer MetaMask over Rainbow — Rainbow's inpage.js has a broken
-      // chrome.runtime.sendMessage that prevents transactions from working.
+      // Prefer MetaMask over Rainbow — Rainbow's inpage.js breaks chrome.runtime.sendMessage
       const walletAccount = accounts.find(a => a.walletProviderKey?.includes('metamask'))
         ?? accounts.find(a => !a.walletProviderKey?.includes('rainbow'))
         ?? accounts[0]
 
-      // Switch to target chain if needed — uses Dynamic SDK which routes to the CORRECT wallet
-      try {
-        await switchActiveNetwork({ walletAccount, networkId: TARGET_CHAIN_ID })
-      } catch {
-        // May throw if already on correct chain — not an error
-      }
+      console.log('[useDynamicWrite] Selected wallet:', walletAccount.address, '/', walletAccount.walletProviderKey)
 
       const data = encodeFunctionData({
         abi: params.abi,
         functionName: params.functionName,
         args: params.args ?? [],
       })
-
       const value = params.value ?? 0n
 
-      // Use Dynamic's WalletClient — routes to the correct wallet extension
-      let walletClient
-      try {
-        walletClient = await createWalletClientForWalletAccount({ walletAccount })
-      } catch (e) {
-        const msg = (e as Error)?.message ?? ''
-        if (msg.includes('No network data')) {
-          throw new Error(
-            `${TARGET_CHAIN.name} not configured in Dynamic dashboard. ` +
-            `Go to app.dynamic.xyz → Chains & Networks → enable ${TARGET_CHAIN.name} (${TARGET_CHAIN.id}).`
-          )
-        }
-        throw e
-      }
+      // ── Build wallet client & resolve active `from` address ────────────────
+      // For MetaMask: bypass Dynamic's routing — use window.ethereum directly so
+      // MetaMask's validateAndNormalizeKeyholder sees the currently selected account.
+      const isMetaMask = !!walletAccount.walletProviderKey?.includes('metamask')
+      const rawEthereum = (typeof window !== 'undefined')
+        ? (window as unknown as { ethereum?: EIP1193Provider }).ethereum
+        : undefined
 
-      // Switch chain via the wallet client's own provider (MetaMask, not window.ethereum)
-      try {
-        const currentChainHex = await walletClient.request({ method: 'eth_chainId' }) as string
-        const currentChainId = parseInt(currentChainHex, 16)
-        if (currentChainId !== TARGET_CHAIN.id) {
+      let fromAddress: `0x${string}` = walletAccount.address as `0x${string}`
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let walletClientAny: any
+
+      if (isMetaMask && rawEthereum) {
+        // ── MetaMask direct path ──────────────────────────────────────────────
+        // eth_requestAccounts returns MetaMask's currently selected account and
+        // satisfies the connection check required before eth_sendTransaction.
+        const mmAccounts = await rawEthereum.request({ method: 'eth_requestAccounts' }) as string[]
+        fromAddress = (mmAccounts[0] ?? walletAccount.address) as `0x${string}`
+        console.log('[useDynamicWrite] MetaMask active account:', fromAddress)
+
+        // Switch to target chain directly via window.ethereum
+        const chainHex = await rawEthereum.request({ method: 'eth_chainId' }) as string
+        if (parseInt(chainHex, 16) !== TARGET_CHAIN.id) {
+          console.log('[useDynamicWrite] Switching chain via window.ethereum...')
           try {
-            await walletClient.request({
+            await rawEthereum.request({
               method: 'wallet_switchEthereumChain',
               params: [{ chainId: `0x${TARGET_CHAIN.id.toString(16)}` }],
             })
+            await new Promise(r => setTimeout(r, 1000))
           } catch (switchErr: unknown) {
             if ((switchErr as { code?: number })?.code === 4902) {
-              await walletClient.request({
+              await rawEthereum.request({
                 method: 'wallet_addEthereumChain',
                 params: [{
                   chainId: `0x${TARGET_CHAIN.id.toString(16)}`,
@@ -117,35 +125,114 @@ export function useDynamicWriteContract() {
               throw switchErr
             }
           }
-          await new Promise(r => setTimeout(r, 1000))
         }
-      } catch (e) {
-        console.warn('[useDynamicWrite] Chain switch attempt:', e)
+
+        walletClientAny = createWalletClient({
+          account: fromAddress,
+          chain: TARGET_CHAIN,
+          transport: custom(rawEthereum),
+        })
+      } else {
+        // ── Non-MetaMask path (embedded wallet, Rainbow, etc.) ─────────────────
+        console.log('[useDynamicWrite] Creating WalletClient via Dynamic for', walletAccount.walletProviderKey)
+
+        // Switch to target chain via Dynamic SDK
+        try {
+          await switchActiveNetwork({ walletAccount, networkId: TARGET_CHAIN_ID })
+          console.log('[useDynamicWrite] Network switched to', TARGET_CHAIN.name)
+        } catch (e) {
+          console.log('[useDynamicWrite] switchActiveNetwork:', (e as Error)?.message ?? 'ok')
+        }
+
+        let dynamicClient: Awaited<ReturnType<typeof createWalletClientForWalletAccount>>
+        try {
+          dynamicClient = await createWalletClientForWalletAccount({ walletAccount })
+        } catch (e) {
+          const msg = (e as Error)?.message ?? ''
+          if (msg.includes('No network data')) {
+            throw new Error(
+              `${TARGET_CHAIN.name} not configured in Dynamic dashboard. ` +
+              `Go to app.dynamic.xyz → Chains & Networks → enable ${TARGET_CHAIN.name} (${TARGET_CHAIN.id}).`
+            )
+          }
+          throw e
+        }
+
+        // Switch chain via Dynamic's wallet client
+        try {
+          const chainHex = await dynamicClient.request({ method: 'eth_chainId' }) as string
+          if (parseInt(chainHex, 16) !== TARGET_CHAIN.id) {
+            try {
+              await dynamicClient.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: `0x${TARGET_CHAIN.id.toString(16)}` }],
+              })
+              await new Promise(r => setTimeout(r, 1000))
+            } catch (switchErr: unknown) {
+              if ((switchErr as { code?: number })?.code === 4902) {
+                await dynamicClient.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: `0x${TARGET_CHAIN.id.toString(16)}`,
+                    chainName: TARGET_CHAIN.name,
+                    nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                    rpcUrls: [getRpcUrl()],
+                    blockExplorerUrls: [getExplorerUrl()],
+                  }],
+                })
+              } else {
+                throw switchErr
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[useDynamicWrite] Chain switch via Dynamic:', e)
+        }
+
+        walletClientAny = dynamicClient
       }
 
-      // Estimate gas via a public RPC — prevents viem auto-estimating 21M which MetaMask caps at 16.7M
+      // ── Pre-flight simulation ──────────────────────────────────────────────
+      // simulateContract decodes custom errors (WrongState, NotParticipant, …)
+      // and throws BEFORE we send — no gas wasted on doomed transactions.
+      const publicClient = createPublicClient({
+        chain: TARGET_CHAIN,
+        transport: http(getRpcUrl()),
+      })
+      try {
+        await publicClient.simulateContract({
+          address: params.address,
+          abi: params.abi,
+          functionName: params.functionName,
+          args: (params.args ?? []) as never[],
+          account: fromAddress,
+          value: value ?? 0n,
+        })
+        console.log('[useDynamicWrite] Simulation passed ✓')
+      } catch (simErr) {
+        console.error('[useDynamicWrite] Simulation failed (tx would revert):', simErr)
+        throw simErr
+      }
+
+      // ── Gas estimation ────────────────────────────────────────────────────
+      // +20% buffer, capped at 5M — well below MetaMask's 16.7M hard cap.
       let gasLimit: bigint
       try {
-        const publicClient = createPublicClient({
-          chain: TARGET_CHAIN,
-          transport: http(getRpcUrl()),
-        })
         const estimated = await publicClient.estimateGas({
-          account: walletAccount.address as `0x${string}`,
+          account: fromAddress,
           to: params.address,
           data,
           value: value ?? 0n,
         })
-        // +20% buffer, hard-capped at 5M (well below MetaMask's 16.7M cap)
         gasLimit = estimated * 120n / 100n
         if (gasLimit > 5_000_000n) gasLimit = 5_000_000n
       } catch (e) {
         gasLimit = 2_000_000n // safe fallback
-        console.warn('[useDynamicWrite] Gas estimation failed, using fallback 1M:', e)
+        console.warn('[useDynamicWrite] estimateGas failed after passing simulation, using 2M fallback:', e)
       }
 
-      // Send tx without chain assertion — we already switched above
-      const hash = await walletClient.sendTransaction({
+      // ── Send transaction ──────────────────────────────────────────────────
+      const hash = await walletClientAny.sendTransaction({
         to: params.address,
         data,
         value,

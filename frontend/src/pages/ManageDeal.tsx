@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
-import { formatEther, formatUnits, parseEther } from 'viem'
+import { formatEther, formatUnits, parseEther, parseUnits } from 'viem'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
@@ -12,12 +12,15 @@ import { useReleaseEscrow, useCancelDeal, useEditDeal, useSubmitReview } from '@
 import { parseContractError } from '@/lib/errors'
 import { EscrowStatus } from '@/lib/types'
 import { IntroScreen } from '@/components/escrow/IntroScreen'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
 import { DealReceiptBadge } from '@/components/DealReceiptBadge'
 import { useReputation } from '@/hooks/useReputation'
 import { getTargetChainId, CHAIN_IDS, getExplorerUrl } from '@/lib/chains'
+import { useDynamicAuth } from '@/hooks/useDynamicAuth'
+import { MOCK_MODE } from '@/lib/mock'
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 function isValidDealParam(param: string | undefined): param is string {
@@ -110,7 +113,7 @@ interface ViewEscrowProps {
   amount: bigint
   expiresAt: bigint
   seller: string
-  sellerEns: string
+  sellerEns: string   // forward ENS: stored on-chain at deal creation
   status: EscrowStatus
   description: string
   sym: string
@@ -159,19 +162,15 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, sellerEns, sta
 
       {/* Amount card */}
       <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-            Amount Due
-          </p>
-          <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            {sym}
-          </span>
-        </div>
+        <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+          Amount
+        </p>
 
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
             {fmt(amount)}
           </span>
+          <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
           <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
 
@@ -197,12 +196,20 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, sellerEns, sta
             {seller.slice(2, 4).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-hoff-text-tertiary mb-0.5">Creator</p>
-            <EnsName
-              address={seller as `0x${string}`}
-              hint={sellerEns || undefined}
-              className="text-sm text-hoff-text-primary font-mono truncate block"
-            />
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <p className="text-xs text-hoff-text-tertiary">Creator</p>
+              <span className="text-[9px] font-semibold text-hoff-accent bg-hoff-accent/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">ENS</span>
+            </div>
+            {/* Forward ENS: seller's ENS name as stored on-chain at deal creation */}
+            {sellerEns ? (
+              <p className="text-sm text-hoff-text-primary font-medium truncate">{sellerEns}</p>
+            ) : (
+              /* Reverse ENS: resolve address → name via ENS registry */
+              <EnsName
+                address={seller as `0x${string}`}
+                className="text-sm text-hoff-text-primary font-mono truncate block"
+              />
+            )}
           </div>
           <a
             href={`${getExplorerUrl()}/address/${seller}`}
@@ -342,18 +349,14 @@ function ClaimFundsView({
 
       {/* You will receive */}
       <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-            You Will Receive
-          </p>
-          <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            {sym}
-          </span>
-        </div>
+        <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+          You Will Receive
+        </p>
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
             {fmt(amount)}
           </span>
+          <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
           <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
       </div>
@@ -388,7 +391,7 @@ function ClaimFundsView({
         </div>
       </div>
 
-      {isError && (() => { const msg = parseContractError(error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
+      {isError && (() => { const msg = parseContractError(error); return msg ? <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3"><p className="text-sm text-hoff-err text-center">{msg}</p></div> : null })()}
 
       <Button
         fullWidth
@@ -407,6 +410,7 @@ function ClaimFundsView({
 
 interface CompletedProps {
   dealIdParam: string
+  dealId?: bigint
   amount: bigint
   description: string
   sym: string
@@ -417,7 +421,7 @@ interface CompletedProps {
   onSubmitReview?: (isPositive: boolean) => void
 }
 
-function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, txHash, escrowAddress, onSubmitReview }: CompletedProps) {
+function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usdLabel, txHash, escrowAddress, onSubmitReview }: CompletedProps) {
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
   const etherscanBase = getTargetChainId() === CHAIN_IDS.MAINNET
@@ -453,18 +457,14 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, t
 
       {/* Amount received */}
       <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-            You Will Receive
-          </p>
-          <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            {sym}
-          </span>
-        </div>
+        <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+          You Will Receive
+        </p>
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
             {fmt(amount)}
           </span>
+          <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
           <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
       </div>
@@ -489,6 +489,33 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, t
         </a>
       )}
 
+      {/* ENS Receipt — minted on-chain via HandOffSubnameRegistrar */}
+      {dealId !== undefined && (
+        <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2EBF7A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            </svg>
+            <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">ENS Receipt</p>
+          </div>
+          <p className="text-sm font-mono text-hoff-accent break-all">
+            deal-{String(dealId)}.hand-off.eth
+          </p>
+          <p className="text-xs text-hoff-text-tertiary">
+            Minted on-chain as a permanent record of this transaction
+          </p>
+          <a
+            href={`https://app.ens.domains/deal-${String(dealId)}.hand-off.eth`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-hoff-text-tertiary hover:text-hoff-accent transition-colors"
+          >
+            View on ENS
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </a>
+        </div>
+      )}
+
       {/* Review */}
       {!submitted ? (
         <div className="space-y-3">
@@ -511,8 +538,8 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, t
               onClick={() => setReview('negative')}
               className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${
                 review === 'negative'
-                  ? 'bg-red-900/30 border-red-500 text-red-400'
-                  : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-red-500/40'
+                  ? 'bg-hoff-err-bg border-hoff-err text-hoff-err'
+                  : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-hoff-err/40'
               }`}
             >
               <svg width="20" height="20" viewBox="0 0 24 24">
@@ -528,7 +555,7 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, t
               setSubmitted(true)
             }}
             disabled={!review}
-            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
+            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
           >
             Submit
           </button>
@@ -548,9 +575,10 @@ function CompletedView({ dealIdParam, amount, description, sym, fmt, usdLabel, t
 export default function ManageDeal() {
   const { dealId: dealIdParam } = useParams<{ dealId: string }>()
   const navigate = useNavigate()
-  const { address } = useAccount()
+  const { address: wagmiAddress } = useAccount()
+  const { walletAddress: dynamicAddress } = useDynamicAuth()
   const [showCodeEntry, setShowCodeEntry] = useState(false)
-  const [showIntro, setShowIntro] = useState(true)
+  const [showIntro, setShowIntro] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [editAmount, setEditAmount] = useState('')
@@ -575,7 +603,10 @@ export default function ManageDeal() {
   const usdRaw = useUsdValue(details?.amount ?? 0n, details?.payoutToken ?? null)
   const usdLabel = usdRaw ? `≈ $${usdRaw} USD` : ''
 
-  const isSeller = !!(address && details && address.toLowerCase() === details.seller.toLowerCase())
+  // Use Dynamic's walletAddress (always up-to-date) with wagmi as fallback —
+  // wagmi's address can be undefined when connected via Dynamic SDK.
+  const connectedAddress = dynamicAddress ?? wagmiAddress
+  const isSeller = MOCK_MODE || !!(connectedAddress && details && connectedAddress.toLowerCase() === details.seller.toLowerCase())
 
   // ─── Guard (after all hooks) ───────────────────────────────────────────────
   if (!isValidDealParam(dealIdParam)) {
@@ -583,7 +614,7 @@ export default function ManageDeal() {
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
           <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-red-400">Invalid deal link. Check the URL and try again.</p>
+            <p className="text-sm text-hoff-err">Invalid deal link. Check the URL and try again.</p>
           </div>
         </main>
       </Layout>
@@ -605,7 +636,7 @@ export default function ManageDeal() {
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
           <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-red-400">Could not load deal. Check the link and try again.</p>
+            <p className="text-sm text-hoff-err">Could not load deal. Check the link and try again.</p>
           </div>
         </main>
       </Layout>
@@ -627,6 +658,7 @@ export default function ManageDeal() {
       <Layout>
         <CompletedView
           dealIdParam={dealIdParam}
+          dealId={dealId ?? undefined}
           amount={details.amount}
           description={details.description}
           sym={sym}
@@ -667,7 +699,7 @@ export default function ManageDeal() {
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
           <div className="flex flex-col items-center gap-3 pt-2">
-            <div className="w-16 h-16 rounded-full bg-red-900/30 border-2 border-red-500/40 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-hoff-err-bg border-2 border-hoff-err/40 flex items-center justify-center">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
@@ -700,7 +732,7 @@ export default function ManageDeal() {
               No funds have been deposited, so nothing needs to be refunded.
             </p>
 
-            {cancelDeal.isError && (() => { const msg = parseContractError(cancelDeal.error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
+            {cancelDeal.isError && (() => { const msg = parseContractError(cancelDeal.error); return msg ? <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3"><p className="text-sm text-hoff-err text-center">{msg}</p></div> : null })()}
 
             <Button
               fullWidth
@@ -726,7 +758,7 @@ export default function ManageDeal() {
     if (showEdit) {
       const amountValid = (() => {
         if (!editAmount) return false
-        try { return parseEther(editAmount as `${number}`) > 0n } catch { return false }
+        try { return parseUnits(editAmount as `${number}`, dec) > 0n } catch { return false }
       })()
 
       return (
@@ -779,24 +811,20 @@ export default function ManageDeal() {
               <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-2">
                 New Expiration
               </p>
-              <select
-                value={editExpirationHours}
-                onChange={e => setEditExpirationHours(Number(e.target.value))}
-                className="w-full bg-transparent text-hoff-text-primary text-sm focus:outline-none cursor-pointer"
-              >
-                {[
-                  { label: '1 Day',   hours: 24 },
-                  { label: '3 Days',  hours: 72 },
-                  { label: '7 Days',  hours: 168 },
-                  { label: '14 Days', hours: 336 },
-                  { label: '30 Days', hours: 720 },
-                ].map(o => (
-                  <option key={o.hours} value={o.hours} className="bg-hoff-elevated">{o.label}</option>
-                ))}
-              </select>
+              <Dropdown
+                value={String(editExpirationHours)}
+                onChange={v => setEditExpirationHours(Number(v))}
+                options={[
+                  { label: '1 Day',   value: '24' },
+                  { label: '3 Days',  value: '72' },
+                  { label: '7 Days',  value: '168' },
+                  { label: '14 Days', value: '336' },
+                  { label: '30 Days', value: '720' },
+                ]}
+              />
             </div>
 
-            {editDeal.isError && (() => { const msg = parseContractError(editDeal.error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
+            {editDeal.isError && (() => { const msg = parseContractError(editDeal.error); return msg ? <div className="bg-hoff-err-bg border border-hoff-err/20 rounded-xl px-4 py-3"><p className="text-sm text-hoff-err text-center">{msg}</p></div> : null })()}
 
             {!editDeal.isSuccess ? (
               <Button
@@ -805,7 +833,7 @@ export default function ManageDeal() {
                   if (!amountValid) return
                   const newExpiry = BigInt(Math.floor(Date.now() / 1000) + editExpirationHours * 3600)
                   editDeal.edit(
-                    parseEther(editAmount as `${number}`),
+                    parseUnits(editAmount as `${number}`, dec),
                     editDescription,
                     (details?.payoutToken ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
                     (details?.seller ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
@@ -847,13 +875,13 @@ export default function ManageDeal() {
           </div>
 
           <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">Amount</p>
-              <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">{sym}</span>
+            <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">Amount</p>
+            <div>
+              <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
+                {fmt(details.amount)}
+              </span>
+              <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
             </div>
-            <span className="text-5xl font-bold text-hoff-text-primary tabular-nums block">
-              {fmt(details.amount)}
-            </span>
             <div className="space-y-1.5 pt-1 border-t border-hoff-brand">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-hoff-text-tertiary">Expires in</span>
@@ -866,9 +894,9 @@ export default function ManageDeal() {
           </div>
 
           {/* Waiting indicator */}
-          <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3 flex items-center gap-2">
+          <div className="bg-hoff-warn-bg border border-hoff-warn/20 rounded-xl px-4 py-3 flex items-center gap-2">
             <Spinner size="sm" />
-            <span className="text-sm text-amber-400">Waiting for buyer to pay…</span>
+            <span className="text-sm text-hoff-warn">Waiting for buyer to pay…</span>
           </div>
 
           {/* Share link */}
@@ -905,7 +933,7 @@ export default function ManageDeal() {
                 variant="ghost"
                 fullWidth
                 onClick={() => {
-                  setEditAmount(formatEther(details.amount))
+                  setEditAmount(formatUnits(details.amount, dec))
                   setEditDescription(details.description)
                   setEditExpirationHours(168)
                   setShowEdit(true)
@@ -957,7 +985,7 @@ export default function ManageDeal() {
         amount={details.amount}
         expiresAt={details.expiresAt}
         seller={details.seller}
-        sellerEns={details.sellerEns}
+        sellerEns={details.sellerEns ?? ''}
         status={details.status}
         description={details.description}
         sym={sym}
