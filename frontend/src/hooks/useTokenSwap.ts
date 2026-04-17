@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAccount } from 'wagmi'
+import { useAccount, useReadContract } from 'wagmi'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
@@ -199,6 +199,29 @@ function useRealSwapAndDeposit(
   // Store codeHash across the async approval → swap boundary
   const pendingCodeHashRef = useRef<`0x${string}` | null>(null)
 
+  // Sanity-check: the router we pass to fundWithSwap must match ALLOWED_ROUTER
+  // on the escrow, otherwise the contract reverts with DisallowedRouter and
+  // the user pays gas for nothing. Read once when the escrow is known.
+  const allowedRouterResult = useReadContract({
+    address: escrowAddress,
+    abi: HANDOFF_ABI,
+    functionName: 'ALLOWED_ROUTER',
+    query: { enabled: !!escrowAddress },
+  })
+  const allowedRouter = allowedRouterResult.data as `0x${string}` | undefined
+
+  useEffect(() => {
+    if (!allowedRouter) return
+    if (allowedRouter.toLowerCase() !== UNIVERSAL_ROUTER_ADDRESS.toLowerCase()) {
+      console.warn(
+        '[useSwapAndDeposit] Router mismatch — escrow ALLOWED_ROUTER =',
+        allowedRouter,
+        'but frontend UNIVERSAL_ROUTER_ADDRESS =',
+        UNIVERSAL_ROUTER_ADDRESS,
+      )
+    }
+  }, [allowedRouter])
+
   // Approval tx
   const approveWrite = useDynamicWriteContract()
   const approveReceipt = useReceiptPoller(approveWrite.data)
@@ -211,6 +234,16 @@ function useRealSwapAndDeposit(
     const token = TOKENS[_tokenKey]
     if (!address || !escrowAddress || !quoteResponse || !token?.address) {
       setState({ ...IDLE_SWAP, isError: true, error: new Error('Missing data for swap') })
+      return
+    }
+    if (allowedRouter && allowedRouter.toLowerCase() !== UNIVERSAL_ROUTER_ADDRESS.toLowerCase()) {
+      setState({
+        ...IDLE_SWAP,
+        isError: true,
+        error: new Error(
+          'Swap is disabled — the Uniswap router on the escrow contract does not match the one configured in this app. Ask the team to update UNIVERSAL_ROUTER_ADDRESS.',
+        ),
+      })
       return
     }
 

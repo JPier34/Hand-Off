@@ -80,7 +80,7 @@ export function parseContractError(error: Error | null | undefined | unknown): s
   if (/ETHForbiddenForTokenEscrow/i.test(msg))
     return 'This deal expects a token payment, not ETH.'
   if (/SlippageExceeded/i.test(msg))
-    return 'Swap slippage too high. Try again or use a different token.'
+    return 'Swap price moved during the transaction. Bump slippage to 1% above and press Fund again — the quote refreshes automatically when you change slippage.'
   if (/SwapCallReverted/i.test(msg))
     return 'Token swap failed. Try again or pay directly with the requested token.'
   if (/ZeroCodeHash/i.test(msg))

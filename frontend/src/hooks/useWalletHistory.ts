@@ -83,6 +83,15 @@ export function useWalletHistory(walletAddress: Address | undefined) {
     functionName: 'PROTOCOL_FEE_BPS' as const,
   }))
 
+  // Read the real on-chain DEAL_ID from each escrow so History routes hit the
+  // right deal. Using the array index as dealId (the old behaviour) silently
+  // navigated to whichever escrow the reputation registry had at that index.
+  const dealIdCalls = escrowRoles.map(({ escrow }) => ({
+    address: escrow,
+    abi: HANDOFF_ABI,
+    functionName: 'DEAL_ID' as const,
+  }))
+
   const enabled = !MOCK_MODE && escrowRoles.length > 0
   const infoResults = useReadContracts({ contracts: dealInfoCalls, query: { enabled } })
   const termsResults = useReadContracts({ contracts: termsCalls, query: { enabled } })
@@ -90,6 +99,7 @@ export function useWalletHistory(walletAddress: Address | undefined) {
   const requiredFundingResults = useReadContracts({ contracts: requiredFundingCalls, query: { enabled } })
   const feeRecipientResults = useReadContracts({ contracts: feeRecipientCalls, query: { enabled } })
   const feeBpsResults = useReadContracts({ contracts: feeBpsCalls, query: { enabled } })
+  const dealIdResults = useReadContracts({ contracts: dealIdCalls, query: { enabled } })
 
   const isLoading =
     sellerResult.isLoading ||
@@ -99,7 +109,8 @@ export function useWalletHistory(walletAddress: Address | undefined) {
     feeAmountResults.isLoading ||
     requiredFundingResults.isLoading ||
     feeRecipientResults.isLoading ||
-    feeBpsResults.isLoading
+    feeBpsResults.isLoading ||
+    dealIdResults.isLoading
 
   const entries: HistoryEntry[] = []
 
@@ -110,7 +121,8 @@ export function useWalletHistory(walletAddress: Address | undefined) {
     feeAmountResults.data &&
     requiredFundingResults.data &&
     feeRecipientResults.data &&
-    feeBpsResults.data
+    feeBpsResults.data &&
+    dealIdResults.data
   ) {
     for (let i = 0; i < escrowRoles.length; i++) {
       const { role } = escrowRoles[i]
@@ -120,8 +132,9 @@ export function useWalletHistory(walletAddress: Address | undefined) {
       const requiredFunding = (requiredFundingResults.data[i]?.result as bigint | undefined) ?? (termsRaw?.[0] ?? infoRaw?.[3] ?? 0n)
       const feeRecipient = (feeRecipientResults.data[i]?.result as Address | undefined) ?? null
       const protocolFeeBps = (feeBpsResults.data[i]?.result as bigint | undefined) ?? 0n
+      const dealId = dealIdResults.data[i]?.result as bigint | undefined
 
-      if (!infoRaw) continue
+      if (!infoRaw || dealId === undefined) continue
 
       const payoutTokenAddr = termsRaw?.[1] === '0x0000000000000000000000000000000000000000'
         ? null
@@ -144,7 +157,7 @@ export function useWalletHistory(walletAddress: Address | undefined) {
       }
 
       const date = Number(infoRaw[2]) * 1000 - 7 * 24 * 60 * 60 * 1000
-      entries.push({ dealId: BigInt(i + 1), role, deal, date })
+      entries.push({ dealId, role, deal, date })
     }
 
     entries.sort((a, b) => b.date - a.date)
