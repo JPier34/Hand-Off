@@ -364,6 +364,7 @@ export default function BuyerPay() {
   const dec  = details ? payoutDecimals(details.payoutToken) : 18
   const fmt  = (v: bigint) => formatUnits(v, dec)
   const feePercentLabel = details ? formatFeePercent(details.protocolFeeBps) : '0.00%'
+  const fmtFee = (v: bigint) => v > 0n ? `${fmt(v)} ${sym}` : `< 0.01 ${sym}`
 
   // ─── TX state helpers ───────────────────────────────────────────────────────
   const anyPending    = isSwapPath ? (swap.isApprovePending || swap.isSwapPending) : isPending
@@ -478,9 +479,7 @@ export default function BuyerPay() {
                     return (
                       <>
                         <FeeRow label={`Seller receives (${sym})`} value={`${fmt(details.amount)} ${sym}`} />
-                        {details.feeAmount > 0n && (
-                          <FeeRow label={`Protocol Fee (${feePercentLabel})`} value={`${fmt(details.feeAmount)} ${sym}`} />
-                        )}
+                        <FeeRow label={`Protocol Fee (${feePercentLabel})`} value={fmtFee(details.feeAmount)} />
                         <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
                           <FeeRow label={`You pay (${paySym})`} value={`${payFmt(quotedIn)} ${paySym}`} highlight />
                         </div>
