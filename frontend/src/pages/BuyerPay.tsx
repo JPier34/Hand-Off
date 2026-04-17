@@ -240,8 +240,7 @@ export default function BuyerPay() {
   const { login } = useDynamicAuth()
   const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
   const [isAutoSelected, setIsAutoSelected] = useState(true)
-  const [slippage, setSlippage] = useState(0.5)
-  const [showSlippage, setShowSlippage] = useState(false)
+  const slippage = 0.5
   const [showIntro, setShowIntro] = useState(true)
 
   const { dealId, escrowAddress: directAddress } = parseDealParam(dealIdParam)
@@ -485,36 +484,8 @@ export default function BuyerPay() {
                         <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
                           <FeeRow label={`You pay (${paySym})`} value={`${payFmt(quotedIn)} ${paySym}`} highlight />
                         </div>
-                        <div className="pt-1.5 border-t border-hoff-brand">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-hoff-text-tertiary">Slippage</span>
-                            <button
-                              onClick={() => setShowSlippage(v => !v)}
-                              className="text-xs text-hoff-text-tertiary hover:text-hoff-text-secondary transition-colors"
-                            >
-                              ⚙ {slippage}%
-                            </button>
-                          </div>
-                          {showSlippage && (
-                            <div className="flex gap-1.5 mt-1.5">
-                              {[0.1, 0.5, 1.0].map(opt => (
-                                <button
-                                  key={opt}
-                                  onClick={() => { setSlippage(opt); setShowSlippage(false) }}
-                                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                                    slippage === opt
-                                      ? 'bg-hoff-accent text-hoff-bg'
-                                      : 'bg-hoff-elevated text-hoff-text-tertiary hover:text-hoff-text-secondary'
-                                  }`}
-                                >
-                                  {opt}%
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
                         <p className="text-[10px] text-hoff-text-tertiary pt-1">
-                          Fee included · Powered by Uniswap · {paySym} → {sym}
+                          Fee included · Slippage 0.5% · Powered by Uniswap · {paySym} → {sym}
                         </p>
                       </>
                     )
