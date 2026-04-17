@@ -498,9 +498,7 @@ export default function BuyerPay() {
               ) : (
                 <>
                   <FeeRow label={`Seller receives (${sym})`} value={`${fmt(details.amount)} ${sym}`} />
-                  {details.feeAmount > 0n && (
-                    <FeeRow label={`Protocol Fee (${feePercentLabel})`} value={`${fmt(details.feeAmount)} ${sym}`} />
-                  )}
+                  <FeeRow label={`Protocol Fee (${feePercentLabel})`} value={fmtFee(details.feeAmount)} />
                   <div className="border-t border-hoff-brand pt-1.5 mt-1.5">
                     <FeeRow label="Total" value={`${fmt(details.requiredFunding)} ${sym} + gas`} highlight />
                   </div>
