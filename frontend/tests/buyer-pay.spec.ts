@@ -68,6 +68,7 @@ test.describe('BuyerPay swap logic (mock e2e)', () => {
 
     await selectToken(page, 'USDC')
 
-    await expect(page.getByText(/Slippage 0\.5%/)).toBeVisible()
+    await expect(page.getByText('Slippage tolerance')).toBeVisible()
+    await expect(page.getByText('0.5%')).toBeVisible()
   })
 })
