@@ -11,7 +11,7 @@ export function CountdownTimer({ expiresAt }: { expiresAt: number }) {
     return () => clearInterval(interval)
   }, [expiresAt])
 
-  if (remaining <= 0) return <span className="text-red-400 text-sm font-mono">Expired</span>
+  if (remaining <= 0) return <span className="text-hoff-err text-sm font-mono">Expired</span>
 
   const hours = Math.floor(remaining / 3_600_000)
   const mins  = Math.floor((remaining % 3_600_000) / 60_000)

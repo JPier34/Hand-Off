@@ -59,7 +59,7 @@ export function IntroScreen({ onContinue }: IntroScreenProps) {
       {/* CTA */}
       <button
         onClick={onContinue}
-        className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg font-bold text-sm hover:bg-hoff-accent-hover transition-colors"
+        className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg font-bold text-sm hover:bg-hoff-accent-hover transition-colors"
       >
         Continue
       </button>

@@ -9,9 +9,11 @@ import { EnsInput } from '@/components/EnsInput'
 import { useCreateDeal } from '@/hooks/useEscrowWrite'
 import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
+import { Dropdown } from '@/components/ui/Dropdown'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
 
-function validate(amount: string, decimals: number) {
-  const errors: { amount?: string } = {}
+function validate(amount: string, description: string, decimals: number) {
+  const errors: { amount?: string; description?: string } = {}
   if (!amount) {
     errors.amount = 'Required'
   } else {
@@ -21,6 +23,9 @@ function validate(amount: string, decimals: number) {
     } catch {
       errors.amount = 'Enter a valid number (e.g. 0.05)'
     }
+  }
+  if (!description.trim()) {
+    errors.description = 'Required'
   }
   return errors
 }
@@ -49,6 +54,7 @@ export default function CreateDeal() {
   useEffect(() => {
     setPayoutAddressConfirmed(false)
   }, [recipient])
+
   const [description, setDescription] = useState('')
   const [payoutToken, setPayoutToken] = useState<TokenKey>('ETH')
   const [timeoutHours, setTimeoutHours] = useState(168)
@@ -60,10 +66,9 @@ export default function CreateDeal() {
 
   const tokenDecimals = TOKENS[payoutToken]?.decimals ?? 18
   const tokenAddr = TOKENS[payoutToken]?.address ?? null
-  const errors = validate(amount, tokenDecimals)
+  const errors = validate(amount, description, tokenDecimals)
   const hasErrors = Object.keys(errors).length > 0
 
-  // USD estimate for the entered amount
   const parsedAmount = (() => { try { return amount ? parseUnits(amount as `${number}`, tokenDecimals) : 0n } catch { return 0n } })()
   const usdValue = useUsdValue(parsedAmount, tokenAddr)
 
@@ -76,13 +81,10 @@ export default function CreateDeal() {
     setTouched(true)
     if (hasErrors) return
     const sellerEns = isEnsInput && resolvedAddress ? recipient : ''
-    // Derive payout address: resolved ENS address > raw address input > zero (defaults to msg.sender)
     const payoutAddress = (
-      (isEnsInput && resolvedAddress)
-        ? resolvedAddress
-        : isAddress(recipient)
-          ? recipient
-          : '0x0000000000000000000000000000000000000000'
+      (isEnsInput && resolvedAddress) ? resolvedAddress
+        : isAddress(recipient) ? recipient
+        : '0x0000000000000000000000000000000000000000'
     ) as `0x${string}`
     create(amount, description, timeoutHours, payoutToken, sellerEns, payoutAddress)
   }
@@ -174,11 +176,11 @@ export default function CreateDeal() {
           ) : (
             <>
               {/* Fallback: tx confirmed but event parsing failed — still show success */}
-              <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3 space-y-2">
-                <p className="text-sm text-amber-400">
+              <div className="bg-hoff-warn-bg border border-hoff-warn/20 rounded-xl px-4 py-3 space-y-2">
+                <p className="text-sm text-hoff-warn">
                   Deal created but we couldn't extract the payment link automatically.
                 </p>
-                <p className="text-xs text-amber-400/70">
+                <p className="text-xs text-hoff-warn/70">
                   Check your recent transactions on Etherscan (Sepolia) to find the new escrow address, then share <span className="font-mono">{window.location.origin}/pay/[address]</span> with your buyer.
                 </p>
               </div>
@@ -199,7 +201,7 @@ export default function CreateDeal() {
         <div className="mb-4">
           <h2 className="text-3xl font-bold text-hoff-text-primary">New HandOff</h2>
           <p className="text-sm text-hoff-text-tertiary mt-1">
-            Set price, recipient, and expiration
+            Set price, description, and expiration
           </p>
         </div>
 
@@ -222,7 +224,7 @@ export default function CreateDeal() {
                     type="text"
                     inputMode="decimal"
                     value={amount}
-                    onChange={e => setAmount(e.target.value)}
+                    onChange={e => { if (/^\d*\.?\d*$/.test(e.target.value)) setAmount(e.target.value) }}
                     placeholder="0.00"
                     className="w-full text-4xl font-semibold bg-transparent text-hoff-text-primary placeholder:text-hoff-text-tertiary/40 focus:outline-none"
                   />
@@ -230,21 +232,15 @@ export default function CreateDeal() {
                     <p className="text-xs text-hoff-text-tertiary mt-1">≈ ${usdValue} USD</p>
                   )}
                   {touched && errors.amount && (
-                    <p className="text-xs text-red-400 mt-1">{errors.amount}</p>
+                    <p className="text-xs text-hoff-err mt-1">{errors.amount}</p>
                   )}
                 </div>
-                <select
+                <Dropdown
+                  className="shrink-0 mt-6 min-w-[100px]"
                   value={payoutToken}
-                  onChange={e => setPayoutToken(e.target.value)}
-                  className="shrink-0 mt-6 h-9 px-3 rounded-xl bg-hoff-elevated border border-hoff-brand text-hoff-text-secondary font-medium text-sm appearance-none cursor-pointer focus:outline-none focus:border-hoff-accent/60 transition-colors text-center"
-                  style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
-                >
-                  {TOKEN_KEYS.map(key => (
-                    <option key={key} value={key} className="bg-hoff-elevated">
-                      {TOKENS[key].symbol}
-                    </option>
-                  ))}
-                </select>
+                  onChange={v => setPayoutToken(v as TokenKey)}
+                  options={TOKEN_KEYS.map(key => ({ label: TOKENS[key].symbol, value: key }))}
+                />
               </div>
             </div>
 
@@ -280,8 +276,7 @@ export default function CreateDeal() {
             {/* Description */}
             <div className="bg-hoff-surface rounded-2xl p-5">
               <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-3">
-                Description / Label{' '}
-                <span className="normal-case font-normal">(Optional)</span>
+                Description / Label
               </p>
               <input
                 type="text"
@@ -290,6 +285,9 @@ export default function CreateDeal() {
                 placeholder="E.g. iPhone 14 Pro — Facebook Marketplace"
                 className="w-full bg-transparent text-hoff-text-primary text-sm placeholder:text-hoff-text-tertiary focus:outline-none"
               />
+              {touched && errors.description && (
+                <p className="text-xs text-hoff-err mt-1">{errors.description}</p>
+              )}
             </div>
 
             {/* Expires In */}
@@ -297,20 +295,14 @@ export default function CreateDeal() {
               <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-2">
                 Expires In
               </p>
-              <select
-                value={timeoutHours}
-                onChange={e => setTimeoutHours(Number(e.target.value))}
-                className="w-full bg-transparent text-hoff-text-primary text-sm focus:outline-none cursor-pointer"
-              >
-                {TIMEOUT_OPTIONS.map(o => (
-                  <option key={o.hours} value={o.hours} className="bg-hoff-elevated">
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+              <Dropdown
+                value={String(timeoutHours)}
+                onChange={v => setTimeoutHours(Number(v))}
+                options={TIMEOUT_OPTIONS.map(o => ({ label: o.label, value: String(o.hours) }))}
+              />
             </div>
 
-            {isError && <p className="text-xs text-red-400 text-center">{error?.message ?? 'Transaction failed'}</p>}
+            {isError && <ErrorBanner error={error} />}
 
             <Button
               fullWidth

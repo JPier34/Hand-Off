@@ -1,17 +1,22 @@
 import { z } from 'zod'
 
 // Uniswap Trading API client
-// Dev: Vite proxy at /api/uniswap forwards to trade-api.gateway.uniswap.org/v1
-// Production: calls Netlify function directly (redirect rewrite blocks POST on Netlify Edge)
-function apiUrl(path: string): string {
-  return import.meta.env.DEV
-    ? `/api/uniswap/${path}`
-    : `/.netlify/functions/uniswap?path=${path}`
-}
+// Requests go to /api/uniswap/* which is proxied server-side:
+// - Production (Netlify): Netlify Function injects UNISWAP_API_KEY server-side (never in bundle)
+// - Dev: Vite proxy forwards to Uniswap API; set VITE_UNISWAP_API_KEY in .env.local for auth
 
-const HEADERS: HeadersInit = {
-  'Content-Type': 'application/json',
-  'x-universal-router-version': '2.0',
+const API_BASE = '/api/uniswap'
+
+function buildHeaders(): HeadersInit {
+  const h: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-universal-router-version': '2.0',
+  }
+  // In dev only, read key from env var — never hardcoded, never in prod bundle
+  if (import.meta.env.DEV && import.meta.env.VITE_UNISWAP_API_KEY) {
+    h['x-api-key'] = import.meta.env.VITE_UNISWAP_API_KEY as string
+  }
+  return h
 }
 
 const addressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/)
@@ -34,13 +39,12 @@ const classicQuoteResponseSchema = z.object({
       token: addressSchema,
       amount: numericStringSchema,
     }),
-    // non-critical fields — optional + permissive to handle API variations
-    slippage: z.number().optional(),
-    gasFee: z.string().optional(),
-    gasFeeUSD: z.string().optional(),
-    gasUseEstimate: z.string().optional(),
-  }).passthrough(),
-  permitData: z.record(z.unknown()).nullable(),
+    slippage: z.number(),
+    gasFee: numericStringSchema,
+    gasFeeUSD: z.string(),
+    gasUseEstimate: numericStringSchema,
+  }),
+  permitData: z.record(z.string(), z.unknown()).nullable(),
 })
 
 const uniswapXQuoteResponseSchema = z.object({
@@ -60,11 +64,11 @@ const uniswapXQuoteResponseSchema = z.object({
       }),
       deadline: z.number(),
       nonce: z.string(),
-    }).passthrough(),
+    }),
     encodedOrder: hexSchema,
     orderHash: hexSchema,
-  }).passthrough(),
-  permitData: z.record(z.unknown()).nullable(),
+  }),
+  permitData: z.record(z.string(), z.unknown()).nullable(),
 })
 
 const quoteResponseSchema = z.union([classicQuoteResponseSchema, uniswapXQuoteResponseSchema])
@@ -146,7 +150,17 @@ export function isUniswapXQuote(q: QuoteResponse): q is UniswapXQuoteResponse {
   return q.routing === 'DUTCH_V2' || q.routing === 'DUTCH_V3' || q.routing === 'PRIORITY'
 }
 
-// Returns the tokenIn amount the buyer must send (EXACT_OUTPUT quote → input side)
+// For EXACT_OUTPUT quotes: how much tokenOut the buyer receives (the USDC amount we requested)
+export function getOutputAmount(q: QuoteResponse): string {
+  if (isUniswapXQuote(q)) {
+    const first = q.quote.orderInfo.outputs[0]
+    if (!first) throw new Error('UniswapX quote has no outputs')
+    return first.startAmount
+  }
+  return q.quote.output.amount
+}
+
+// For EXACT_OUTPUT quotes: how much tokenIn the buyer must pay (the WETH/token input amount)
 export function getInputAmount(q: QuoteResponse): string {
   if (isUniswapXQuote(q)) {
     return q.quote.orderInfo.input.startAmount
@@ -154,10 +168,12 @@ export function getInputAmount(q: QuoteResponse): string {
   return q.quote.input.amount
 }
 
+// ─── API calls ────────────────────────────────────────────────────────────────
+
 export async function fetchQuote(params: QuoteRequest): Promise<QuoteResponse> {
-  const res = await fetch(apiUrl('quote'), {
+  const res = await fetch(`${API_BASE}/quote`, {
     method: 'POST',
-    headers: HEADERS,
+    headers: buildHeaders(),
     body: JSON.stringify({
       ...params,
       slippageTolerance: params.slippageTolerance ?? 0.5,
@@ -176,9 +192,9 @@ export async function checkApproval(
   amount: string,
   chainId: number,
 ): Promise<{ to: string; data: string; value: string } | null> {
-  const res = await fetch(apiUrl('check_approval'), {
+  const res = await fetch(`${API_BASE}/check_approval`, {
     method: 'POST',
-    headers: HEADERS,
+    headers: buildHeaders(),
     body: JSON.stringify({ walletAddress, token, amount, chainId }),
   })
 
@@ -201,9 +217,9 @@ export async function fetchSwap(
     request.permitData = permitData
   }
 
-  const res = await fetch(apiUrl('swap'), {
+  const res = await fetch(`${API_BASE}/swap`, {
     method: 'POST',
-    headers: HEADERS,
+    headers: buildHeaders(),
     body: JSON.stringify(request),
   })
 

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatUnits } from 'viem'
 import { payoutSymbol, payoutDecimals } from '@/lib/tokens'
+import { formatTokenAmount } from '@/lib/format'
 import { Layout } from '@/components/Layout'
 import { EnsName } from '@/components/EnsName'
 import { EscrowStatus } from '@/lib/types'
@@ -15,14 +16,15 @@ import type { Address } from '@/lib/types'
 type StatusFilter = 'all' | 'active' | 'completed' | 'refunded'
 type RoleFilter   = 'all' | 'seller' | 'buyer'
 
+
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<EscrowStatus, { label: string; dot: string }> = {
-  [EscrowStatus.CREATED]:   { label: 'Awaiting Payment', dot: 'bg-amber-400' },
-  [EscrowStatus.FUNDED]:    { label: 'Funds Held',       dot: 'bg-blue-400' },
+  [EscrowStatus.CREATED]:   { label: 'Awaiting Payment', dot: 'bg-hoff-warn' },
+  [EscrowStatus.FUNDED]:    { label: 'Funds Held',       dot: 'bg-hoff-info' },
   [EscrowStatus.COMPLETED]: { label: 'Completed',        dot: 'bg-hoff-accent' },
   [EscrowStatus.EXPIRED]:   { label: 'Refunded',         dot: 'bg-hoff-text-tertiary' },
-  [EscrowStatus.CANCELED]:  { label: 'Cancelled',        dot: 'bg-red-400' },
+  [EscrowStatus.CANCELED]:  { label: 'Cancelled',        dot: 'bg-hoff-err' },
 }
 
 
@@ -50,9 +52,22 @@ export default function History() {
     .filter(e => roleFilter === 'all' || e.role === roleFilter)
     .sort((a, b) => b.date - a.date)
 
-  // Summary stats
-  const completed   = entries.filter(e => e.deal.status === EscrowStatus.COMPLETED)
-  const totalVolume = completed.reduce((sum, e) => sum + e.deal.amount, 0n)
+  // Summary stats — group volume by token so USDC (6 dec) and ETH (18 dec)
+  // don't get summed as one value.
+  const completed = entries.filter(e => e.deal.status === EscrowStatus.COMPLETED)
+  const volumeByToken = new Map<string, bigint>()
+  for (const e of completed) {
+    const sym = payoutSymbol(e.deal.payoutToken)
+    volumeByToken.set(sym, (volumeByToken.get(sym) ?? 0n) + e.deal.amount)
+  }
+  const volumeLabel = volumeByToken.size === 0
+    ? '—'
+    : Array.from(volumeByToken.entries())
+        .map(([sym, amt]) => {
+          const dec = payoutDecimals(sym === 'ETH' ? null : completed.find(c => payoutSymbol(c.deal.payoutToken) === sym)?.deal.payoutToken ?? null)
+          return `${formatTokenAmount(amt, dec)} ${sym}`
+        })
+        .join(' · ')
 
   const statusOptions: { key: StatusFilter; label: string }[] = [
     { key: 'all',       label: 'All' },
@@ -112,7 +127,7 @@ export default function History() {
             <div>
               <EnsName address={address} className="text-sm font-mono text-hoff-text-primary" />
               <p className="text-xs text-hoff-text-tertiary">
-                {completed.length} deals · {Number(totalVolume) > 0 ? formatUnits(totalVolume, 18) + ' ETH' : '—'} volume
+                {completed.length} deals · {volumeLabel} volume
               </p>
             </div>
           </div>
@@ -127,7 +142,7 @@ export default function History() {
                 onClick={() => setStatusFilter(key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   statusFilter === key
-                    ? 'bg-hoff-accent text-hoff-bg'
+                    ? 'bg-hoff-accent text-hoff-accent-fg'
                     : 'bg-hoff-surface text-hoff-text-tertiary hover:text-hoff-text-secondary'
                 }`}
               >
@@ -198,7 +213,7 @@ export default function History() {
                         <span className="text-xs text-hoff-text-tertiary">{label}</span>
                       </div>
                       <span className="text-xs text-hoff-text-tertiary">·</span>
-                      <span className={`text-xs font-medium ${entry.role === 'seller' ? 'text-hoff-accent' : 'text-blue-400'}`}>
+                      <span className={`text-xs font-medium ${entry.role === 'seller' ? 'text-hoff-accent' : 'text-hoff-info'}`}>
                         {entry.role === 'seller' ? 'Selling' : 'Buying'}
                       </span>
                     </div>

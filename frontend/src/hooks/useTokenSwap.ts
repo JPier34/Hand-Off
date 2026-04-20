@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAccount, usePublicClient } from 'wagmi'
-import { erc20Abi } from 'viem'
+import { useAccount, useReadContract } from 'wagmi'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
-import { TOKENS, type TokenKey } from '@/lib/tokens'
-import { fetchQuote, getInputAmount, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
+import { TOKENS, type TokenKey, payoutDecimals } from '@/lib/tokens'
+import { fetchQuote, getOutputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
 import { HANDOFF_ABI, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
 import type { Address } from '@/lib/types'
 import { buildExactOutputQuoteRequest } from '@/lib/swapQuoteLogic'
-import { getTargetChainId, CHAIN_IDS } from '@/lib/chains'
+import { getTargetChainId } from '@/lib/chains'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -60,9 +59,14 @@ function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Add
     const requestKey = `${tokenKey}:${amountOutWei.toString()}:${payoutToken}`
 
     const id = setTimeout(() => {
-      // mockRate is "smallest unit per 1 ETH (10^18 wei)"
-      // quotedIn = amountOutWei * mockRate / 10^18
-      const result = (amountOutWei * token.mockRate) / 10n ** 18n
+      // mockRate is "smallest unit per 1 ETH (10^18 wei)".
+      // Normalise amountOutWei to an 18-decimal base so the rate math
+      // works regardless of the payout token's decimals (USDC=6, WETH=18, …).
+      const outDec = payoutDecimals(payoutToken)
+      const normalised = outDec === 18
+        ? amountOutWei
+        : amountOutWei * 10n ** BigInt(18 - outDec)
+      const result = (normalised * token.mockRate) / 10n ** 18n
       setState({ requestKey, quotedIn: result })
     }, 400)
 
@@ -111,7 +115,7 @@ function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Add
     fetchQuote(quoteRequest)
       .then(resp => {
         if (cancelled) return
-        const outputAmt = getInputAmount(resp)
+        const outputAmt = getOutputAmount(resp)
         setState({
           requestKey,
           quotedIn: BigInt(outputAmt),
@@ -191,10 +195,32 @@ function useRealSwapAndDeposit(
   quoteResponse?: QuoteResponse | null,
 ): SwapAndDepositState {
   const { address } = useAccount()
-  const publicClient = usePublicClient({ chainId: getTargetChainId() === CHAIN_IDS.MAINNET ? 1 : 11155111 })
   const [state, setState] = useState(IDLE_SWAP)
   // Store codeHash across the async approval → swap boundary
   const pendingCodeHashRef = useRef<`0x${string}` | null>(null)
+
+  // Sanity-check: the router we pass to fundWithSwap must match ALLOWED_ROUTER
+  // on the escrow, otherwise the contract reverts with DisallowedRouter and
+  // the user pays gas for nothing. Read once when the escrow is known.
+  const allowedRouterResult = useReadContract({
+    address: escrowAddress,
+    abi: HANDOFF_ABI,
+    functionName: 'ALLOWED_ROUTER',
+    query: { enabled: !!escrowAddress },
+  })
+  const allowedRouter = allowedRouterResult.data as `0x${string}` | undefined
+
+  useEffect(() => {
+    if (!allowedRouter) return
+    if (allowedRouter.toLowerCase() !== UNIVERSAL_ROUTER_ADDRESS.toLowerCase()) {
+      console.warn(
+        '[useSwapAndDeposit] Router mismatch — escrow ALLOWED_ROUTER =',
+        allowedRouter,
+        'but frontend UNIVERSAL_ROUTER_ADDRESS =',
+        UNIVERSAL_ROUTER_ADDRESS,
+      )
+    }
+  }, [allowedRouter])
 
   // Approval tx
   const approveWrite = useDynamicWriteContract()
@@ -210,6 +236,16 @@ function useRealSwapAndDeposit(
       setState({ ...IDLE_SWAP, isError: true, error: new Error('Missing data for swap') })
       return
     }
+    if (allowedRouter && allowedRouter.toLowerCase() !== UNIVERSAL_ROUTER_ADDRESS.toLowerCase()) {
+      setState({
+        ...IDLE_SWAP,
+        isError: true,
+        error: new Error(
+          'Swap is disabled — the Uniswap router on the escrow contract does not match the one configured in this app. Ask the team to update UNIVERSAL_ROUTER_ADDRESS.',
+        ),
+      })
+      return
+    }
 
     // Persist codeHash so the approval useEffect can use it
     pendingCodeHashRef.current = codeHash
@@ -217,26 +253,16 @@ function useRealSwapAndDeposit(
     try {
       setState({ ...IDLE_SWAP, isApprovePending: true })
 
-      const inputAmount = getInputAmount(quoteResponse)
-      const inputAmountBig = BigInt(inputAmount)
+      const inputAmount = getOutputAmount(quoteResponse) // for EXACT_OUTPUT, this is the input amount
+      const approval = await checkApproval(address, token.address, inputAmount, getTargetChainId())
 
-      // Check actual ERC20 allowance for the HandOff escrow (not Uniswap Permit2)
-      const allowance = publicClient
-        ? await publicClient.readContract({
-            address: token.address as `0x${string}`,
-            abi: erc20Abi,
-            functionName: 'allowance',
-            args: [address, escrowAddress],
-          })
-        : 0n
-
-      if ((allowance as bigint) < inputAmountBig) {
-        // Need to approve HandOff escrow to pull tokenIn
+      if (approval) {
+        // Need to approve — swap will be triggered reactively after confirmation
         approveWrite.writeContract({
           address: token.address as `0x${string}`,
-          abi: erc20Abi,
+          abi: [{ name: 'approve', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }] }] as const,
           functionName: 'approve',
-          args: [escrowAddress, inputAmountBig],
+          args: [escrowAddress, BigInt(inputAmount)],
         })
         setState({ ...IDLE_SWAP, isApproveConfirming: true })
       } else {
@@ -245,6 +271,7 @@ function useRealSwapAndDeposit(
         executeSwap(codeHash, token.address as `0x${string}`, inputAmount, quoteResponse)
       }
     } catch (err) {
+      pendingCodeHashRef.current = null  // Fix G: reset ref so a retry doesn't re-trigger the old hash
       setState({ ...IDLE_SWAP, isError: true, error: err instanceof Error ? err : new Error('Swap failed') })
     }
   }
@@ -275,7 +302,7 @@ function useRealSwapAndDeposit(
     if (!approveReceipt.isSuccess || swapWrite.data || !quoteResponse || !pendingCodeHashRef.current) return
     const token = TOKENS[_tokenKey]
     if (!token?.address) return
-    const inputAmount = getInputAmount(quoteResponse)
+    const inputAmount = getOutputAmount(quoteResponse)
     const codeHash = pendingCodeHashRef.current
     pendingCodeHashRef.current = null
     setState(prev => ({ ...prev, isApproveSuccess: true, isSwapPending: true }))
@@ -283,11 +310,14 @@ function useRealSwapAndDeposit(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approveReceipt.isSuccess])
 
-  // Map wagmi state to our state interface
+  // Map wagmi state to our state interface.
+  // isApproveSuccess stays true until the swap write is submitted so that the
+  // "anyBusy" check in BuyerPay covers the brief window between approval
+  // confirmation and the swap tx being sent (Fix F: prevents double-send).
   const derivedState: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
     isApprovePending:    approveWrite.isPending,
     isApproveConfirming: !!approveWrite.data && approveReceipt.isLoading,
-    isApproveSuccess:    approveReceipt.isSuccess,
+    isApproveSuccess:    approveReceipt.isSuccess && !swapWrite.data,
     isSwapPending:       swapWrite.isPending,
     isSwapConfirming:    !!swapWrite.data && swapReceipt.isLoading,
     isSuccess:           swapReceipt.isSuccess,

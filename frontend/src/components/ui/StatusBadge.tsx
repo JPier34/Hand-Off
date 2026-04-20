@@ -8,8 +8,8 @@ const config: Record<EscrowStatus, { label: string; dot: string; pill: string }>
   },
   [EscrowStatus.FUNDED]: {
     label: 'Funded · Meet up',
-    dot:  'bg-amber-400',
-    pill: 'bg-amber-900/30 text-amber-300',
+    dot:  'bg-hoff-warn',
+    pill: 'bg-hoff-warn-bg text-hoff-warn-muted',
   },
   [EscrowStatus.COMPLETED]: {
     label: 'Completed · Claim',
@@ -23,8 +23,8 @@ const config: Record<EscrowStatus, { label: string; dot: string; pill: string }>
   },
   [EscrowStatus.CANCELED]: {
     label: 'Canceled',
-    dot:  'bg-red-400',
-    pill: 'bg-red-900/30 text-red-400',
+    dot:  'bg-hoff-err',
+    pill: 'bg-hoff-err-bg text-hoff-err',
   },
 }
 

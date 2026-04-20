@@ -1,3 +1,18 @@
+// Dynamic.xyz — JavaScript SDK auth hook
+//
+// All imports are from @dynamic-labs-sdk/client — the framework-agnostic JS SDK.
+// No React-specific Dynamic package is used. This hook wires the JS SDK into React
+// state but could be ported to any framework without changing the SDK calls.
+//
+// Auth flow implemented here:
+//   1. sendEmailOTP()                    — send OTP to user's email
+//   2. verifyOTP()                       — verify the 6-digit code
+//   3. createWaasWalletAccounts()        — create embedded wallet (WaaS) if none exists
+//   4. connectAndVerifyWithWalletProvider() — connect MetaMask / external wallet
+//   5. getWalletAccounts()               — read the active wallet address
+//
+// The wallet account is then bridged to wagmi via useDynamicWrite.ts, enabling
+// standard wagmi hooks (useWriteContract, etc.) with Dynamic-managed wallets.
 import { useState, useEffect, useCallback } from 'react'
 import {
   getWalletAccounts,
