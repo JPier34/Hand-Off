@@ -68,7 +68,9 @@ test.describe('BuyerPay swap logic (mock e2e)', () => {
 
     await selectToken(page, 'USDC')
 
-    await expect(page.getByText('Slippage tolerance')).toBeVisible()
-    await expect(page.getByText('0.5%')).toBeVisible()
+    // Wait for mock quote to resolve (400ms delay), then slippage picker appears
+    await expect(page.getByText(/You pay \(USDC\)/)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('Slippage')).toBeVisible()
+    await expect(page.getByRole('button', { name: '0.5%' })).toBeVisible()
   })
 })
