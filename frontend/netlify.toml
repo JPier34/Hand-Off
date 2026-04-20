@@ -29,12 +29,12 @@
   command = "npm run build"
   publish = "dist"
 
-# Context esplicito per test-jpier — punta a Eth Sepolia per test funzionale
+# Context esplicito per test-jpier — punta a mainnet per test swap
 [context.test-jpier]
   command = "npm run build"
   publish = "dist"
   [context.test-jpier.environment]
-    VITE_NETWORK = "sepolia"
+    VITE_NETWORK = "mainnet"
 
 [[redirects]]
   from   = "/api/uniswap/*"
