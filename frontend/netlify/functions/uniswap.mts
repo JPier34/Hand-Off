@@ -4,7 +4,12 @@ const UNISWAP_BASE = "https://trade-api.gateway.uniswap.org/v1"
 
 export default async (request: Request, context: Context) => {
   const url = new URL(request.url)
-  const subpath = url.pathname.replace(/^\/api\/uniswap\/?/, "")
+  // Two invocation paths:
+  // 1. config.path catches /api/uniswap/quote → pathname = "/api/uniswap/quote"
+  // 2. [[redirects]] rewrites /api/uniswap/* → /.netlify/functions/uniswap?path=quote
+  const subpath =
+    url.searchParams.get("path") ??
+    url.pathname.replace(/^\/api\/uniswap\/?/, "").replace(/^\//, "")
   const target = `${UNISWAP_BASE}/${subpath}`
 
   const apiKey = process.env.UNISWAP_API_KEY
