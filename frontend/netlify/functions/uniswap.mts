@@ -31,11 +31,27 @@ export default async (request: Request, context: Context) => {
     body: request.method !== "GET" ? await request.text() : undefined,
   })
 
+  const origin = request.headers.get("origin") ?? ""
+  const isNetlifyPreview = /^https:\/\/[a-z0-9-]+--hand-off-1\.netlify\.app$/.test(origin)
+  const allowed = ["https://app.hand-off.xyz", "https://hand-off.xyz", "https://www.hand-off.xyz"]
+  const allowOrigin = allowed.includes(origin) || isNetlifyPreview ? origin : allowed[0]
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": allowOrigin,
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+      },
+    })
+  }
+
   return new Response(response.body, {
     status: response.status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": allowOrigin,
     },
   })
 }
