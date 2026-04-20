@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import { formatEther, formatUnits, parseEther, parseUnits } from 'viem'
@@ -418,6 +418,14 @@ function ClaimFundsView({
 
 // ─── Completed view ────────────────────────────────────────────────────────────
 
+interface ReviewState {
+  isPending: boolean
+  isConfirming: boolean
+  isSuccess: boolean
+  isError: boolean
+  error: unknown
+}
+
 interface CompletedProps {
   dealIdParam: string
   dealId?: bigint
@@ -429,11 +437,22 @@ interface CompletedProps {
   txHash?: string
   escrowAddress?: string
   onSubmitReview?: (isPositive: boolean) => void
+  reviewState: ReviewState
 }
 
-function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usdLabel, txHash, escrowAddress, onSubmitReview }: CompletedProps) {
+function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usdLabel, txHash, escrowAddress, onSubmitReview, reviewState }: CompletedProps) {
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
+
+  // Mark submitted only after on-chain confirmation — never speculatively
+  useEffect(() => {
+    if (reviewState.isSuccess) setSubmitted(true)
+  }, [reviewState.isSuccess])
+
+  // Reset submitted on error so the seller can retry
+  useEffect(() => {
+    if (reviewState.isError) setSubmitted(false)
+  }, [reviewState.isError])
   const etherscanBase = getTargetChainId() === CHAIN_IDS.MAINNET
     ? 'https://etherscan.io/'
     : 'https://sepolia.etherscan.io/'
@@ -533,7 +552,8 @@ function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usd
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setReview('positive')}
-              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${
+              disabled={reviewState.isPending || reviewState.isConfirming}
+              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all disabled:opacity-50 ${
                 review === 'positive'
                   ? 'bg-hoff-accent/20 border-hoff-accent text-hoff-accent'
                   : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-hoff-accent/40'
@@ -546,7 +566,8 @@ function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usd
             </button>
             <button
               onClick={() => setReview('negative')}
-              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${
+              disabled={reviewState.isPending || reviewState.isConfirming}
+              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all disabled:opacity-50 ${
                 review === 'negative'
                   ? 'bg-hoff-err-bg border-hoff-err text-hoff-err'
                   : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-hoff-err/40'
@@ -558,16 +579,21 @@ function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usd
               <span className="text-xs font-medium">Negative</span>
             </button>
           </div>
+          {reviewState.isError && <ErrorBanner error={reviewState.error} />}
           <button
             onClick={() => {
-              if (!review) return
+              if (!review || reviewState.isPending || reviewState.isConfirming) return
               onSubmitReview?.(review === 'positive')
-              setSubmitted(true)
             }}
-            disabled={!review}
-            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
+            disabled={!review || reviewState.isPending || reviewState.isConfirming}
+            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors flex items-center justify-center gap-2"
           >
-            Submit
+            {(reviewState.isPending || reviewState.isConfirming) ? (
+              <>
+                <Spinner size="sm" />
+                <span>{reviewState.isPending ? 'Confirm in wallet…' : 'Submitting review…'}</span>
+              </>
+            ) : 'Submit'}
           </button>
         </div>
       ) : (
@@ -677,6 +703,7 @@ export default function ManageDeal() {
           txHash={txHash}
           escrowAddress={escrowAddress}
           onSubmitReview={(isPositive) => reviewHook.submitReview(isPositive)}
+          reviewState={reviewHook}
         />
       </Layout>
     )

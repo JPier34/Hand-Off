@@ -169,7 +169,10 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
           ))
           return
         }
-      } catch { /* RPC hiccup — fall through and let the wallet / contract surface it */ }
+      } catch {
+        // RPC unavailable — warn but do not block. MetaMask will surface any on-chain failure.
+        setPreflightError(new Error('Balance check unavailable. Verify you have enough ETH before confirming.'))
+      }
 
       writeContract({
         address: escrowAddress,
@@ -202,7 +205,10 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
         ))
         return
       }
-    } catch { /* RPC hiccup — fall through and let the approve / fund path revert */ }
+    } catch {
+      // RPC unavailable — warn but do not block. Approval/fund will revert on-chain if balance is truly short.
+      setPreflightError(new Error('Balance check unavailable. Verify you have enough tokens before confirming.'))
+    }
 
     // Step 1 = approve, step 2 = fund (chained via useEffect once the approval receipt is in)
     pendingFundRef.current = { codeHash, buyerEns, amount: requiredFunding }

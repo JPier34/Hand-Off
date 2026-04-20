@@ -133,7 +133,7 @@ function useRealDealDetails(dealId: bigint | undefined, directEscrowAddress: Add
     feeRecipientResult.isError ||
     protocolFeeBpsResult.isError
 
-  return { details, isLoading, isError, escrowAddress }
+  return { details, isLoading, isError, escrowAddress, refetch: infoResult.refetch }
 }
 
 function useMockDealDetails(dealId: bigint | undefined) {
@@ -150,6 +150,7 @@ function useMockDealDetails(dealId: bigint | undefined) {
     isError: false,
     error: null,
     escrowAddress: undefined as Address | undefined,
+    refetch: () => {},
   }
 }
 

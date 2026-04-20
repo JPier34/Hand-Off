@@ -168,6 +168,14 @@ function SwapPreview({ tokenKey, quotedIn, amountOutWei, payoutSymbol: outSym, p
 
 // ─── Completed screen ─────────────────────────────────────────────────────────
 
+interface ReviewState {
+  isPending: boolean
+  isConfirming: boolean
+  isSuccess: boolean
+  isError: boolean
+  error: unknown
+}
+
 interface CompletedViewProps {
   code: string
   description: string
@@ -175,12 +183,23 @@ interface CompletedViewProps {
   txHash?: string
   status?: EscrowStatus
   onSubmitReview: (vote: 'positive' | 'negative') => void
+  reviewState: ReviewState
 }
 
-function CompletedView({ code, description, dealIdParam, txHash, status, onSubmitReview }: CompletedViewProps) {
+function CompletedView({ code, description, dealIdParam, txHash, status, onSubmitReview, reviewState }: CompletedViewProps) {
   const isCompleted = status === EscrowStatus.COMPLETED
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
+
+  // Mark submitted only after on-chain confirmation — never speculatively
+  useEffect(() => {
+    if (reviewState.isSuccess) setSubmitted(true)
+  }, [reviewState.isSuccess])
+
+  // Reset submitted on error so the user can retry
+  useEffect(() => {
+    if (reviewState.isError) setSubmitted(false)
+  }, [reviewState.isError])
 
   const etherscanBase = getTargetChainId() === CHAIN_IDS.MAINNET
     ? 'https://etherscan.io/tx/'
@@ -188,9 +207,8 @@ function CompletedView({ code, description, dealIdParam, txHash, status, onSubmi
   const etherscanHref = txHash ? `${etherscanBase}${txHash}` : undefined
 
   function handleSubmit() {
-    if (!review) return
+    if (!review || reviewState.isPending || reviewState.isConfirming) return
     onSubmitReview(review)
-    setSubmitted(true)
   }
 
   return (
@@ -269,7 +287,8 @@ function CompletedView({ code, description, dealIdParam, txHash, status, onSubmi
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setReview('positive')}
-              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${
+              disabled={reviewState.isPending || reviewState.isConfirming}
+              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all disabled:opacity-50 ${
                 review === 'positive'
                   ? 'bg-hoff-accent/20 border-hoff-accent text-hoff-accent'
                   : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-hoff-accent/40'
@@ -282,7 +301,8 @@ function CompletedView({ code, description, dealIdParam, txHash, status, onSubmi
             </button>
             <button
               onClick={() => setReview('negative')}
-              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${
+              disabled={reviewState.isPending || reviewState.isConfirming}
+              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all disabled:opacity-50 ${
                 review === 'negative'
                   ? 'bg-hoff-err-bg border-hoff-err text-hoff-err'
                   : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-hoff-err/40'
@@ -294,12 +314,18 @@ function CompletedView({ code, description, dealIdParam, txHash, status, onSubmi
               <span className="text-xs font-medium">Negative</span>
             </button>
           </div>
+          {reviewState.isError && <ErrorBanner error={reviewState.error} />}
           <button
             onClick={handleSubmit}
-            disabled={!review}
-            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
+            disabled={!review || reviewState.isPending || reviewState.isConfirming}
+            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors flex items-center justify-center gap-2"
           >
-            Submit
+            {(reviewState.isPending || reviewState.isConfirming) ? (
+              <>
+                <Spinner size="sm" />
+                <span>{reviewState.isPending ? 'Confirm in wallet…' : 'Submitting review…'}</span>
+              </>
+            ) : 'Submit'}
           </button>
         </div>
       ) : isCompleted ? (
@@ -325,7 +351,7 @@ export default function BuyerPay() {
   const { dealId, escrowAddress: directAddress } = parseDealParam(dealIdParam)
 
   // ─── All hooks unconditionally — rules of hooks require no conditional calls ──
-  const { details, isLoading, isError, escrowAddress } = useDealDetails(dealId, directAddress)
+  const { details, isLoading, isError, escrowAddress, refetch: refetchDetails } = useDealDetails(dealId, directAddress)
   const dealIdOrZero = dealId ?? 0n
   const { deposit, isPending, isConfirming, isSuccess, isError: txError, error: txErrorObj, txHash } = useDepositFunds(dealIdOrZero, escrowAddress)
   const refund    = useClaimRefund(dealIdOrZero, escrowAddress)
@@ -366,6 +392,13 @@ export default function BuyerPay() {
     if (!details || !isAutoSelected) return
     setSelectedToken(getAutoSelectedTokenKey(details.payoutToken ?? null))
   }, [details?.payoutToken, isAutoSelected, details])
+
+  // Poll every 3s while FUNDED so the review form appears promptly after the seller unlocks
+  useEffect(() => {
+    if (details?.status !== EscrowStatus.FUNDED) return
+    const id = setInterval(() => { refetchDetails() }, 3000)
+    return () => clearInterval(id)
+  }, [details?.status, refetchDetails])
 
   // ─── Guard (after all hooks) ───────────────────────────────────────────────
   if (!isValidDealParam(dealIdParam)) {
@@ -414,9 +447,8 @@ export default function BuyerPay() {
           dealIdParam={dealIdParam}
           txHash={isSwapPath ? swap.txHash : txHash}
           status={details?.status}
-          onSubmitReview={(vote) => {
-            reviewHook.submitReview(vote === 'positive')
-          }}
+          onSubmitReview={(vote) => { reviewHook.submitReview(vote === 'positive') }}
+          reviewState={reviewHook}
         />
       </Layout>
     )
@@ -466,7 +498,7 @@ export default function BuyerPay() {
   const feePercentLabel = details ? formatFeePercent(details.protocolFeeBps) : '0.00%'
 
   // ─── TX state helpers ───────────────────────────────────────────────────────
-  const anyPending    = isSwapPath ? (swap.isApprovePending || swap.isSwapPending) : isPending
+  const anyPending    = isSwapPath ? (swap.isApprovePending || swap.isApproveSuccess || swap.isSwapPending) : isPending
   const anyConfirming = isSwapPath ? (swap.isApproveConfirming || swap.isSwapConfirming) : isConfirming
   const anyError      = isSwapPath ? swap.isError : txError
   const anyErrorObj   = isSwapPath ? swap.error : txErrorObj
@@ -551,6 +583,10 @@ export default function BuyerPay() {
                     />
                   </div>
                 )}
+              {/* ETH escrow — clarify payment must be in ETH */}
+              {details.status === EscrowStatus.CREATED && !shouldShowTokenSelector(details.payoutToken) && (
+                <span className="text-xs text-hoff-text-tertiary shrink-0">Pay in ETH</span>
+              )}
               </div>
 
               <p className="text-xs text-hoff-text-tertiary">
@@ -627,6 +663,13 @@ export default function BuyerPay() {
                 </>
               )}
             </div>
+
+            {/* ETH-in-wallet info for ERC20 escrows: ETH is not a valid pay-with option */}
+            {details.status === EscrowStatus.CREATED && shouldShowTokenSelector(details.payoutToken) && (
+              <div className="bg-hoff-elevated rounded-xl px-4 py-2.5 text-xs text-hoff-text-tertiary">
+                💡 ETH is not available as a payment option for this deal. If you only have ETH, wrap it to WETH first, then select WETH above.
+              </div>
+            )}
 
             {/* Expires row with progress bar */}
             <div className="bg-hoff-surface rounded-2xl px-5 py-3 space-y-2">

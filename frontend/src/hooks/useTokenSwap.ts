@@ -271,6 +271,7 @@ function useRealSwapAndDeposit(
         executeSwap(codeHash, token.address as `0x${string}`, inputAmount, quoteResponse)
       }
     } catch (err) {
+      pendingCodeHashRef.current = null  // Fix G: reset ref so a retry doesn't re-trigger the old hash
       setState({ ...IDLE_SWAP, isError: true, error: err instanceof Error ? err : new Error('Swap failed') })
     }
   }
@@ -309,11 +310,14 @@ function useRealSwapAndDeposit(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approveReceipt.isSuccess])
 
-  // Map wagmi state to our state interface
+  // Map wagmi state to our state interface.
+  // isApproveSuccess stays true until the swap write is submitted so that the
+  // "anyBusy" check in BuyerPay covers the brief window between approval
+  // confirmation and the swap tx being sent (Fix F: prevents double-send).
   const derivedState: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
     isApprovePending:    approveWrite.isPending,
     isApproveConfirming: !!approveWrite.data && approveReceipt.isLoading,
-    isApproveSuccess:    approveReceipt.isSuccess,
+    isApproveSuccess:    approveReceipt.isSuccess && !swapWrite.data,
     isSwapPending:       swapWrite.isPending,
     isSwapConfirming:    !!swapWrite.data && swapReceipt.isLoading,
     isSuccess:           swapReceipt.isSuccess,
