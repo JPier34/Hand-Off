@@ -1,7 +1,11 @@
 import { createConnector } from 'wagmi'
-import { getWalletAccounts, onEvent } from '@dynamic-labs-sdk/client'
-import { sepolia } from 'viem/chains'
+import { getWalletAccounts, onEvent, waitForClientInitialized } from '@dynamic-labs-sdk/client'
+import { sepolia, mainnet } from 'wagmi/chains'
 import type { Address } from 'viem'
+import { DYNAMIC_ENABLED } from '@/lib/dynamic-config'
+import { getTargetChainId, CHAIN_IDS } from '@/lib/chains'
+
+const TARGET_CHAIN = getTargetChainId() === CHAIN_IDS.MAINNET ? mainnet : sepolia
 
 /**
  * Custom wagmi connector that bridges Dynamic SDK wallet accounts to wagmi.
@@ -10,6 +14,24 @@ import type { Address } from 'viem'
  * Writes go through useDynamicWriteContract which uses Dynamic's viem client directly.
  */
 export function dynamicWagmiConnector() {
+  if (!DYNAMIC_ENABLED) {
+    return createConnector((() => ({
+      id: 'dynamic-disabled',
+      name: 'Dynamic Disabled',
+      type: 'dynamic' as const,
+      async setup() {},
+      async connect() { throw new Error('Dynamic is disabled in this environment') },
+      async disconnect() {},
+      async getAccounts() { return [] as readonly Address[] },
+      async getChainId() { return TARGET_CHAIN.id },
+      async getProvider() { return {} as unknown },
+      async isAuthorized() { return false },
+      onAccountsChanged() {},
+      onChainChanged() {},
+      onDisconnect() {},
+    })) as never)
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return createConnector(((config: any) => {
 
@@ -19,19 +41,20 @@ export function dynamicWagmiConnector() {
       type: 'dynamic' as const,
 
       async setup() {
-        // Listen for Dynamic wallet changes and emit wagmi events
-        onEvent({
-          event: 'walletAccountsChanged',
-          listener: ({ walletAccounts }: { walletAccounts: { address?: string }[] }) => {
-            if (walletAccounts && walletAccounts.length > 0 && walletAccounts[0].address) {
-              config.emitter.emit('change', {
-                accounts: [walletAccounts[0].address as Address],
-              })
-            } else {
-              config.emitter.emit('disconnect')
-            }
-          },
-        })
+        waitForClientInitialized().then(() => {
+          onEvent({
+            event: 'walletAccountsChanged',
+            listener: ({ walletAccounts }: { walletAccounts: { address?: string }[] }) => {
+              if (walletAccounts && walletAccounts.length > 0 && walletAccounts[0].address) {
+                config.emitter.emit('change', {
+                  accounts: [walletAccounts[0].address as Address],
+                })
+              } else {
+                config.emitter.emit('disconnect')
+              }
+            },
+          })
+        }).catch(() => { /* client init failed — connector stays idle */ })
       },
 
       async connect() {
@@ -40,7 +63,7 @@ export function dynamicWagmiConnector() {
         if (!walletAccount) throw new Error('No Dynamic wallet connected')
 
         const addr = walletAccount.address as Address
-        const chainId = sepolia.id as number
+        const chainId = TARGET_CHAIN.id as number
 
         config.emitter.emit('connect', { accounts: [addr] as readonly Address[], chainId })
         return { accounts: [addr] as readonly Address[], chainId }
@@ -57,7 +80,7 @@ export function dynamicWagmiConnector() {
       },
 
       async getChainId() {
-        return sepolia.id
+        return TARGET_CHAIN.id
       },
 
       async getProvider() {
@@ -67,8 +90,13 @@ export function dynamicWagmiConnector() {
       },
 
       async isAuthorized() {
-        const accounts = getWalletAccounts()
-        return !!accounts && accounts.length > 0
+        try {
+          const accounts = getWalletAccounts()
+          return !!accounts && accounts.length > 0
+        } catch {
+          // Client not yet initialized — report not authorized; wagmi will retry
+          return false
+        }
       },
 
       onAccountsChanged(accounts: string[]) {

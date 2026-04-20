@@ -8,12 +8,13 @@ import {
   http,
   custom,
 } from 'viem'
-import { sepolia } from 'viem/chains'
+import { sepolia, mainnet } from 'viem/chains'
+import { getTargetChainId, CHAIN_IDS, getRpcUrl, getExplorerUrl } from '@/lib/chains'
 
 import type { Abi, Address } from 'viem'
 
-const ETH_SEPOLIA_RPC = 'https://ethereum-sepolia-rpc.publicnode.com'
-const ETH_SEPOLIA_ID = String(sepolia.id) // "11155111"
+const TARGET_CHAIN    = getTargetChainId() === CHAIN_IDS.MAINNET ? mainnet : sepolia
+const TARGET_CHAIN_ID = String(TARGET_CHAIN.id)
 
 interface WriteContractParams {
   address: Address
@@ -50,6 +51,9 @@ type EIP1193Provider = {
  * account (validateAndNormalizeKeyholder rejects mismatched `from`).
  *
  * Non-MetaMask path: falls back to Dynamic's createWalletClientForWalletAccount.
+ *
+ * Switches to the target chain (mainnet or Sepolia) — chain determined by
+ * VITE_NETWORK env var via getTargetChainId().
  */
 export function useDynamicWriteContract() {
   const [state, setState] = useState<WriteState>(IDLE)
@@ -58,13 +62,6 @@ export function useDynamicWriteContract() {
     setState({ ...IDLE, isPending: true })
 
     try {
-      console.log('[useDynamicWrite] Starting writeContract:', {
-        to: params.address,
-        fn: params.functionName,
-        args: params.args,
-        value: params.value?.toString(),
-      })
-
       const accounts = getWalletAccounts()
       if (!accounts || accounts.length === 0) throw new Error('No wallet connected')
 
@@ -102,14 +99,14 @@ export function useDynamicWriteContract() {
         fromAddress = (mmAccounts[0] ?? walletAccount.address) as `0x${string}`
         console.log('[useDynamicWrite] MetaMask active account:', fromAddress)
 
-        // Switch to Ethereum Sepolia directly via window.ethereum
+        // Switch to target chain directly via window.ethereum
         const chainHex = await rawEthereum.request({ method: 'eth_chainId' }) as string
-        if (parseInt(chainHex, 16) !== sepolia.id) {
+        if (parseInt(chainHex, 16) !== TARGET_CHAIN.id) {
           console.log('[useDynamicWrite] Switching chain via window.ethereum...')
           try {
             await rawEthereum.request({
               method: 'wallet_switchEthereumChain',
-              params: [{ chainId: `0x${sepolia.id.toString(16)}` }],
+              params: [{ chainId: `0x${TARGET_CHAIN.id.toString(16)}` }],
             })
             await new Promise(r => setTimeout(r, 1000))
           } catch (switchErr: unknown) {
@@ -117,11 +114,11 @@ export function useDynamicWriteContract() {
               await rawEthereum.request({
                 method: 'wallet_addEthereumChain',
                 params: [{
-                  chainId: `0x${sepolia.id.toString(16)}`,
-                  chainName: 'Ethereum Sepolia',
+                  chainId: `0x${TARGET_CHAIN.id.toString(16)}`,
+                  chainName: TARGET_CHAIN.name,
                   nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                  rpcUrls: [ETH_SEPOLIA_RPC],
-                  blockExplorerUrls: ['https://sepolia.etherscan.io'],
+                  rpcUrls: [getRpcUrl()],
+                  blockExplorerUrls: [getExplorerUrl()],
                 }],
               })
             } else {
@@ -132,17 +129,17 @@ export function useDynamicWriteContract() {
 
         walletClientAny = createWalletClient({
           account: fromAddress,
-          chain: sepolia,
+          chain: TARGET_CHAIN,
           transport: custom(rawEthereum),
         })
       } else {
-        // ── Non-MetaMask path (embedded wallet, Rainbow, etc.) ──────────────���─
+        // ── Non-MetaMask path (embedded wallet, Rainbow, etc.) ─────────────────
         console.log('[useDynamicWrite] Creating WalletClient via Dynamic for', walletAccount.walletProviderKey)
 
-        // Switch to Ethereum Sepolia via Dynamic SDK
+        // Switch to target chain via Dynamic SDK
         try {
-          await switchActiveNetwork({ walletAccount, networkId: ETH_SEPOLIA_ID })
-          console.log('[useDynamicWrite] Network switched to Ethereum Sepolia')
+          await switchActiveNetwork({ walletAccount, networkId: TARGET_CHAIN_ID })
+          console.log('[useDynamicWrite] Network switched to', TARGET_CHAIN.name)
         } catch (e) {
           console.log('[useDynamicWrite] switchActiveNetwork:', (e as Error)?.message ?? 'ok')
         }
@@ -154,8 +151,8 @@ export function useDynamicWriteContract() {
           const msg = (e as Error)?.message ?? ''
           if (msg.includes('No network data')) {
             throw new Error(
-              'Ethereum Sepolia not configured in Dynamic dashboard. ' +
-              'Go to app.dynamic.xyz → Chains & Networks → enable Ethereum Sepolia (11155111).'
+              `${TARGET_CHAIN.name} not configured in Dynamic dashboard. ` +
+              `Go to app.dynamic.xyz → Chains & Networks → enable ${TARGET_CHAIN.name} (${TARGET_CHAIN.id}).`
             )
           }
           throw e
@@ -164,11 +161,11 @@ export function useDynamicWriteContract() {
         // Switch chain via Dynamic's wallet client
         try {
           const chainHex = await dynamicClient.request({ method: 'eth_chainId' }) as string
-          if (parseInt(chainHex, 16) !== sepolia.id) {
+          if (parseInt(chainHex, 16) !== TARGET_CHAIN.id) {
             try {
               await dynamicClient.request({
                 method: 'wallet_switchEthereumChain',
-                params: [{ chainId: `0x${sepolia.id.toString(16)}` }],
+                params: [{ chainId: `0x${TARGET_CHAIN.id.toString(16)}` }],
               })
               await new Promise(r => setTimeout(r, 1000))
             } catch (switchErr: unknown) {
@@ -176,11 +173,11 @@ export function useDynamicWriteContract() {
                 await dynamicClient.request({
                   method: 'wallet_addEthereumChain',
                   params: [{
-                    chainId: `0x${sepolia.id.toString(16)}`,
-                    chainName: 'Ethereum Sepolia',
+                    chainId: `0x${TARGET_CHAIN.id.toString(16)}`,
+                    chainName: TARGET_CHAIN.name,
                     nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                    rpcUrls: [ETH_SEPOLIA_RPC],
-                    blockExplorerUrls: ['https://sepolia.etherscan.io'],
+                    rpcUrls: [getRpcUrl()],
+                    blockExplorerUrls: [getExplorerUrl()],
                   }],
                 })
               } else {
@@ -195,12 +192,12 @@ export function useDynamicWriteContract() {
         walletClientAny = dynamicClient
       }
 
-      // ── Pre-flight simulation ───────────────────────────────────────────���─
+      // ── Pre-flight simulation ──────────────────────────────────────────────
       // simulateContract decodes custom errors (WrongState, NotParticipant, …)
       // and throws BEFORE we send — no gas wasted on doomed transactions.
       const publicClient = createPublicClient({
-        chain: sepolia,
-        transport: http(ETH_SEPOLIA_RPC),
+        chain: TARGET_CHAIN,
+        transport: http(getRpcUrl()),
       })
       try {
         await publicClient.simulateContract({
@@ -229,10 +226,9 @@ export function useDynamicWriteContract() {
         })
         gasLimit = estimated * 120n / 100n
         if (gasLimit > 5_000_000n) gasLimit = 5_000_000n
-        console.log('[useDynamicWrite] Gas estimate:', estimated.toString(), '→ using:', gasLimit.toString())
       } catch (e) {
-        gasLimit = 1_000_000n
-        console.warn('[useDynamicWrite] estimateGas failed after passing simulation, using 1M fallback:', e)
+        gasLimit = 2_000_000n // safe fallback
+        console.warn('[useDynamicWrite] estimateGas failed after passing simulation, using 2M fallback:', e)
       }
 
       // ── Send transaction ──────────────────────────────────────────────────
@@ -244,7 +240,6 @@ export function useDynamicWriteContract() {
         chain: null,
       })
 
-      console.log('[useDynamicWrite] TX hash:', hash)
       setState({ data: hash, isPending: false, isError: false, error: null })
     } catch (err) {
       console.error('[useDynamicWrite] Transaction failed:', err)

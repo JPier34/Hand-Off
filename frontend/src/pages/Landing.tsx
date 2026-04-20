@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useAccount } from 'wagmi'
 import { Layout } from '@/components/Layout'
 import { Card } from '@/components/ui/Card'
@@ -13,6 +14,7 @@ import { EscrowStatus } from '@/lib/types'
 
 export default function Landing() {
   const { address, isConnected } = useAccount()
+  const [demoExpiresAt] = useState(() => Date.now() + 3_600_000 * 23)
 
   return (
     <Layout>
@@ -53,7 +55,7 @@ export default function Landing() {
 
         <Card>
           <p className="text-xs text-hoff-text-tertiary mb-2">CountdownTimer</p>
-          <CountdownTimer expiresAt={Date.now() + 3_600_000 * 23} />
+          <CountdownTimer expiresAt={demoExpiresAt} />
         </Card>
 
         <Card className="flex items-center gap-4">
@@ -64,7 +66,7 @@ export default function Landing() {
 
         <Card className="space-y-2">
           <p className="text-xs text-hoff-text-tertiary mb-2">Transaction states</p>
-          <div className="flex items-center gap-2 text-amber-400 bg-amber-900/20 px-4 py-3 rounded-lg border border-amber-800/30">
+          <div className="flex items-center gap-2 text-hoff-warn bg-hoff-warn-bg px-4 py-3 rounded-lg border border-hoff-warn/20">
             <Spinner size="sm" />
             <span className="text-sm">Confirm in your wallet app</span>
           </div>
@@ -73,7 +75,7 @@ export default function Landing() {
             <span className="text-sm">Transaction processing on-chain...</span>
           </div>
           <div className="text-hoff-accent bg-hoff-accent-muted px-4 py-3 rounded-lg text-sm">✓ Done</div>
-          <div className="text-red-400 bg-red-900/20 px-4 py-3 rounded-lg text-sm border border-red-800/30">
+          <div className="text-hoff-err bg-hoff-err-bg px-4 py-3 rounded-lg text-sm border border-hoff-err/20">
             Transaction failed
           </div>
         </Card>

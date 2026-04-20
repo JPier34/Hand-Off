@@ -19,5 +19,15 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Allow _-prefixed params/vars as intentional "unused but required by signature" markers
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
+      // State resets at the start of effects are intentional in receipt-polling hooks
+      'react-hooks/set-state-in-effect': 'warn',
+    },
   },
 ])

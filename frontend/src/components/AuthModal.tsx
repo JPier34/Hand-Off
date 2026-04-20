@@ -95,7 +95,7 @@ export function AuthModal() {
 
         {error && (
           <div className="mx-6 mb-3">
-            <p className="text-xs text-red-400 bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>
+            <p className="text-xs text-hoff-err bg-hoff-err-bg px-3 py-2 rounded-lg">{error}</p>
           </div>
         )}
 
@@ -115,7 +115,7 @@ export function AuthModal() {
               <button
                 onClick={handleSendOtp}
                 disabled={!email || isLoading}
-                className="h-12 px-5 rounded-xl bg-hoff-accent text-hoff-bg text-sm font-bold hover:bg-hoff-accent-hover transition-colors disabled:opacity-40 flex items-center justify-center shrink-0"
+                className="h-12 px-5 rounded-xl bg-hoff-accent text-hoff-accent-fg text-sm font-bold hover:bg-hoff-accent-hover transition-colors disabled:opacity-40 flex items-center justify-center shrink-0"
               >
                 {isLoading && !connectingKey ? <Spinner size="sm" /> : 'Continue'}
               </button>
@@ -192,7 +192,7 @@ export function AuthModal() {
             <button
               onClick={handleVerifyOtp}
               disabled={otp.length < 6 || isLoading}
-              className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg text-sm font-bold hover:bg-hoff-accent-hover transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+              className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg text-sm font-bold hover:bg-hoff-accent-hover transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
             >
               {isLoading ? <Spinner size="sm" /> : 'Verify'}
             </button>

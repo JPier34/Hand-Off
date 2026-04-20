@@ -1,7 +1,29 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import type { HandOffSubnameRegistrar, MockENSRegistry, MockENSResolver } from "../typechain-types";
+import type { HandOff, HandOffSubnameRegistrar, MockENSRegistry, MockENSResolver } from "../typechain-types";
+
+// Proxy-aware deploy helper (mirrors HandOff.test.ts)
+let _implCache: HandOff | null = null;
+let _helperCache: Awaited<ReturnType<typeof ethers.deployContract>> | null = null;
+
+async function deployHandOffClone(args: {
+  seller: string; payoutToken: string; amount: bigint; expirationWindow: bigint;
+  dealId: bigint; reputationRegistry: string; subnameRegistrar: string; sellerEns: string;
+  allowedRouter: string; feeRecipient: string; protocolFeeBps: bigint; sellerPayoutAddress: string;
+}): Promise<HandOff> {
+  if (!_implCache) _implCache = (await ethers.deployContract("HandOff", [])) as HandOff;
+  if (!_helperCache) _helperCache = await ethers.deployContract("ClonesHelper", []);
+  const cloneAddress: string = await _helperCache.clone.staticCall(await _implCache.getAddress());
+  await _helperCache.clone(await _implCache.getAddress());
+  const handOff = (await ethers.getContractFactory("HandOff")).attach(cloneAddress) as HandOff;
+  await handOff.initialize(
+    args.seller, args.payoutToken, args.amount, args.expirationWindow,
+    args.dealId, args.reputationRegistry, args.subnameRegistrar, args.sellerEns,
+    args.allowedRouter, args.feeRecipient, args.protocolFeeBps, args.sellerPayoutAddress,
+  );
+  return handOff;
+}
 
 const ONE_ETH = ethers.parseEther("1.0");
 const DEAL_ID = 42n;
@@ -299,7 +321,7 @@ describe("HandOffSubnameRegistrar", function () {
   // ── Graceful failure (UC-16) ─────────────────────────────────────────────────
   describe("Graceful failure path (UC-16)", function () {
     it("HandOff.sol unlock() emits SubnameMintFailed not REVERTED when registrar reverts", async function () {
-      const [deployer, seller, buyer] = await ethers.getSigners();
+      const [deployer, seller, buyer, feeRecipient] = await ethers.getSigners();
       const badResolver = await ethers.deployContract("RevertingENSResolver");
       const mockReg     = await ethers.deployContract("MockENSRegistry") as MockENSRegistry;
       const registrar   = (await ethers.deployContract("HandOffSubnameRegistrar", [
@@ -309,15 +331,17 @@ describe("HandOffSubnameRegistrar", function () {
         PARENT_NODE,
       ])) as HandOffSubnameRegistrar;
       const rep = await ethers.deployContract("HandOffReputation", [deployer.address]);
-      const h   = await ethers.deployContract("HandOff", [
-        seller.address, ethers.ZeroAddress, ethers.parseEther("0.1"), 86_400n,
-        99n, await rep.getAddress(), await registrar.getAddress(), "",
-        ethers.ZeroAddress, // no swap router
-        ethers.ZeroAddress, // _sellerPayoutAddress
-      ]);
+      const h = await deployHandOffClone({
+        seller: seller.address, payoutToken: ethers.ZeroAddress, amount: ethers.parseEther("0.1"),
+        expirationWindow: 86_400n, dealId: 99n, reputationRegistry: await rep.getAddress(),
+        subnameRegistrar: await registrar.getAddress(), sellerEns: "", allowedRouter: ethers.ZeroAddress,
+        feeRecipient: feeRecipient.address, protocolFeeBps: 1n, sellerPayoutAddress: ethers.ZeroAddress,
+      });
       // Register with reputation (deployer is AUTHORIZED_DEPLOYER in unit tests).
       const code = ethers.keccak256(ethers.toUtf8Bytes("test"));
-      await h.connect(buyer).fund(code, "", { value: ethers.parseEther("0.1") });
+      await h.connect(buyer).fund(code, "", {
+        value: ethers.parseEther("0.1") + (ethers.parseEther("0.1") / 10_000n),
+      });
 
       // unlock() MUST succeed — completion is never blocked by minting failure
       await expect(h.connect(seller).unlock(code))

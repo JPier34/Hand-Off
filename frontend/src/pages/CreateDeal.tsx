@@ -1,23 +1,24 @@
 import { useState, useEffect } from 'react'
-import { parseUnits, isAddress, createPublicClient, http } from 'viem'
-import { mainnet } from 'viem/chains'
+import { parseUnits, isAddress } from 'viem'
+import type { Address } from 'viem'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
 import { useNavigate } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
-import { Spinner } from '@/components/ui/Spinner'
+import { EnsInput } from '@/components/EnsInput'
 import { useCreateDeal } from '@/hooks/useEscrowWrite'
-import { MOCK_MODE } from '@/lib/mock'
 import { TOKENS, TOKEN_KEYS, type TokenKey } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
+import { Dropdown } from '@/components/ui/Dropdown'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
 
-function validate(amount: string, description: string) {
+function validate(amount: string, description: string, decimals: number) {
   const errors: { amount?: string; description?: string } = {}
   if (!amount) {
     errors.amount = 'Required'
   } else {
     try {
-      const parsed = parseUnits(amount as `${number}`, 18)
+      const parsed = parseUnits(amount as `${number}`, decimals)
       if (parsed <= 0n) errors.amount = 'Must be greater than 0'
     } catch {
       errors.amount = 'Enter a valid number (e.g. 0.05)'
@@ -44,20 +45,15 @@ export default function CreateDeal() {
 
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
-  const isEnsInput = recipient.endsWith('.eth')
-  const [resolvedAddress, setResolvedAddress] = useState<string | null>(null)
-  const [ensLoading, setEnsLoading] = useState(false)
+  const [resolvedAddress, setResolvedAddress] = useState<Address | null>(null)
+  const [payoutAddressConfirmed, setPayoutAddressConfirmed] = useState(false)
 
+  const isEnsInput = recipient.endsWith('.eth')
+
+  // Reset confirmation when recipient changes
   useEffect(() => {
-    if (!isEnsInput || recipient.length <= 4) { setResolvedAddress(null); return }
-    let cancelled = false
-    setEnsLoading(true)
-    const client = createPublicClient({ chain: mainnet, transport: http('https://ethereum-rpc.publicnode.com') })
-    client.getEnsAddress({ name: recipient }).then((addr) => {
-      if (!cancelled) { setResolvedAddress(addr); setEnsLoading(false) }
-    }).catch(() => { if (!cancelled) { setResolvedAddress(null); setEnsLoading(false) } })
-    return () => { cancelled = true }
-  }, [recipient, isEnsInput])
+    setPayoutAddressConfirmed(false)
+  }, [recipient])
 
   const [description, setDescription] = useState('')
   const [payoutToken, setPayoutToken] = useState<TokenKey>('ETH')
@@ -68,22 +64,18 @@ export default function CreateDeal() {
   const { create, isPending, isConfirming, isSuccess, isError, error, newDealId, newEscrowAddress } =
     useCreateDeal()
 
-  const errors = validate(amount, description)
+  const tokenDecimals = TOKENS[payoutToken]?.decimals ?? 18
+  const tokenAddr = TOKENS[payoutToken]?.address ?? null
+  const errors = validate(amount, description, tokenDecimals)
   const hasErrors = Object.keys(errors).length > 0
 
-  // USD estimate for the entered amount — use token-specific decimals
-  const tokenDecimals = TOKENS[payoutToken]?.decimals ?? 18
   const parsedAmount = (() => { try { return amount ? parseUnits(amount as `${number}`, tokenDecimals) : 0n } catch { return 0n } })()
-  const tokenAddr = TOKENS[payoutToken]?.address ?? null
   const usdValue = useUsdValue(parsedAmount, tokenAddr)
 
   // Prefer dealId for clean URLs, fall back to escrow address
   const dealParam = newDealId ? String(newDealId) : newEscrowAddress
   const shareableLink =
     dealParam ? `${window.location.origin}/pay/${dealParam}` : null
-
-  // Debug: trace success screen gate
-  console.log('[CreateDeal] isSuccess:', isSuccess, 'newDealId:', newDealId?.toString(), 'newEscrowAddress:', newEscrowAddress, 'dealParam:', dealParam, 'shareableLink:', shareableLink)
 
   function handleCreate() {
     setTouched(true)
@@ -184,11 +176,11 @@ export default function CreateDeal() {
           ) : (
             <>
               {/* Fallback: tx confirmed but event parsing failed — still show success */}
-              <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3 space-y-2">
-                <p className="text-sm text-amber-400">
+              <div className="bg-hoff-warn-bg border border-hoff-warn/20 rounded-xl px-4 py-3 space-y-2">
+                <p className="text-sm text-hoff-warn">
                   Deal created but we couldn't extract the payment link automatically.
                 </p>
-                <p className="text-xs text-amber-400/70">
+                <p className="text-xs text-hoff-warn/70">
                   Check your recent transactions on Etherscan (Sepolia) to find the new escrow address, then share <span className="font-mono">{window.location.origin}/pay/[address]</span> with your buyer.
                 </p>
               </div>
@@ -240,22 +232,45 @@ export default function CreateDeal() {
                     <p className="text-xs text-hoff-text-tertiary mt-1">≈ ${usdValue} USD</p>
                   )}
                   {touched && errors.amount && (
-                    <p className="text-xs text-red-400 mt-1">{errors.amount}</p>
+                    <p className="text-xs text-hoff-err mt-1">{errors.amount}</p>
                   )}
                 </div>
-                <select
+                <Dropdown
+                  className="shrink-0 mt-6 min-w-[100px]"
                   value={payoutToken}
-                  onChange={e => setPayoutToken(e.target.value)}
-                  className="shrink-0 mt-6 h-9 px-3 rounded-xl bg-hoff-elevated border border-hoff-brand text-hoff-text-secondary font-medium text-sm appearance-none cursor-pointer focus:outline-none focus:border-hoff-accent/60 transition-colors text-center"
-                  style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
-                >
-                  {TOKEN_KEYS.map(key => (
-                    <option key={key} value={key} className="bg-hoff-elevated">
-                      {TOKENS[key].symbol}
-                    </option>
-                  ))}
-                </select>
+                  onChange={v => setPayoutToken(v as TokenKey)}
+                  options={TOKEN_KEYS.map(key => ({ label: TOKENS[key].symbol, value: key }))}
+                />
               </div>
+            </div>
+
+            {/* Payout address / ENS name */}
+            <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
+              <EnsInput
+                value={recipient}
+                onChange={setRecipient}
+                onResolved={addr => {
+                  setResolvedAddress(addr)
+                  setPayoutAddressConfirmed(false)
+                }}
+                label="Payout Address (Optional)"
+                hint="Enter your ENS name or a different wallet to receive funds. Leave blank to use your connected wallet."
+                placeholder="yourname.eth or 0x..."
+              />
+              {/* Explicit confirmation required when an ENS name resolves to an address */}
+              {isEnsInput && resolvedAddress && (
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={payoutAddressConfirmed}
+                    onChange={e => setPayoutAddressConfirmed(e.target.checked)}
+                    className="mt-0.5 accent-hoff-accent"
+                  />
+                  <span className="text-xs text-hoff-text-tertiary">
+                    I confirm this is the correct payout address. Funds sent to a wrong address are unrecoverable.
+                  </span>
+                </label>
+              )}
             </div>
 
             {/* Description */}
@@ -271,34 +286,7 @@ export default function CreateDeal() {
                 className="w-full bg-transparent text-hoff-text-primary text-sm placeholder:text-hoff-text-tertiary focus:outline-none"
               />
               {touched && errors.description && (
-                <p className="text-xs text-red-400 mt-1">{errors.description}</p>
-              )}
-            </div>
-
-            {/* ENS Name */}
-            <div className="bg-hoff-surface rounded-2xl p-5">
-              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-1">
-                Your ENS Name <span className="normal-case font-normal">(Optional)</span>
-              </p>
-              <p className="text-xs text-hoff-text-tertiary mb-3">
-                Enter your ENS name to display it on the payment page.
-              </p>
-              <input
-                type="text"
-                value={recipient}
-                onChange={e => setRecipient(e.target.value)}
-                placeholder="yourname.eth"
-                className="w-full bg-transparent text-hoff-text-primary text-sm placeholder:text-hoff-text-tertiary focus:outline-none"
-              />
-              {isEnsInput && ensLoading && <p className="text-xs text-hoff-text-tertiary mt-2">Resolving…</p>}
-              {isEnsInput && !ensLoading && resolvedAddress && (
-                <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  Verified: {resolvedAddress.slice(0, 6)}...{resolvedAddress.slice(-4)}
-                </p>
-              )}
-              {isEnsInput && !ensLoading && !resolvedAddress && recipient.length > 4 && (
-                <p className="text-xs text-red-400 mt-2">Could not resolve ENS name</p>
+                <p className="text-xs text-hoff-err mt-1">{errors.description}</p>
               )}
             </div>
 
@@ -307,25 +295,20 @@ export default function CreateDeal() {
               <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-2">
                 Expires In
               </p>
-              <select
-                value={timeoutHours}
-                onChange={e => setTimeoutHours(Number(e.target.value))}
-                className="w-full bg-transparent text-hoff-text-primary text-sm focus:outline-none cursor-pointer"
-              >
-                {TIMEOUT_OPTIONS.map(o => (
-                  <option key={o.hours} value={o.hours} className="bg-hoff-elevated">
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+              <Dropdown
+                value={String(timeoutHours)}
+                onChange={v => setTimeoutHours(Number(v))}
+                options={TIMEOUT_OPTIONS.map(o => ({ label: o.label, value: String(o.hours) }))}
+              />
             </div>
 
-            {isError && <p className="text-xs text-red-400 text-center">{error?.message ?? 'Transaction failed'}</p>}
+            {isError && <ErrorBanner error={error} />}
 
             <Button
               fullWidth
               onClick={handleCreate}
               loading={isPending || isConfirming}
+              disabled={isEnsInput && !!resolvedAddress && !payoutAddressConfirmed}
               type="submit"
             >
               {isPending ? 'Confirm in wallet…' : isConfirming ? 'Deploying on-chain…' : 'Create HandOff'}

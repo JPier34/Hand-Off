@@ -5,11 +5,20 @@ import type { HandOffFactory, HandOffReputation, HandOff } from "../typechain-ty
 
 const ONE_ETH       = ethers.parseEther("1.0");
 const EXPIRY_WINDOW = 86_400n; // 1 day
+const FEE_BPS       = 1n;
+
+function feeFor(amount: bigint) {
+  return (amount * FEE_BPS) / 10_000n;
+}
+
+function requiredFunding(amount: bigint) {
+  return amount + feeFor(amount);
+}
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 async function deployFixture() {
-  const [deployer, seller, buyer, other] = await ethers.getSigners();
+  const [deployer, seller, buyer, other, feeRecipient] = await ethers.getSigners();
 
   // 1. Deploy reputation with EOA as initial deployer
   const rep = (await ethers.deployContract("HandOffReputation", [
@@ -21,12 +30,14 @@ async function deployFixture() {
     await rep.getAddress(),
     ethers.ZeroAddress, // subnameRegistrar — not needed for unit tests
     ethers.ZeroAddress, // allowedRouter — swap disabled
+    feeRecipient.address,
+    FEE_BPS,
   ])) as HandOffFactory;
 
   // 3. Transfer deployer role to factory
   await rep.connect(deployer).transferDeployer(await factory.getAddress());
 
-  return { rep, factory, deployer, seller, buyer, other };
+  return { rep, factory, deployer, seller, buyer, other, feeRecipient };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -42,8 +53,14 @@ describe("HandOffFactory", function () {
     it("reverts with zero reputation registry — ZeroReputationRegistry", async function () {
       const factoryFactory = await ethers.getContractFactory("HandOffFactory");
       await expect(
-        factoryFactory.deploy(ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroAddress)
+        factoryFactory.deploy(ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroAddress, FEE_BPS)
       ).to.be.revertedWithCustomError(factoryFactory, "ZeroReputationRegistry");
+    });
+
+    it("stores fee config correctly", async function () {
+      const { factory, feeRecipient } = await loadFixture(deployFixture);
+      expect(await factory.FEE_RECIPIENT()).to.equal(feeRecipient.address);
+      expect(await factory.PROTOCOL_FEE_BPS()).to.equal(FEE_BPS);
     });
   });
 
@@ -155,6 +172,25 @@ describe("HandOffFactory", function () {
       expect(await handOff.DEAL_ID()).to.equal(dealId);
     });
 
+    it("created escrow inherits fee config from the factory", async function () {
+      const { factory, seller, feeRecipient } = await loadFixture(deployFixture);
+
+      const tx = await factory.connect(seller).createHandOff(
+        ethers.ZeroAddress, ONE_ETH, EXPIRY_WINDOW, "", ethers.ZeroAddress
+      );
+      const receipt = await tx.wait();
+      const iface   = factory.interface;
+      const log     = receipt!.logs.find(
+        (l) => l.topics[0] === iface.getEvent("HandOffCreated")!.topicHash
+      );
+      const escrowAddr = iface.parseLog(log as any)!.args.escrow;
+
+      const escrow = (await ethers.getContractAt("HandOff", escrowAddr)) as HandOff;
+      expect(await escrow.FEE_RECIPIENT()).to.equal(feeRecipient.address);
+      expect(await escrow.PROTOCOL_FEE_BPS()).to.equal(FEE_BPS);
+      expect(await escrow.getRequiredFunding()).to.equal(requiredFunding(ONE_ETH));
+    });
+
     it("deal IDs increment sequentially across multiple calls", async function () {
       const { factory, seller, other } = await loadFixture(deployFixture);
 
@@ -201,7 +237,7 @@ describe("HandOffFactory", function () {
       const codeHash = ethers.keccak256(ethers.toUtf8Bytes(code));
 
       // Buyer funds
-      await escrow.connect(buyer).fund(codeHash, "", { value: ONE_ETH });
+      await escrow.connect(buyer).fund(codeHash, "", { value: requiredFunding(ONE_ETH) });
       expect(await escrow.getState()).to.equal(1); // FUNDED
 
       // Seller unlocks

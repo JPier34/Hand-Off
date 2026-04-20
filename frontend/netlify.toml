@@ -1,15 +1,43 @@
 [build]
-  command = "cd frontend && pnpm install && pnpm build"
-  publish = "frontend/dist"
-  functions = "frontend/netlify/functions"
+  base    = "frontend"
+  command = "npm run build"
+  publish = "dist"
 
+# Production (main branch) — targets Ethereum Mainnet
+[context.production]
+  command = "npm run build"
+  publish = "dist"
+  [context.production.environment]
+    VITE_NETWORK = "mainnet"
+
+# CHAIN_ID (11155111 = Eth Sepolia) is a public constant, not a secret.
+# Netlify's scanner false-positives on it because it matches the CHAIN_ID env var value.
 [build.environment]
-  # These are intentionally client-side (public SDK IDs, non-sensitive config)
-  SECRETS_SCAN_OMIT_KEYS = "DYNAMIC_ENVIRONMENT_ID,CHAIN_ID,MOCK"
-  PNPM_FLAGS = "--no-frozen-lockfile"
+  SECRETS_SCAN_OMIT_KEYS = "CHAIN_ID"
+
+[functions]
+  directory = "netlify/functions"
 
 [dev]
   command = "npm run dev"
   targetPort = 5173
   port = 8888
   autoLaunch = true
+
+# Branch deploys — ogni branch non-main ottiene il proprio URL di preview
+[context.branch-deploy]
+  command = "npm run build"
+  publish = "dist"
+
+# Context esplicito per test-jpier — punta a mainnet per test swap
+[context.test-jpier]
+  command = "npm run build"
+  publish = "dist"
+  [context.test-jpier.environment]
+    VITE_NETWORK = "mainnet"
+
+[[redirects]]
+  from   = "/api/uniswap/*"
+  to     = "/.netlify/functions/uniswap?path=:splat"
+  status = 200
+  force  = true

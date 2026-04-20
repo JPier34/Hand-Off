@@ -13,7 +13,10 @@
     "test:contracts": "pnpm --filter contracts test",
     "dev": "pnpm --filter frontend dev",
     "build": "pnpm --filter frontend build",
-    "typecheck": "pnpm --filter frontend typecheck"
+    "typecheck": "pnpm --filter frontend typecheck",
+    "test:unit": "pnpm --filter frontend test:unit",
+    "test:e2e": "pnpm --filter frontend test:e2e",
+    "playwright:install": "pnpm --filter frontend exec playwright install"
   },
   "devDependencies": {
     "typescript": "^5.4.5"

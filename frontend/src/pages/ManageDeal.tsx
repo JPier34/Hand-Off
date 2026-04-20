@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
-import { formatEther, formatUnits, parseEther } from 'viem'
+import { formatEther, formatUnits, parseEther, parseUnits } from 'viem'
 import { Layout } from '@/components/Layout'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
@@ -10,14 +10,19 @@ import { CountdownTimer } from '@/components/escrow/CountdownTimer'
 import { useDealDetails, parseDealParam } from '@/hooks/useEscrow'
 import { useReleaseEscrow, useCancelDeal, useEditDeal, useSubmitReview } from '@/hooks/useEscrowWrite'
 import { parseContractError } from '@/lib/errors'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
+import { formatFeePercent } from '@/lib/fee'
 import { EscrowStatus } from '@/lib/types'
-import { MOCK_MODE } from '@/lib/mock'
 import { IntroScreen } from '@/components/escrow/IntroScreen'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { payoutSymbol, payoutDecimals } from '@/lib/tokens'
 import { useUsdValue } from '@/hooks/useTokenPrice'
 import { EnsName } from '@/components/EnsName'
+import { DealReceiptBadge } from '@/components/DealReceiptBadge'
 import { useReputation } from '@/hooks/useReputation'
+import { getTargetChainId, CHAIN_IDS, getExplorerUrl } from '@/lib/chains'
 import { useDynamicAuth } from '@/hooks/useDynamicAuth'
+import { MOCK_MODE } from '@/lib/mock'
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 function isValidDealParam(param: string | undefined): param is string {
@@ -159,19 +164,15 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, sellerEns, sta
 
       {/* Amount card */}
       <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-            Amount Due
-          </p>
-          <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            {sym}
-          </span>
-        </div>
+        <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+          Amount
+        </p>
 
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
             {fmt(amount)}
           </span>
+          <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
           <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
 
@@ -213,9 +214,7 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, sellerEns, sta
             )}
           </div>
           <a
-            href={MOCK_MODE
-              ? `https://sepolia.etherscan.io/address/${seller}`
-              : `https://sepolia.etherscan.io/address/${seller}`}
+            href={`${getExplorerUrl()}/address/${seller}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-hoff-text-tertiary hover:text-hoff-text-secondary transition-colors shrink-0"
@@ -299,6 +298,8 @@ function ViewEscrowView({ dealIdParam, amount, expiresAt, seller, sellerEns, sta
 interface ClaimFundsProps {
   dealIdParam: string
   amount: bigint
+  feeAmount: bigint
+  protocolFeeBps: bigint
   expiresAt: bigint
   description: string
   sym: string
@@ -313,7 +314,7 @@ interface ClaimFundsProps {
 }
 
 function ClaimFundsView({
-  dealIdParam, amount, expiresAt, description, sym, fmt, usdLabel,
+  dealIdParam, amount, feeAmount, protocolFeeBps, expiresAt, description, sym, fmt, usdLabel,
   onBack, onRelease, isPending, isConfirming, isError, error,
 }: ClaimFundsProps) {
   const [chars, setChars] = useState(['', '', '', ''])
@@ -352,20 +353,22 @@ function ClaimFundsView({
 
       {/* You will receive */}
       <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-            You Will Receive
-          </p>
-          <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            {sym}
-          </span>
-        </div>
+        <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+          You Will Receive
+        </p>
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
             {fmt(amount)}
           </span>
+          <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
           <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
+        {feeAmount > 0n && (
+          <div className="pt-3 border-t border-hoff-brand flex items-center justify-between text-[11px] text-hoff-text-tertiary">
+            <span>Buyer paid {fmt(amount + feeAmount)} {sym}</span>
+            <span>{formatFeePercent(protocolFeeBps)} platform fee</span>
+          </div>
+        )}
       </div>
 
       {/* Code input card */}
@@ -398,7 +401,7 @@ function ClaimFundsView({
         </div>
       </div>
 
-      {isError && (() => { const msg = parseContractError(error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
+      {isError && <ErrorBanner error={error} />}
 
       <Button
         fullWidth
@@ -415,6 +418,14 @@ function ClaimFundsView({
 
 // ─── Completed view ────────────────────────────────────────────────────────────
 
+interface ReviewState {
+  isPending: boolean
+  isConfirming: boolean
+  isSuccess: boolean
+  isError: boolean
+  error: unknown
+}
+
 interface CompletedProps {
   dealIdParam: string
   dealId?: bigint
@@ -423,16 +434,33 @@ interface CompletedProps {
   sym: string
   fmt: (v: bigint) => string
   usdLabel: string
+  txHash?: string
+  escrowAddress?: string
   onSubmitReview?: (isPositive: boolean) => void
+  reviewState: ReviewState
 }
 
-function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usdLabel, onSubmitReview }: CompletedProps) {
+function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usdLabel, txHash, escrowAddress, onSubmitReview, reviewState }: CompletedProps) {
   const [review, setReview] = useState<'positive' | 'negative' | null>(null)
   const [submitted, setSubmitted] = useState(false)
-  const etherscanBase = 'https://sepolia.etherscan.io/tx/'
-  const etherscanHref = MOCK_MODE
-    ? `${etherscanBase}0x0000000000000000000000000000000000000000000000000000000000000000`
-    : etherscanBase
+
+  // Mark submitted only after on-chain confirmation — never speculatively
+  useEffect(() => {
+    if (reviewState.isSuccess) setSubmitted(true)
+  }, [reviewState.isSuccess])
+
+  // Reset submitted on error so the seller can retry
+  useEffect(() => {
+    if (reviewState.isError) setSubmitted(false)
+  }, [reviewState.isError])
+  const etherscanBase = getTargetChainId() === CHAIN_IDS.MAINNET
+    ? 'https://etherscan.io/'
+    : 'https://sepolia.etherscan.io/'
+  const etherscanHref = txHash
+    ? `${etherscanBase}tx/${txHash}`
+    : escrowAddress
+      ? `${etherscanBase}address/${escrowAddress}`
+      : undefined
 
   return (
     <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
@@ -458,36 +486,37 @@ function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usd
 
       {/* Amount received */}
       <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
-            You Will Receive
-          </p>
-          <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">
-            {sym}
-          </span>
-        </div>
+        <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">
+          You Will Receive
+        </p>
         <div>
           <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
             {fmt(amount)}
           </span>
+          <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
           <p className="text-xs text-hoff-text-tertiary mt-1">{usdLabel}</p>
         </div>
       </div>
 
+      {/* ENS Receipt Badge */}
+      <DealReceiptBadge dealIdParam={dealIdParam} />
+
       {/* Etherscan */}
-      <a
-        href={etherscanHref}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 w-full h-12 rounded-xl border border-hoff-text-tertiary/30 text-sm text-hoff-text-secondary hover:text-hoff-text-primary hover:border-hoff-text-secondary/50 transition-colors"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-          <polyline points="15 3 21 3 21 9"/>
-          <line x1="10" y1="14" x2="21" y2="3"/>
-        </svg>
-        View on Etherscan
-      </a>
+      {etherscanHref && (
+        <a
+          href={etherscanHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full h-12 rounded-xl border border-hoff-text-tertiary/30 text-sm text-hoff-text-secondary hover:text-hoff-text-primary hover:border-hoff-text-secondary/50 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          {txHash ? 'View on Etherscan' : 'View Contract on Etherscan'}
+        </a>
+      )}
 
       {/* ENS Receipt — minted on-chain via HandOffSubnameRegistrar */}
       {dealId !== undefined && (
@@ -523,7 +552,8 @@ function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usd
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setReview('positive')}
-              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${
+              disabled={reviewState.isPending || reviewState.isConfirming}
+              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all disabled:opacity-50 ${
                 review === 'positive'
                   ? 'bg-hoff-accent/20 border-hoff-accent text-hoff-accent'
                   : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-hoff-accent/40'
@@ -536,10 +566,11 @@ function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usd
             </button>
             <button
               onClick={() => setReview('negative')}
-              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${
+              disabled={reviewState.isPending || reviewState.isConfirming}
+              className={`h-20 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all disabled:opacity-50 ${
                 review === 'negative'
-                  ? 'bg-red-900/30 border-red-500 text-red-400'
-                  : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-red-500/40'
+                  ? 'bg-hoff-err-bg border-hoff-err text-hoff-err'
+                  : 'bg-hoff-surface border-hoff-surface text-hoff-text-secondary hover:border-hoff-err/40'
               }`}
             >
               <svg width="20" height="20" viewBox="0 0 24 24">
@@ -548,16 +579,21 @@ function CompletedView({ dealIdParam, dealId, amount, description, sym, fmt, usd
               <span className="text-xs font-medium">Negative</span>
             </button>
           </div>
+          {reviewState.isError && <ErrorBanner error={reviewState.error} />}
           <button
             onClick={() => {
-              if (!review) return
+              if (!review || reviewState.isPending || reviewState.isConfirming) return
               onSubmitReview?.(review === 'positive')
-              setSubmitted(true)
             }}
-            disabled={!review}
-            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-bg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors"
+            disabled={!review || reviewState.isPending || reviewState.isConfirming}
+            className="w-full h-12 rounded-xl bg-hoff-accent text-hoff-accent-fg font-bold text-sm disabled:opacity-40 hover:bg-hoff-accent-hover transition-colors flex items-center justify-center gap-2"
           >
-            Submit
+            {(reviewState.isPending || reviewState.isConfirming) ? (
+              <>
+                <Spinner size="sm" />
+                <span>{reviewState.isPending ? 'Confirm in wallet…' : 'Submitting review…'}</span>
+              </>
+            ) : 'Submit'}
           </button>
         </div>
       ) : (
@@ -587,24 +623,13 @@ export default function ManageDeal() {
 
   const { dealId, escrowAddress: directAddress } = parseDealParam(dealIdParam)
 
-  if (!isValidDealParam(dealIdParam)) {
-    return (
-      <Layout>
-        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
-          <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-red-400">Invalid deal link. Check the URL and try again.</p>
-          </div>
-        </main>
-      </Layout>
-    )
-  }
-
-  const mockDealId = dealId ?? 0n
+  // ─── All hooks unconditionally — rules of hooks require no conditional calls ──
+  const dealIdOrZero = dealId ?? 0n
 
   const { details, isLoading, isError, escrowAddress }                              = useDealDetails(dealId, directAddress)
-  const { release, isPending, isConfirming, isSuccess, isError: releaseError, error: releaseErrorObj } = useReleaseEscrow(mockDealId, escrowAddress)
-  const cancelDeal = useCancelDeal(mockDealId, escrowAddress)
-  const editDeal   = useEditDeal(mockDealId, escrowAddress)
+  const { release, isPending, isConfirming, isSuccess, isError: releaseError, error: releaseErrorObj, txHash } = useReleaseEscrow(dealIdOrZero, escrowAddress)
+  const cancelDeal = useCancelDeal(dealIdOrZero, escrowAddress)
+  const editDeal   = useEditDeal(dealIdOrZero, escrowAddress)
   const reviewHook = useSubmitReview(escrowAddress)
 
   // Token display helpers
@@ -614,11 +639,23 @@ export default function ManageDeal() {
   const usdRaw = useUsdValue(details?.amount ?? 0n, details?.payoutToken ?? null)
   const usdLabel = usdRaw ? `≈ $${usdRaw} USD` : ''
 
-  // In mock mode there's no connected wallet — treat the user as the seller.
   // Use Dynamic's walletAddress (always up-to-date) with wagmi as fallback —
   // wagmi's address can be undefined when connected via Dynamic SDK.
   const connectedAddress = dynamicAddress ?? wagmiAddress
   const isSeller = MOCK_MODE || !!(connectedAddress && details && connectedAddress.toLowerCase() === details.seller.toLowerCase())
+
+  // ─── Guard (after all hooks) ───────────────────────────────────────────────
+  if (!isValidDealParam(dealIdParam)) {
+    return (
+      <Layout>
+        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
+          <div className="bg-hoff-surface rounded-2xl p-5">
+            <p className="text-sm text-hoff-err">Invalid deal link. Check the URL and try again.</p>
+          </div>
+        </main>
+      </Layout>
+    )
+  }
 
   // ─── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
@@ -635,7 +672,7 @@ export default function ManageDeal() {
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6">
           <div className="bg-hoff-surface rounded-2xl p-5">
-            <p className="text-sm text-red-400">Could not load deal. Check the link and try again.</p>
+            <p className="text-sm text-hoff-err">Could not load deal. Check the link and try again.</p>
           </div>
         </main>
       </Layout>
@@ -663,7 +700,10 @@ export default function ManageDeal() {
           sym={sym}
           fmt={fmt}
           usdLabel={usdLabel}
+          txHash={txHash}
+          escrowAddress={escrowAddress}
           onSubmitReview={(isPositive) => reviewHook.submitReview(isPositive)}
+          reviewState={reviewHook}
         />
       </Layout>
     )
@@ -696,7 +736,7 @@ export default function ManageDeal() {
       <Layout>
         <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-5">
           <div className="flex flex-col items-center gap-3 pt-2">
-            <div className="w-16 h-16 rounded-full bg-red-900/30 border-2 border-red-500/40 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-hoff-err-bg border-2 border-hoff-err/40 flex items-center justify-center">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
@@ -729,7 +769,7 @@ export default function ManageDeal() {
               No funds have been deposited, so nothing needs to be refunded.
             </p>
 
-            {cancelDeal.isError && (() => { const msg = parseContractError(cancelDeal.error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
+            {cancelDeal.isError && <ErrorBanner error={cancelDeal.error} />}
 
             <Button
               fullWidth
@@ -755,7 +795,7 @@ export default function ManageDeal() {
     if (showEdit) {
       const amountValid = (() => {
         if (!editAmount) return false
-        try { return parseEther(editAmount as `${number}`) > 0n } catch { return false }
+        try { return parseUnits(editAmount as `${number}`, dec) > 0n } catch { return false }
       })()
 
       return (
@@ -808,24 +848,20 @@ export default function ManageDeal() {
               <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest mb-2">
                 New Expiration
               </p>
-              <select
-                value={editExpirationHours}
-                onChange={e => setEditExpirationHours(Number(e.target.value))}
-                className="w-full bg-transparent text-hoff-text-primary text-sm focus:outline-none cursor-pointer"
-              >
-                {[
-                  { label: '1 Day',   hours: 24 },
-                  { label: '3 Days',  hours: 72 },
-                  { label: '7 Days',  hours: 168 },
-                  { label: '14 Days', hours: 336 },
-                  { label: '30 Days', hours: 720 },
-                ].map(o => (
-                  <option key={o.hours} value={o.hours} className="bg-hoff-elevated">{o.label}</option>
-                ))}
-              </select>
+              <Dropdown
+                value={String(editExpirationHours)}
+                onChange={v => setEditExpirationHours(Number(v))}
+                options={[
+                  { label: '1 Day',   value: '24' },
+                  { label: '3 Days',  value: '72' },
+                  { label: '7 Days',  value: '168' },
+                  { label: '14 Days', value: '336' },
+                  { label: '30 Days', value: '720' },
+                ]}
+              />
             </div>
 
-            {editDeal.isError && (() => { const msg = parseContractError(editDeal.error); return msg ? <div className="bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3"><p className="text-sm text-red-400 text-center">{msg}</p></div> : null })()}
+            {editDeal.isError && <ErrorBanner error={editDeal.error} />}
 
             {!editDeal.isSuccess ? (
               <Button
@@ -834,7 +870,7 @@ export default function ManageDeal() {
                   if (!amountValid) return
                   const newExpiry = BigInt(Math.floor(Date.now() / 1000) + editExpirationHours * 3600)
                   editDeal.edit(
-                    parseEther(editAmount as `${number}`),
+                    parseUnits(editAmount as `${number}`, dec),
                     editDescription,
                     (details?.payoutToken ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
                     (details?.seller ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
@@ -876,13 +912,13 @@ export default function ManageDeal() {
           </div>
 
           <div className="bg-hoff-surface rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">Amount</p>
-              <span className="text-xs font-semibold text-hoff-accent bg-hoff-accent-muted px-2.5 py-1 rounded-lg">{sym}</span>
+            <p className="text-xs font-semibold text-hoff-text-tertiary uppercase tracking-widest">Amount</p>
+            <div>
+              <span className="text-5xl font-bold text-hoff-text-primary tabular-nums">
+                {fmt(details.amount)}
+              </span>
+              <span className="text-lg font-medium text-hoff-text-tertiary ml-1.5">{sym}</span>
             </div>
-            <span className="text-5xl font-bold text-hoff-text-primary tabular-nums block">
-              {fmt(details.amount)}
-            </span>
             <div className="space-y-1.5 pt-1 border-t border-hoff-brand">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-hoff-text-tertiary">Expires in</span>
@@ -895,9 +931,9 @@ export default function ManageDeal() {
           </div>
 
           {/* Waiting indicator */}
-          <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-3 flex items-center gap-2">
+          <div className="bg-hoff-warn-bg border border-hoff-warn/20 rounded-xl px-4 py-3 flex items-center gap-2">
             <Spinner size="sm" />
-            <span className="text-sm text-amber-400">Waiting for buyer to pay…</span>
+            <span className="text-sm text-hoff-warn">Waiting for buyer to pay…</span>
           </div>
 
           {/* Share link */}
@@ -934,7 +970,7 @@ export default function ManageDeal() {
                 variant="ghost"
                 fullWidth
                 onClick={() => {
-                  setEditAmount(formatEther(details.amount))
+                  setEditAmount(formatUnits(details.amount, dec))
                   setEditDescription(details.description)
                   setEditExpirationHours(168)
                   setShowEdit(true)
@@ -963,6 +999,8 @@ export default function ManageDeal() {
         <ClaimFundsView
           dealIdParam={dealIdParam}
           amount={details.amount}
+          feeAmount={details.feeAmount}
+          protocolFeeBps={details.protocolFeeBps}
           expiresAt={details.expiresAt}
           description={details.description}
           sym={sym}

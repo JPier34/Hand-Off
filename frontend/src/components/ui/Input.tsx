@@ -31,9 +31,9 @@ export function Input({
         className={`w-full bg-transparent text-hoff-text-primary text-sm
           placeholder:text-hoff-text-tertiary/50
           focus:outline-none
-          ${error ? 'border-b border-red-500 pb-1' : ''}`}
+          ${error ? 'border-b border-hoff-err pb-1' : ''}`}
       />
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-hoff-err">{error}</p>}
     </div>
   )
 }

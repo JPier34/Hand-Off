@@ -87,6 +87,10 @@ contract HandOffReputation {
     // QUALITY: emit event on revocation so indexers can track deregistrations
     event HandOffRevoked(address indexed escrow);
     event DeployerTransferred(address indexed previousDeployer, address indexed newDeployer);
+    /// @dev Emitted when a deal amount exceeds uint128.max and the volume is capped.
+    ///      uint128 can hold ~3.4×10^20 ETH (more than total supply) and ~3.4×10^32 USDC (6 dec),
+    ///      so this event should never fire in practice. Included for off-chain observability.
+    event VolumeCapReached(address indexed seller, uint256 rawAmount);
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     modifier onlyDeployer() {
@@ -181,6 +185,7 @@ contract HandOffReputation {
             _reputation[_seller].sellerTotalVolume += uint128(_amount);
         } else {
             _reputation[_seller].sellerTotalVolume += type(uint128).max;
+            emit VolumeCapReached(_seller, _amount);
         }
         _reputation[_buyer].buyerDealCount++;
 

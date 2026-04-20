@@ -1,12 +1,31 @@
-import { useState, useEffect } from 'react'
-import { parseEther, parseUnits, parseEventLogs, createPublicClient, createWalletClient, http, custom } from 'viem'
-import { sepolia } from 'viem/chains'
+import { useState, useEffect, useRef } from 'react'
+import { parseUnits, parseEventLogs, createWalletClient, createPublicClient, custom, http, formatUnits } from 'viem'
+import { sepolia, mainnet } from 'viem/chains'
+import { getTargetChainId, CHAIN_IDS, getRpcUrl } from '@/lib/chains'
 import { HANDOFF_ABI, FACTORY_ABI, FACTORY_ADDRESS, SUBNAME_ABI, SUBNAME_ADDRESS } from '@/lib/constants'
 import { MOCK_MODE, MOCK_DEAL_ID, mockDeposit, mockRelease, mockRefund, mockCancel, mockEditDeal } from '@/lib/mock'
 import { hashUnlockCode } from '@/lib/code-gen'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { TOKENS, getTokenByAddress } from '@/lib/tokens'
+import { getWalletAccounts } from '@dynamic-labs-sdk/client'
+
+const ERC20_BALANCE_ABI = [{
+  name: 'balanceOf', type: 'function', stateMutability: 'view',
+  inputs: [{ name: 'account', type: 'address' }],
+  outputs: [{ name: '', type: 'uint256' }],
+}] as const
+
+async function getConnectedAddress(): Promise<Address | null> {
+  try {
+    const accounts = getWalletAccounts()
+    const addr = accounts?.[0]?.address
+    return (addr as Address | undefined) ?? null
+  } catch {
+    return null
+  }
+}
+import { extractEnsMintFallbackArgs } from '@/lib/ensFallback'
 import type { Address } from '@/lib/types'
 import type { Abi } from 'viem'
 
@@ -48,11 +67,6 @@ function useRealCreateDeal() {
   const receiptQuery = useReceiptPoller(hash)
   const { isLoading: isConfirming, isSuccess, receipt } = receiptQuery
 
-  // Debug: trace the full create flow
-  if (hash) {
-    console.log('[useCreateDeal] hash:', hash, 'isConfirming:', isConfirming, 'isSuccess:', isSuccess, 'receipt:', !!receipt, 'receiptStatus:', receipt?.status, 'receiptError:', receiptQuery.isError, receiptQuery.error?.message)
-  }
-
   // FACTORY WIRING (UC-1): call HandOffFactory.createHandOff() instead of deploying directly.
   // The factory atomically deploys a new HandOff escrow + registers it with HandOffReputation.
   function create(
@@ -80,32 +94,25 @@ function useRealCreateDeal() {
   let newDealId: bigint | undefined
   let newEscrowAddress: Address | undefined
   if (receipt) {
-    console.log('[useEscrowWrite] Receipt received, logs:', receipt.logs.length, 'status:', receipt.status)
     try {
       const logs = parseEventLogs({
         abi: FACTORY_ABI as Abi,
         logs: receipt.logs,
         eventName: 'HandOffCreated',
       })
-      console.log('[useEscrowWrite] HandOffCreated logs found:', logs.length)
       if (logs.length > 0) {
         const args = logs[0].args as { seller: Address; escrow: Address; dealId: bigint }
         newDealId = args.dealId
         newEscrowAddress = args.escrow
-        console.log('[useEscrowWrite] Parsed dealId:', newDealId?.toString(), 'escrow:', newEscrowAddress)
       }
     } catch (e) {
       console.warn('[useEscrowWrite] Failed to parse HandOffCreated event:', e)
       // Fallback: try to extract from raw log topics if parseEventLogs fails
-      // HandOffCreated topic0 = keccak256("HandOffCreated(address,address,uint256)")
       for (const log of receipt.logs) {
         if (log.topics.length === 4 && log.address.toLowerCase() === FACTORY_ADDRESS.toLowerCase()) {
-          console.log('[useEscrowWrite] Fallback: found factory log with 4 topics')
           try {
-            // topics[1] = seller (address, padded), topics[2] = escrow, topics[3] = dealId
             newEscrowAddress = ('0x' + log.topics[2]!.slice(26)) as Address
             newDealId = BigInt(log.topics[3]!)
-            console.log('[useEscrowWrite] Fallback parsed dealId:', newDealId.toString(), 'escrow:', newEscrowAddress)
           } catch (e2) {
             console.warn('[useEscrowWrite] Fallback parsing also failed:', e2)
           }
@@ -127,49 +134,100 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
   const { writeContract, data: hash, isPending, isError, error } = useDynamicWriteContract()
   const { isLoading: isConfirming, isSuccess } = useReceiptPoller(hash)
 
+  // Surface balance / native-coin pre-flight failures that happen before any
+  // tx is fired, so the UI can show a specific message instead of a bare
+  // 'execution reverted'.
+  const [preflightError, setPreflightError] = useState<Error | null>(null)
+
   // Store params for the chained fund() call after ERC20 approval
-  const [pendingFund, setPendingFund] = useState<{
+  const pendingFundRef = useRef<{
     codeHash: `0x${string}`; buyerEns: string; amount: bigint
   } | null>(null)
 
-  function deposit(amount: string, codeHash: `0x${string}`, buyerEns = '', payoutToken?: Address | null) {
-    console.log('[useEscrowWrite] deposit called:', { amount, codeHash, buyerEns, escrowAddress, payoutToken })
-    if (!escrowAddress) { console.log('[useEscrowWrite] No escrowAddress, aborting deposit'); return }
+  async function deposit(requiredFunding: bigint, codeHash: `0x${string}`, buyerEns = '', payoutToken?: Address | null) {
+    if (!escrowAddress) return
+    setPreflightError(null)
+
+    const chain = getTargetChainId() === CHAIN_IDS.MAINNET ? mainnet : sepolia
+    const publicClient = createPublicClient({ chain, transport: http(getRpcUrl()) })
+
+    // Resolve the connected buyer address (used for balance/allowance reads).
+    const buyer = await getConnectedAddress()
+    if (!buyer) {
+      setPreflightError(new Error('No wallet connected. Connect a wallet and try again.'))
+      return
+    }
 
     if (!payoutToken) {
-      // ETH escrow: send native ETH as msg.value
-      const value = parseEther(amount)
-      console.log('[useEscrowWrite] ETH path, calling fund() with value:', value.toString())
+      // ETH escrow — make sure the wallet can cover the native transfer.
+      try {
+        const balance = await publicClient.getBalance({ address: buyer })
+        if (balance < requiredFunding) {
+          const short = formatUnits(requiredFunding - balance, 18)
+          setPreflightError(new Error(
+            `Not enough ETH to fund this deal. You need about ${short} ETH more (plus gas).`
+          ))
+          return
+        }
+      } catch {
+        // RPC unavailable — warn but do not block. MetaMask will surface any on-chain failure.
+        setPreflightError(new Error('Balance check unavailable. Verify you have enough ETH before confirming.'))
+      }
+
       writeContract({
         address: escrowAddress,
         abi: HANDOFF_ABI,
         functionName: 'fund',
         args: [codeHash, buyerEns],
-        value,
+        value: requiredFunding,
       })
-    } else {
-      // ERC20 escrow: step 1 = approve, step 2 = fund (chained via useEffect)
-      const decimals = getTokenByAddress(payoutToken).decimals
-      const tokenAmount = parseUnits(amount, decimals)
-      console.log('[useEscrowWrite] ERC20 path, approving', payoutToken, 'decimals:', decimals, 'amount:', tokenAmount.toString())
-      setPendingFund({ codeHash, buyerEns, amount: tokenAmount })
-      approveWrite.writeContract({
-        address: payoutToken,
-        abi: [{
-          name: 'approve', type: 'function', stateMutability: 'nonpayable',
-          inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
-          outputs: [{ name: '', type: 'bool' }],
-        }] as unknown as Abi,
-        functionName: 'approve',
-        args: [escrowAddress, tokenAmount],
-      })
+      return
     }
+
+    // ERC20 escrow — confirm the buyer actually holds enough of the payout token.
+    try {
+      const tokenMeta = getTokenByAddress(payoutToken)
+      const decimals = tokenMeta?.decimals ?? 18
+      const symbol = tokenMeta?.symbol ?? 'the payout token'
+      const balance = await publicClient.readContract({
+        address: payoutToken,
+        abi: ERC20_BALANCE_ABI,
+        functionName: 'balanceOf',
+        args: [buyer],
+      }) as bigint
+      if (balance < requiredFunding) {
+        const missing = formatUnits(requiredFunding - balance, decimals)
+        setPreflightError(new Error(
+          `Not enough ${symbol} in your wallet. You need about ${missing} ${symbol} more. ` +
+          (symbol === 'WETH'
+            ? 'Wrap some ETH to WETH first, or pick a different Pay-With token.'
+            : 'Top up your wallet, or pick a different Pay-With token.')
+        ))
+        return
+      }
+    } catch {
+      // RPC unavailable — warn but do not block. Approval/fund will revert on-chain if balance is truly short.
+      setPreflightError(new Error('Balance check unavailable. Verify you have enough tokens before confirming.'))
+    }
+
+    // Step 1 = approve, step 2 = fund (chained via useEffect once the approval receipt is in)
+    pendingFundRef.current = { codeHash, buyerEns, amount: requiredFunding }
+    approveWrite.writeContract({
+      address: payoutToken,
+      abi: [{
+        name: 'approve', type: 'function', stateMutability: 'nonpayable',
+        inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
+        outputs: [{ name: '', type: 'bool' }],
+      }] as unknown as Abi,
+      functionName: 'approve',
+      args: [escrowAddress, requiredFunding],
+    })
   }
 
   // Chain: after ERC20 approval confirms, call fund() with value = 0
   useEffect(() => {
+    const pendingFund = pendingFundRef.current
     if (approveReceipt.isSuccess && pendingFund && escrowAddress && !hash) {
-      console.log('[useEscrowWrite] ERC20 approval confirmed, calling fund() with value: 0')
       writeContract({
         address: escrowAddress,
         abi: HANDOFF_ABI,
@@ -177,9 +235,9 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
         args: [pendingFund.codeHash, pendingFund.buyerEns],
         // No value — contract pulls tokens via safeTransferFrom
       })
-      setPendingFund(null)
+      pendingFundRef.current = null
     }
-  }, [approveReceipt.isSuccess, pendingFund, escrowAddress, hash, writeContract])
+  }, [approveReceipt.isSuccess, escrowAddress, hash, writeContract])
 
   const isApproving = approveWrite.isPending || (!!approveWrite.data && approveReceipt.isLoading)
 
@@ -188,8 +246,9 @@ function useRealDepositFunds(dealId: bigint, escrowAddress?: Address) {
     isPending: isPending || isApproving,
     isConfirming,
     isSuccess,
-    isError: isError || approveWrite.isError,
-    error: error || approveWrite.error,
+    isError: isError || approveWrite.isError || !!preflightError,
+    error: preflightError ?? error ?? approveWrite.error,
+    txHash: hash,
   }
 }
 
@@ -224,34 +283,18 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
     if (!isSuccess || !receipt || SUBNAME_ADDRESS === '0x0000000000000000000000000000000000000000') return
 
     try {
-      // Check if on-chain mint failed — SubnameMintFailed is emitted only on revert
-      const failedLogs = parseEventLogs({
-        abi:       HANDOFF_ABI as Abi,
-        logs:      receipt.logs,
-        eventName: 'SubnameMintFailed',
-      })
-      if (failedLogs.length === 0) {
+      const args = extractEnsMintFallbackArgs(receipt.logs)
+      if (!args) {
         // On-chain mint succeeded — nothing to do
-        console.log('[useReleaseEscrow] ENS subname minted on-chain — skipping frontend fallback')
         return
       }
 
-      // On-chain mint failed — parse SubnameMintRequested for args and retry from wallet
-      const requestedLogs = parseEventLogs({
-        abi:       HANDOFF_ABI as Abi,
-        logs:      receipt.logs,
-        eventName: 'SubnameMintRequested',
-      })
-      if (requestedLogs.length === 0) return
+      console.warn('[useReleaseEscrow] On-chain ENS mint failed — retrying from wallet for dealId:', args.dealId.toString())
 
-      const args = requestedLogs[0].args as {
-        dealId: bigint; escrow: Address; buyer: Address; seller: Address; amount: bigint; timestamp: bigint
-      }
-
-      console.log('[useReleaseEscrow] On-chain ENS mint failed — retrying from wallet for dealId:', args.dealId.toString())
       if (typeof window !== 'undefined' && (window as unknown as { ethereum?: unknown }).ethereum) {
         const ethProvider = (window as unknown as { ethereum: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum
-        const walletClient = createWalletClient({ chain: sepolia, transport: custom(ethProvider) })
+        const targetChain = getTargetChainId() === CHAIN_IDS.MAINNET ? mainnet : sepolia
+        const walletClient = createWalletClient({ chain: targetChain, transport: custom(ethProvider) })
 
         ethProvider.request({ method: 'eth_requestAccounts' }).then(async (accounts) => {
           const accs = accounts as `0x${string}`[]
@@ -263,7 +306,7 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
             functionName: 'registerAndMint',
             args:         [args.dealId, args.escrow, args.buyer, args.seller, args.amount, args.timestamp],
             account:      accs[0],
-            chain:        sepolia,
+            chain:        targetChain,
             gas:          300_000n, // explicit cap — prevents MetaMask gas estimation overflow
           })
           console.log(`[useReleaseEscrow] ENS subname minted: deal-${args.dealId}.hand-off.eth`)
@@ -277,7 +320,7 @@ function useRealReleaseEscrow(dealId: bigint, escrowAddress?: Address) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuccess])
 
-  return { release, isPending, isConfirming, isSuccess, isError, error }
+  return { release, isPending, isConfirming, isSuccess, isError, error, txHash: hash }
 }
 
 // Refund: call refund() on escrow — no args
@@ -371,14 +414,14 @@ function useMockCreateDeal() {
 
 function useMockDepositFunds(dealId: bigint) {
   const { trigger, ...state } = useMockTx(() => mockDeposit(dealId))
-  function deposit(_amount: string, _codeHash: `0x${string}`, _buyerEns = '', _payoutToken?: Address | null) { trigger() }
-  return { deposit, ...state }
+  function deposit(_requiredFunding: bigint, _codeHash: `0x${string}`, _buyerEns = '', _payoutToken?: Address | null) { trigger() }
+  return { deposit, ...state, txHash: undefined }
 }
 
 function useMockReleaseEscrow(dealId: bigint) {
   const { trigger, ...state } = useMockTx(() => mockRelease(dealId))
   function release(_code: string) { trigger() }
-  return { release, ...state }
+  return { release, ...state, txHash: undefined }
 }
 
 function useMockClaimRefund(dealId: bigint) {

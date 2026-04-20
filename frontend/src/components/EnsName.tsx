@@ -1,39 +1,35 @@
 import { useState, useEffect } from 'react'
-import { createPublicClient, http } from 'viem'
-import { mainnet } from 'viem/chains'
-const mainnetClient = createPublicClient({
-  chain: mainnet,
-  transport: http('https://ethereum-rpc.publicnode.com'),
-})
-
-const cache = new Map<string, string | null>()
+import { resolveEnsAddress } from '@/lib/ens'
 
 interface EnsNameProps {
   address: `0x${string}`
+  /** On-chain stored ENS name — shown immediately without network lookup when provided. */
+  hint?: string
   className?: string
 }
 
-export function EnsName({ address, className = '' }: EnsNameProps) {
-  const [ensName, setEnsName] = useState<string | null>(cache.get(address) ?? null)
+/**
+ * Displays an address as its ENS name (or short hex fallback).
+ *
+ * Resolution priority:
+ * 1. `hint` — on-chain stored ENS name (e.g. `sellerEns` from the escrow contract)
+ * 2. Reverse ENS resolution via mainnet RPC (async)
+ * 3. Truncated hex address as fallback
+ */
+export function EnsName({ address, hint, className = '' }: EnsNameProps) {
+  const [resolved, setResolved] = useState<string | null>(null)
 
   useEffect(() => {
-    if (cache.has(address)) {
-      setEnsName(cache.get(address)!)
-      return
-    }
+    // If hint is set, skip the RPC call entirely
+    if (hint) return
     let cancelled = false
-    mainnetClient.getEnsName({ address }).then((name) => {
-      if (!cancelled) {
-        cache.set(address, name)
-        setEnsName(name)
-      }
-    }).catch(() => {
-      if (!cancelled) cache.set(address, null)
+    resolveEnsAddress(address).then((name) => {
+      if (!cancelled) setResolved(name)
     })
     return () => { cancelled = true }
-  }, [address])
+  }, [address, hint])
 
-  const display = ensName ?? `${address.slice(0, 6)}...${address.slice(-4)}`
+  const display = hint || resolved || `${address.slice(0, 6)}...${address.slice(-4)}`
 
   return <span className={className}>{display}</span>
 }

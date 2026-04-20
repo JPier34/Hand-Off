@@ -25,6 +25,14 @@ interface IPublicResolver {
 }
 
 // ---------------------------------------------------------------------------
+// Minimal interface to validate params against the calling escrow (same-chain path)
+interface IHandOffEscrow {
+    function SELLER() external view returns (address);
+    function buyer()  external view returns (address);
+    function DEAL_ID() external view returns (uint256);
+}
+
+// ---------------------------------------------------------------------------
 // HandOffSubnameRegistrar — deployed on Eth Sepolia
 // UC-16: mints deal-{id}.hand-off.eth on successful unlock
 //   - Called by HandOff.sol on same chain (for same-chain path)
@@ -50,6 +58,7 @@ contract HandOffSubnameRegistrar {
     error InvalidEscrow();
     error AlreadyRegistered();
     error AlreadyMinted();
+    error EscrowParamsMismatch();
 
     // ── Constants ────────────────────────────────────────────────────────────
     /// @dev TTL of 0 is conventional for ENS records that don't use TTL caching.
@@ -152,6 +161,22 @@ contract HandOffSubnameRegistrar {
         uint256 _amount,
         uint256 _timestamp
     ) external onlyRegisteredEscrow {
+        // For same-chain calls the caller IS the escrow — validate params match on-chain state
+        // to prevent a registered escrow contract from minting receipts with fabricated addresses.
+        // extcodesize check: EOA callers (e.g. test signers) skip the interface call since they
+        // have no code. In production, escrow contracts are always deployed by HandOffFactory.
+        if (msg.sender == _escrow) {
+            uint256 codeSize;
+            assembly { codeSize := extcodesize(_escrow) }
+            if (codeSize > 0) {
+                IHandOffEscrow esc = IHandOffEscrow(_escrow);
+                if (
+                    esc.SELLER()  != _seller  ||
+                    esc.buyer()   != _buyer   ||
+                    esc.DEAL_ID() != _dealId
+                ) revert EscrowParamsMismatch();
+            }
+        }
         _mintReceipt(_dealId, _escrow, _buyer, _seller, _amount, _timestamp);
     }
 
@@ -174,6 +199,7 @@ contract HandOffSubnameRegistrar {
         // Subname node: keccak256(abi.encodePacked(parentNode, labelHash))
         bytes32 subnameNode = keccak256(abi.encodePacked(PARENT_NODE, labelHash));
 
+        // slither-disable-next-line reentrancy-no-eth -- minted[_dealId] = true set above; ENS contracts are trusted
         // Create subnode under hand-off.eth pointing to this contract as owner+resolver
         ENS_REGISTRY.setSubnodeRecord(
             PARENT_NODE,

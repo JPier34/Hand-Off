@@ -1,0 +1,16 @@
+{
+  "filter_paths": "node_modules,contracts/test",
+  "detectors_to_exclude": [
+    "naming-convention",
+    "shadowing-local",
+    "missing-zero-check",
+    "reentrancy-benign",
+    "reentrancy-events",
+    "low-level-calls",
+    "timestamp",
+    "assembly",
+    "cyclomatic-complexity",
+    "missing-inheritance"
+  ],
+  "compile_force_framework": "hardhat"
+}

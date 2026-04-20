@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAccount } from 'wagmi'
+import { useAccount, useReadContract } from 'wagmi'
 import { useReceiptPoller } from '@/hooks/useReceiptPoller'
 import { useDynamicWriteContract } from '@/hooks/useDynamicWrite'
 import { MOCK_MODE, mockDeposit } from '@/lib/mock'
-import { TOKENS, WETH_ADDRESS, type TokenKey } from '@/lib/tokens'
-import { fetchQuote, getInputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
+import { TOKENS, type TokenKey, payoutDecimals } from '@/lib/tokens'
+import { fetchQuote, getOutputAmount, checkApproval, fetchSwap, type QuoteResponse } from '@/lib/uniswap'
 import { HANDOFF_ABI, UNIVERSAL_ROUTER_ADDRESS } from '@/lib/constants'
 import type { Address } from '@/lib/types'
+import { buildExactOutputQuoteRequest } from '@/lib/swapQuoteLogic'
+import { getTargetChainId } from '@/lib/chains'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -27,6 +29,7 @@ export interface SwapAndDepositState {
   isSuccess:           boolean
   isError:             boolean
   error:               Error | null
+  txHash:              `0x${string}` | undefined
 }
 
 const IDLE_SWAP: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
@@ -38,87 +41,113 @@ const IDLE_SWAP: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
   isSuccess:           false,
   isError:             false,
   error:               null,
+  txHash:              undefined,
 }
 
 // ─── Mock: useQuote ───────────────────────────────────────────────────────────
 
-function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint): QuoteResult {
-  const [isLoading, setIsLoading] = useState(false)
-  const [quotedIn, setQuotedIn]   = useState<bigint | undefined>(undefined)
+function useMockQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null, _slippage = 0.5): QuoteResult {
+  const [state, setState] = useState<{ requestKey: string | null; quotedIn: bigint | undefined }>({
+    requestKey: null,
+    quotedIn: undefined,
+  })
 
   useEffect(() => {
     const token = TOKENS[tokenKey]
-    if (!token || tokenKey === 'ETH') { setQuotedIn(undefined); return }
+    if (!token || tokenKey === 'ETH' || !payoutToken) return
 
-    setIsLoading(true)
-    setQuotedIn(undefined)
+    const requestKey = `${tokenKey}:${amountOutWei.toString()}:${payoutToken}`
+
     const id = setTimeout(() => {
-      // mockRate is "smallest unit per 1 ETH (10^18 wei)"
-      // quotedIn = amountOutWei * mockRate / 10^18
-      const result = (amountOutWei * token.mockRate) / 10n ** 18n
-      setQuotedIn(result)
-      setIsLoading(false)
+      // mockRate is "smallest unit per 1 ETH (10^18 wei)".
+      // Normalise amountOutWei to an 18-decimal base so the rate math
+      // works regardless of the payout token's decimals (USDC=6, WETH=18, …).
+      const outDec = payoutDecimals(payoutToken)
+      const normalised = outDec === 18
+        ? amountOutWei
+        : amountOutWei * 10n ** BigInt(18 - outDec)
+      const result = (normalised * token.mockRate) / 10n ** 18n
+      setState({ requestKey, quotedIn: result })
     }, 400)
 
     return () => clearTimeout(id)
-  }, [tokenKey, amountOutWei])
+  }, [tokenKey, amountOutWei, payoutToken])
+
+  const token = TOKENS[tokenKey]
+  const supported = !!token && tokenKey !== 'ETH' && !!payoutToken
+  const requestKey = supported ? `${tokenKey}:${amountOutWei.toString()}:${payoutToken}` : null
+  const isLoading = !!requestKey && state.requestKey !== requestKey
+  const quotedIn = state.requestKey === requestKey ? state.quotedIn : undefined
 
   return { quotedIn, quoteResponse: null, isLoading, error: null }
 }
 
 // ─── Real: useQuote ───────────────────────────────────────────────────────────
 
-function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutTokenAddress: Address | null): QuoteResult {
+function useRealQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null, slippage = 0.5): QuoteResult {
   const { address } = useAccount()
-  const [isLoading, setIsLoading] = useState(false)
-  const [quotedIn, setQuotedIn]   = useState<bigint | undefined>(undefined)
-  const [quoteResponse, setQuoteResponse] = useState<QuoteResponse | null>(null)
-  const [error, setError]         = useState<string | null>(null)
+  const [state, setState] = useState<{
+    requestKey: string | null
+    quotedIn: bigint | undefined
+    quoteResponse: QuoteResponse | null
+    error: string | null
+  }>({
+    requestKey: null,
+    quotedIn: undefined,
+    quoteResponse: null,
+    error: null,
+  })
 
   useEffect(() => {
-    const token = TOKENS[tokenKey]
-    if (!token || tokenKey === 'ETH' || !address || amountOutWei <= 0n) {
-      setQuotedIn(undefined)
-      setQuoteResponse(null)
-      setError(null)
-      return
-    }
+    const quoteRequest = buildExactOutputQuoteRequest({
+      swapper: address,
+      tokenKey,
+      amountOutWei,
+      payoutToken,
+      slippage,
+    })
+
+    if (!quoteRequest) return
 
     let cancelled = false
-    setIsLoading(true)
-    setError(null)
+    const requestKey = JSON.stringify(quoteRequest)
 
-    const tokenIn = token.address
-    if (!tokenIn) return
-
-    // EXACT_OUTPUT: buyer pays tokenIn, receives payoutToken for the escrow
-    // For ETH escrows, target WETH (WETH9 = ETH on Uniswap)
-    const tokenOut = payoutTokenAddress ?? WETH_ADDRESS
-    fetchQuote({
-      swapper:         address,
-      tokenIn:         tokenIn,
-      tokenOut,
-      tokenInChainId:  '11155111',         // Eth Sepolia
-      tokenOutChainId: '11155111',
-      amount:          amountOutWei.toString(),
-      type:            'EXACT_OUTPUT',
-      slippageTolerance: 0.5,
-    })
+    fetchQuote(quoteRequest)
       .then(resp => {
         if (cancelled) return
-        const outputAmt = getInputAmount(resp)
-        setQuotedIn(BigInt(outputAmt))
-        setQuoteResponse(resp)
-        setIsLoading(false)
+        const outputAmt = getOutputAmount(resp)
+        setState({
+          requestKey,
+          quotedIn: BigInt(outputAmt),
+          quoteResponse: resp,
+          error: null,
+        })
       })
       .catch(err => {
         if (cancelled) return
-        setError(err.message)
-        setIsLoading(false)
+        setState({
+          requestKey,
+          quotedIn: undefined,
+          quoteResponse: null,
+          error: err.message,
+        })
       })
 
     return () => { cancelled = true }
-  }, [tokenKey, amountOutWei, address, payoutTokenAddress])
+  }, [tokenKey, amountOutWei, address, payoutToken, slippage])
+
+  const quoteRequest = buildExactOutputQuoteRequest({
+    swapper: address,
+    tokenKey,
+    amountOutWei,
+    payoutToken,
+    slippage,
+  })
+  const requestKey = quoteRequest ? JSON.stringify(quoteRequest) : null
+  const isLoading = !!requestKey && state.requestKey !== requestKey
+  const quotedIn = state.requestKey === requestKey ? state.quotedIn : undefined
+  const quoteResponse = state.requestKey === requestKey ? state.quoteResponse : null
+  const error = state.requestKey === requestKey ? state.error : null
 
   return { quotedIn, quoteResponse, isLoading, error }
 }
@@ -170,6 +199,29 @@ function useRealSwapAndDeposit(
   // Store codeHash across the async approval → swap boundary
   const pendingCodeHashRef = useRef<`0x${string}` | null>(null)
 
+  // Sanity-check: the router we pass to fundWithSwap must match ALLOWED_ROUTER
+  // on the escrow, otherwise the contract reverts with DisallowedRouter and
+  // the user pays gas for nothing. Read once when the escrow is known.
+  const allowedRouterResult = useReadContract({
+    address: escrowAddress,
+    abi: HANDOFF_ABI,
+    functionName: 'ALLOWED_ROUTER',
+    query: { enabled: !!escrowAddress },
+  })
+  const allowedRouter = allowedRouterResult.data as `0x${string}` | undefined
+
+  useEffect(() => {
+    if (!allowedRouter) return
+    if (allowedRouter.toLowerCase() !== UNIVERSAL_ROUTER_ADDRESS.toLowerCase()) {
+      console.warn(
+        '[useSwapAndDeposit] Router mismatch — escrow ALLOWED_ROUTER =',
+        allowedRouter,
+        'but frontend UNIVERSAL_ROUTER_ADDRESS =',
+        UNIVERSAL_ROUTER_ADDRESS,
+      )
+    }
+  }, [allowedRouter])
+
   // Approval tx
   const approveWrite = useDynamicWriteContract()
   const approveReceipt = useReceiptPoller(approveWrite.data)
@@ -184,6 +236,16 @@ function useRealSwapAndDeposit(
       setState({ ...IDLE_SWAP, isError: true, error: new Error('Missing data for swap') })
       return
     }
+    if (allowedRouter && allowedRouter.toLowerCase() !== UNIVERSAL_ROUTER_ADDRESS.toLowerCase()) {
+      setState({
+        ...IDLE_SWAP,
+        isError: true,
+        error: new Error(
+          'Swap is disabled — the Uniswap router on the escrow contract does not match the one configured in this app. Ask the team to update UNIVERSAL_ROUTER_ADDRESS.',
+        ),
+      })
+      return
+    }
 
     // Persist codeHash so the approval useEffect can use it
     pendingCodeHashRef.current = codeHash
@@ -191,8 +253,8 @@ function useRealSwapAndDeposit(
     try {
       setState({ ...IDLE_SWAP, isApprovePending: true })
 
-      const inputAmount = getInputAmount(quoteResponse) // tokenIn amount buyer must pay
-      const approval = await checkApproval(address, token.address, inputAmount, 11155111)
+      const inputAmount = getOutputAmount(quoteResponse) // for EXACT_OUTPUT, this is the input amount
+      const approval = await checkApproval(address, token.address, inputAmount, getTargetChainId())
 
       if (approval) {
         // Need to approve — swap will be triggered reactively after confirmation
@@ -209,6 +271,7 @@ function useRealSwapAndDeposit(
         executeSwap(codeHash, token.address as `0x${string}`, inputAmount, quoteResponse)
       }
     } catch (err) {
+      pendingCodeHashRef.current = null  // Fix G: reset ref so a retry doesn't re-trigger the old hash
       setState({ ...IDLE_SWAP, isError: true, error: err instanceof Error ? err : new Error('Swap failed') })
     }
   }
@@ -239,7 +302,7 @@ function useRealSwapAndDeposit(
     if (!approveReceipt.isSuccess || swapWrite.data || !quoteResponse || !pendingCodeHashRef.current) return
     const token = TOKENS[_tokenKey]
     if (!token?.address) return
-    const inputAmount = getInputAmount(quoteResponse)
+    const inputAmount = getOutputAmount(quoteResponse)
     const codeHash = pendingCodeHashRef.current
     pendingCodeHashRef.current = null
     setState(prev => ({ ...prev, isApproveSuccess: true, isSwapPending: true }))
@@ -247,16 +310,20 @@ function useRealSwapAndDeposit(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approveReceipt.isSuccess])
 
-  // Map wagmi state to our state interface
+  // Map wagmi state to our state interface.
+  // isApproveSuccess stays true until the swap write is submitted so that the
+  // "anyBusy" check in BuyerPay covers the brief window between approval
+  // confirmation and the swap tx being sent (Fix F: prevents double-send).
   const derivedState: Omit<SwapAndDepositState, 'swapAndDeposit'> = {
     isApprovePending:    approveWrite.isPending,
     isApproveConfirming: !!approveWrite.data && approveReceipt.isLoading,
-    isApproveSuccess:    approveReceipt.isSuccess,
+    isApproveSuccess:    approveReceipt.isSuccess && !swapWrite.data,
     isSwapPending:       swapWrite.isPending,
     isSwapConfirming:    !!swapWrite.data && swapReceipt.isLoading,
     isSuccess:           swapReceipt.isSuccess,
     isError:             state.isError || approveWrite.isError || swapWrite.isError,
     error:               state.error || approveWrite.error || swapWrite.error || null,
+    txHash:              swapWrite.data,
   }
 
   return { swapAndDeposit, ...derivedState }
@@ -264,9 +331,9 @@ function useRealSwapAndDeposit(
 
 // ─── Public exports ───────────────────────────────────────────────────────────
 
-export function useQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutTokenAddress: Address | null = null): QuoteResult {
-  const real = useRealQuote(tokenKey, amountOutWei, payoutTokenAddress)
-  const mock = useMockQuote(tokenKey, amountOutWei)
+export function useQuote(tokenKey: TokenKey, amountOutWei: bigint, payoutToken: Address | null, slippage = 0.5): QuoteResult {
+  const real = useRealQuote(tokenKey, amountOutWei, payoutToken, slippage)
+  const mock = useMockQuote(tokenKey, amountOutWei, payoutToken, slippage)
   return MOCK_MODE ? mock : real
 }
 
