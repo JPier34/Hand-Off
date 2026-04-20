@@ -85,6 +85,7 @@ function TokenSelector({ selected, onChange }: { selected: TokenKey; onChange: (
       value={selected}
       onChange={v => onChange(v as TokenKey)}
       options={options.map(key => ({ label: TOKENS[key].symbol, value: key }))}
+      data-testid="token-selector"
     />
   )
 }

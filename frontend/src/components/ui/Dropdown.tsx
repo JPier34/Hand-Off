@@ -10,9 +10,10 @@ interface DropdownProps {
   onChange: (value: string) => void
   options: DropdownOption[]
   className?: string
+  'data-testid'?: string
 }
 
-export function Dropdown({ value, onChange, options, className = '' }: DropdownProps) {
+export function Dropdown({ value, onChange, options, className = '', 'data-testid': testId }: DropdownProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -27,7 +28,7 @@ export function Dropdown({ value, onChange, options, className = '' }: DropdownP
   const selected = options.find(o => o.value === value)
 
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div ref={ref} className={`relative ${className}`} data-testid={testId}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
