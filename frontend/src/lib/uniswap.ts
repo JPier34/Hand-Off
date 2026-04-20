@@ -2,22 +2,20 @@ import { z } from 'zod'
 
 // Uniswap Trading API client
 // Requests go to /api/uniswap/* which is proxied server-side:
-// - Production (Netlify): Netlify Function adds the API key server-side
-// - Dev: Vite proxy forwards to Uniswap API (API key added via dev proxy)
-//   NOTE: If the proxy hasn't been restarted, DEV_API_KEY injects it client-side as a fallback.
+// - Production (Netlify): Netlify Function injects UNISWAP_API_KEY server-side (never in bundle)
+// - Dev: Vite proxy forwards to Uniswap API; set VITE_UNISWAP_API_KEY in .env.local for auth
 
 const API_BASE = '/api/uniswap'
-
-// Dev-only fallback: inject key client-side until the proxy is restarted.
-// import.meta.env.DEV is false in production builds, so the key is never bundled for prod.
-const DEV_API_KEY = import.meta.env.DEV ? 'Hn15B01okvGodmX1Sx6m0qO_5xiWYgRlEDRUfpYIWb0' : ''
 
 function buildHeaders(): HeadersInit {
   const h: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-universal-router-version': '2.0',
   }
-  if (DEV_API_KEY) h['x-api-key'] = DEV_API_KEY
+  // In dev only, read key from env var — never hardcoded, never in prod bundle
+  if (import.meta.env.DEV && import.meta.env.VITE_UNISWAP_API_KEY) {
+    h['x-api-key'] = import.meta.env.VITE_UNISWAP_API_KEY as string
+  }
   return h
 }
 

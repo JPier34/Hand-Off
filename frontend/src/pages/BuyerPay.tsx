@@ -384,6 +384,7 @@ export default function BuyerPay() {
 
   // Determine overall success from either direct deposit or swap path
   const fundingSuccess = isSwapPath ? swap.isSuccess : isSuccess
+  const alreadyFunded = details?.status === EscrowStatus.FUNDED
 
   // Expired detection (UC-9 / UC-17)
   const isExpired = !!(details && details.status === EscrowStatus.FUNDED &&
@@ -404,7 +405,7 @@ export default function BuyerPay() {
   }
 
   // ─── Completed screen ──────────────────────────────────────────────────────
-  if (fundingSuccess && unlockCode) {
+  if ((fundingSuccess || alreadyFunded) && unlockCode) {
     return (
       <Layout>
         <CompletedView
@@ -417,6 +418,25 @@ export default function BuyerPay() {
             reviewHook.submitReview(vote === 'positive')
           }}
         />
+      </Layout>
+    )
+  }
+
+  // Funded on-chain but no unlock code in this browser (cleared storage / different device)
+  if (alreadyFunded && !unlockCode) {
+    return (
+      <Layout>
+        <main className="w-full px-4 sm:max-w-md sm:mx-auto py-6 space-y-4">
+          <div className="bg-hoff-surface rounded-2xl p-6 flex flex-col items-center gap-3 text-center">
+            <div className="w-12 h-12 rounded-full bg-hoff-warn-bg flex items-center justify-center">
+              <span className="text-2xl">⏳</span>
+            </div>
+            <h2 className="text-lg font-semibold text-hoff-text-primary">Escrow Funded</h2>
+            <p className="text-sm text-hoff-text-secondary">
+              This escrow has been funded. Show the seller your unlock code — check the device or browser you used to pay.
+            </p>
+          </div>
+        </main>
       </Layout>
     )
   }
