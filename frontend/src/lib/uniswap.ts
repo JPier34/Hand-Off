@@ -39,12 +39,12 @@ const classicQuoteResponseSchema = z.object({
       token: addressSchema,
       amount: numericStringSchema,
     }),
-    slippage: z.number(),
-    gasFee: numericStringSchema,
-    gasFeeUSD: z.string(),
-    gasUseEstimate: numericStringSchema,
-  }),
-  permitData: z.record(z.string(), z.unknown()).nullable(),
+    slippage: z.number().optional(),
+    gasFee: z.string().optional(),
+    gasFeeUSD: z.string().optional(),
+    gasUseEstimate: z.string().optional(),
+  }).passthrough(),
+  permitData: z.record(z.unknown()).nullable(),
 })
 
 const uniswapXQuoteResponseSchema = z.object({
